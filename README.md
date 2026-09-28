@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M3 进行中** — 工具框架与首批 16 个设备工具已落地并在真机验证（模型发工具调用 → 设备执行 → 结果回填 → 最终回答）；下一步：截屏/OCR、无障碍闭环、权限中心、Tasks 运行中心。
+**状态：M3 进行中** — 已完成：工具框架 + 23 个设备工具、截屏（MediaProjection 前台服务）+ ML Kit OCR、无障碍服务与 UI 自动化（ui_find → ui_tap 真机闭环验证）、权限入口。下一步：Runtime v2（计划-验证、确认门、Tasks 运行中心、后台运行）。
 
 ## 核心目标
 
@@ -72,7 +72,7 @@ adb reverse tcp:8765 tcp:8765            # 模拟器/真机访问宿主机
 | M0.5 导航壳重做 | ✅ 完成 |
 | M1 垂直切片（Agents + 流式聊天 + Runtime 骨架 + eval 骨架） | ✅ 完成 |
 | M2 完整聊天（三家 Provider/附件/语音/记忆/压缩/搜索/收藏/导出/设置） | ✅ 完成（语音助手免提模式与 PDF/Office 解析留待后续） |
-| M3 Runtime v1（工具框架 ✅ / 截屏 OCR / 无障碍 / 权限中心 / Tasks 控制台 / 后台运行） | 进行中 |
+| M3 Runtime v1（工具框架 ✅ / 截屏 OCR ✅ / 无障碍 ✅ / 权限入口 ✅ / Tasks 控制台 / 后台运行） | 进行中 |
 | M4 子代理 + 工具 + 自动化 + Skills v2 | 计划中 |
 | M5 MCP + 评测扩充 + CI 指标门禁 | 计划中 |
 | M6 打磨与 v0.1.0 发布 | 计划中 |
