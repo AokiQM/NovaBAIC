@@ -1,0 +1,9 @@
+# Keep GitHub language stats focused on the app code
+docs/* linguist-documentation
+*.md linguist-documentation
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jks binary
+*.keystore binary

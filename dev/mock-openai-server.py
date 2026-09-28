@@ -124,6 +124,10 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(delay)
 
         trigger = re.search(r"tooltest:([a-z_]+)", user_text)
+        if trigger is None and not tool_results and (
+            "设备" in user_text or "status" in user_text.lower()
+        ):
+            trigger = re.match(r"(?P<name>device_info)", "device_info")
         if trigger and trigger.group(1) == "auto":
             if not tool_results:
                 send(

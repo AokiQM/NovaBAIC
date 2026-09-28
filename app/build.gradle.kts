@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2026 Verlintas
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of BetterAIChat2.
+ *
+ * BetterAIChat2 is free software: you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later
+ * version.
+ *
+ * BetterAIChat2 is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * BetterAIChat2. If not, see <https://www.gnu.org/licenses/>.
+ */
+
 import java.util.Properties
 
 plugins {
@@ -13,6 +32,9 @@ val keystoreProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+fun signingValue(environment: String, property: String): String? =
+    System.getenv(environment) ?: keystoreProperties.getProperty(property)
+
 android {
     namespace = "com.verlintas.baic2"
     compileSdk = 37
@@ -27,12 +49,16 @@ android {
 
     signingConfigs {
         create("release") {
-            val storePath = keystoreProperties.getProperty("storeFile")
-            if (!storePath.isNullOrBlank() && rootProject.file(storePath).exists()) {
-                storeFile = rootProject.file(storePath)
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+            val storePath = signingValue("BAIC2_KEYSTORE_PATH", "storeFile")
+            val store = storePath?.let { path ->
+                val file = rootProject.file(path)
+                if (file.exists()) file else null
+            }
+            if (store != null) {
+                storeFile = store
+                storePassword = signingValue("BAIC2_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("BAIC2_KEY_ALIAS", "keyAlias")
+                keyPassword = signingValue("BAIC2_KEY_PASSWORD", "keyPassword")
             }
         }
     }

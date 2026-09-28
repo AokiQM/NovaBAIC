@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="baic2_window_background">#FAFAFB</color>
-    <color name="baic2_icon_background">#0B0B0D</color>
+    <color name="baic2_icon_background">#000000</color>
 </resources>

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 下载最新版本
+    url: https://github.com/Verlintas/NovaBAIC/releases/latest
+    about: 反馈问题前请先确认使用最新版本
+  - name: 安全漏洞私下报告
+    url: https://github.com/Verlintas/NovaBAIC/security/advisories/new
+    about: 请不要公开提交安全问题
