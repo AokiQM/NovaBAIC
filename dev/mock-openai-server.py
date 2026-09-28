@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Local OpenAI-compatible mock server for BAIC2 development.
 
-Streams reasoning + text deltas as SSE so the chat pipeline can be exercised
-end to end without an API key.
+Supports three scripted behaviors, all streamed as SSE:
+  * plain chat replies (Markdown showcase)
+  * auxiliary tasks (titles / memory extraction / summaries)
+  * tool-call rounds: send "[tooltest:TOOLNAME]" and the server emits a
+    tool_call, then answers from the tool result it receives next round.
 
 Usage:
     python3 dev/mock-openai-server.py [port]      # default 8765
@@ -11,12 +14,20 @@ Then configure an agent with Base URL http://localhost:8765/v1 and any key.
 """
 
 import json
+import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
 REASONING = "让我想想……这是在验证流式管线：先输出思考内容，再输出正文。"
+TOOL_ARGS = {
+    "get_time": {},
+    "device_info": {},
+    "network_status": {},
+    "compute": {"expression": "(12+5)*3"},
+    "open_app": {"name": "Settings"},
+}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -47,24 +58,16 @@ class Handler(BaseHTTPRequestHandler):
         payload = json.loads(self.rfile.read(length) or b"{}")
         user_text = ""
         system_parts = []
+        tool_results = []
         for message in payload.get("messages", []):
             if message.get("role") == "system":
                 system_parts.append(message.get("content") or "")
-            if message.get("role") == "user":
+            if message.get("role") == "user" and isinstance(message.get("content"), str):
                 user_text = message.get("content") or ""
+            if message.get("role") == "tool":
+                tool_results.append(message.get("content") or "")
         system_text = system_parts[0] if system_parts else ""
 
-        answer = self._aux_answer(system_text)
-        if answer is None:
-            answer = (
-                f"你好，我是 BAIC2 本地 mock 服务器。\n\n"
-                f"我收到了你的消息：「{user_text}」\n\n"
-                f"这是一个 **Markdown** 测试：\n"
-                f"- 列表项一\n"
-                f"- 列表项二\n\n"
-                f"```kotlin\nval nova = \"streaming works\"\n```\n"
-                f"结束语：管线一切正常。"
-            )
         sys.stderr.write(f"[mock] system={system_text[:60]!r} count={len(system_parts)}\n")
         if len(system_parts) > 1:
             sys.stderr.write(f"[mock] extra-system={system_parts[1][:120]!r}\n")
@@ -80,10 +83,61 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
 
-        def send(data):
+        def send(data, delay=0.03):
             self.wfile.write(f"data: {json.dumps(data, ensure_ascii=False)}\n\n".encode())
             self.wfile.flush()
-            time.sleep(0.06)
+            time.sleep(delay)
+
+        trigger = re.search(r"tooltest:([a-z_]+)", user_text)
+        if trigger and not tool_results:
+            name = trigger.group(1)
+            args = TOOL_ARGS.get(name)
+            if args is None:
+                text = f"未知测试工具 {name}，可选：{', '.join(TOOL_ARGS)}"
+                for piece in _chunks(text, 8):
+                    send({"choices": [{"delta": {"content": piece}}]})
+            else:
+                send(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": "call_mock_1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": name,
+                                                "arguments": json.dumps(args, ensure_ascii=False),
+                                            },
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                )
+                send({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
+
+        answer = None
+        if trigger and tool_results:
+            answer = f"工具执行完成，返回结果是：\n\n> {tool_results[-1]}"
+        if answer is None:
+            answer = self._aux_answer(system_text)
+        if answer is None:
+            answer = (
+                f"你好，我是 BAIC2 本地 mock 服务器。\n\n"
+                f"我收到了你的消息：「{user_text}」\n\n"
+                f"这是一个 **Markdown** 测试：\n"
+                f"- 列表项一\n"
+                f"- 列表项二\n\n"
+                f"```kotlin\nval nova = \"streaming works\"\n```\n"
+                f"结束语：管线一切正常。"
+            )
 
         for piece in _chunks(REASONING, 4):
             send({"choices": [{"delta": {"reasoning_content": piece}}]})

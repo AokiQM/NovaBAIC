@@ -5,9 +5,6 @@ import com.verlintas.baic2.core.engine.AuxiliaryTasks
 import com.verlintas.baic2.core.engine.ConfirmationGate
 import com.verlintas.baic2.core.engine.ToolCatalog
 import com.verlintas.baic2.core.engine.ToolRunner
-import com.verlintas.baic2.core.model.AppMode
-import com.verlintas.baic2.core.model.ToolResult
-import com.verlintas.baic2.core.model.ToolSpec
 import com.verlintas.baic2.core.network.provider.ProviderFactory
 import dagger.Module
 import dagger.Provides
@@ -16,22 +13,12 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * M1 runtime wiring. Device tools arrive in M3: until then the catalog is
- * empty and any tool call is answered with an actionable failure.
+ * Runtime wiring. Tool catalog/runner bindings live in :tools; the
+ * confirmation gate is a placeholder until the runtime v2 gate lands (M3).
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object AgentRuntimeModule {
-
-    @Provides
-    @Singleton
-    fun provideToolCatalog(): ToolCatalog = EmptyToolCatalog
-
-    @Provides
-    @Singleton
-    fun provideToolRunner(): ToolRunner = ToolRunner { call ->
-        ToolResult.Failure("No device tools are registered yet (${call.name})")
-    }
 
     @Provides
     @Singleton
@@ -55,10 +42,4 @@ object AgentRuntimeModule {
     @Singleton
     fun provideAuxiliaryTasks(providerFactory: ProviderFactory): AuxiliaryTasks =
         AuxiliaryTasks(providerFactory = { providerFactory.create(it) })
-}
-
-private object EmptyToolCatalog : ToolCatalog {
-    override fun specs(mode: AppMode): List<ToolSpec> = emptyList()
-
-    override fun find(name: String): ToolSpec? = null
 }
