@@ -185,6 +185,19 @@ fun ChatScreen(
             .onFailure { voiceHint = unavailableHint }
     }
 
+    val screenPrompt = stringResource(R.string.chat_screen_prompt)
+    val screenReady by viewModel.screenCaptureReady.collectAsStateWithLifecycle()
+    val screenCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null &&
+            viewModel.onScreenPermissionResult(result.resultCode, data)
+        ) {
+            viewModel.analyzeScreen(screenPrompt)
+        }
+    }
+
     val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -423,6 +436,17 @@ fun ChatScreen(
                     putExtra(Intent.EXTRA_TEXT, text)
                 }
                 context.startActivity(Intent.createChooser(intent, exportChooserTitle))
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
+            onClick = {
+                menuOpen = false
+                if (screenReady) {
+                    viewModel.analyzeScreen(screenPrompt)
+                } else {
+                    runCatching { screenCaptureLauncher.launch(viewModel.createScreenCaptureIntent()) }
+                }
             },
         )
         DropdownMenuItem(
@@ -748,6 +772,7 @@ private fun errorText(error: ChatError): String = when (error.kind) {
     ChatError.Kind.API_KEY -> stringResource(R.string.chat_error_api_key)
     ChatError.Kind.UNSUPPORTED -> stringResource(R.string.chat_error_unsupported)
     ChatError.Kind.INTERNAL -> stringResource(R.string.chat_error_internal, error.detail.orEmpty())
+    ChatError.Kind.SCREEN_CAPTURE -> stringResource(R.string.chat_error_screen_capture)
 }
 
 @Composable

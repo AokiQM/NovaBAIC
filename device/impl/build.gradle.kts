@@ -23,6 +23,10 @@ dependencies {
     api(project(":device:api"))
     api(project(":core:model"))
 
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.mlkit.text.recognition.chinese)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 

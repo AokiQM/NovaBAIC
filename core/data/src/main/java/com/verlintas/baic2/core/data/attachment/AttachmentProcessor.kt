@@ -92,6 +92,33 @@ class AttachmentProcessor @Inject constructor(
         }
     }
 
+    /** Persists raw image bytes (e.g. a screenshot) as a PNG attachment. */
+    suspend fun importImageBytes(
+        bytes: ByteArray,
+        fileName: String = "screenshot.png",
+    ): Result<Attachment> = withContext(Dispatchers.IO) {
+        runCatching {
+            val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: error("unreadable_image")
+            val scaled = scaleDown(decoded, MAX_DIMENSION)
+            val directory = File(context.filesDir, ATTACHMENT_DIR).apply { mkdirs() }
+            val file = File(directory, "${UUID.randomUUID()}.png")
+            file.outputStream().use { output ->
+                scaled.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            if (scaled !== decoded) scaled.recycle()
+            decoded.recycle()
+            Attachment(
+                id = UUID.randomUUID().toString(),
+                kind = AttachmentKind.IMAGE,
+                mimeType = "image/png",
+                fileName = fileName,
+                localPath = file.absolutePath,
+                sizeBytes = file.length(),
+            )
+        }
+    }
+
     /** Fills [Attachment.base64] for images; other kinds pass through. */
     suspend fun withBase64(attachment: Attachment): Attachment = withContext(Dispatchers.IO) {
         if (attachment.kind != AttachmentKind.IMAGE || attachment.base64 != null) return@withContext attachment

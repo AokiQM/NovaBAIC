@@ -27,6 +27,9 @@ TOOL_ARGS = {
     "network_status": {},
     "compute": {"expression": "(12+5)*3"},
     "open_app": {"name": "Settings"},
+    "take_screenshot": {},
+    "screen_ocr": {},
+    "ui_find": {"text": "Settings"},
 }
 
 

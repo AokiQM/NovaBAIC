@@ -1,0 +1,211 @@
+package com.verlintas.baic2.device.impl.projection
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.IBinder
+import android.view.WindowManager
+import androidx.core.app.ServiceCompat
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+
+/**
+ * Foreground service that owns the MediaProjection session (Android 14+
+ * requires the service to be running before the projection is used).
+ */
+class MediaProjectionService : Service() {
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        ensureChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val notification = android.app.Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setContentTitle("BAIC2 屏幕捕获")
+            .setContentText("正在用于屏幕分析与 OCR")
+            .setOngoing(true)
+            .build()
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            } else {
+                0
+            },
+        )
+
+        when (intent?.action) {
+            ACTION_START -> {
+                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
+                val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(EXTRA_DATA) as? Intent
+                }
+                if (data == null) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                ProjectionHolder.start(applicationContext, resultCode, data)
+            }
+
+            ACTION_STOP -> stopSelf()
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        ProjectionHolder.stop()
+        super.onDestroy()
+    }
+
+    private fun ensureChannel() {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Screen capture", NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+    }
+
+    companion object {
+        const val ACTION_START = "com.verlintas.baic2.projection.START"
+        const val ACTION_STOP = "com.verlintas.baic2.projection.STOP"
+        const val EXTRA_RESULT_CODE = "resultCode"
+        const val EXTRA_DATA = "data"
+        private const val CHANNEL_ID = "baic2_projection"
+        private const val NOTIFICATION_ID = 42
+    }
+}
+
+/** Process-wide projection session shared between the service and capture calls. */
+object ProjectionHolder {
+
+    private var projection: MediaProjection? = null
+    private var reader: ImageReader? = null
+    private var display: VirtualDisplay? = null
+    private var width = 0
+    private var height = 0
+    private var densityDpi = 0
+    private var appContext: Context? = null
+
+    private val _ready = MutableStateFlow(false)
+    val ready: StateFlow<Boolean> = _ready.asStateFlow()
+
+    fun start(context: Context, resultCode: Int, data: Intent) {
+        stop()
+        appContext = context.applicationContext
+        val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val active = runCatching { manager.getMediaProjection(resultCode, data) }.getOrNull()
+            ?: return
+        projection = active
+        active.registerCallback(
+            object : MediaProjection.Callback() {
+                override fun onStop() {
+                    stop()
+                }
+            },
+            android.os.Handler(android.os.Looper.getMainLooper()),
+        )
+        val metrics = context.resources.displayMetrics
+        densityDpi = metrics.densityDpi
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val bounds = wm.currentWindowMetrics.bounds
+            width = bounds.width()
+            height = bounds.height()
+        } else {
+            width = metrics.widthPixels
+            height = metrics.heightPixels
+        }
+        reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        display = createDisplay(active)
+        _ready.value = display != null
+    }
+
+    private fun createDisplay(active: MediaProjection): VirtualDisplay? = active.createVirtualDisplay(
+        "baic2-capture",
+        width,
+        height,
+        densityDpi,
+        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+        reader?.surface,
+        null,
+        null,
+    )
+
+    /**
+     * Grabs the latest frame. A static screen may not push new frames, so one
+     * retry recreates the virtual display to force one.
+     */
+    suspend fun capture(): ByteArray? = withContext(Dispatchers.Default) {
+        val imageReader = reader ?: return@withContext null
+        var image = imageReader.acquireLatestImage()
+        if (image == null) {
+            delay(220)
+            image = imageReader.acquireLatestImage()
+        }
+        if (image == null) {
+            val active = projection ?: return@withContext null
+            display?.release()
+            display = createDisplay(active)
+            delay(320)
+            image = imageReader.acquireLatestImage()
+        }
+        image ?: return@withContext null
+
+        image.use { frame ->
+            val plane = frame.planes[0]
+            val rowStride = plane.rowStride
+            val pixelStride = plane.pixelStride
+            val frameWidth = frame.width
+            val frameHeight = frame.height
+            val paddedWidth = rowStride / pixelStride
+            val padded = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
+            padded.copyPixelsFromBuffer(plane.buffer)
+            val cropped = if (paddedWidth != frameWidth) {
+                Bitmap.createBitmap(padded, 0, 0, frameWidth, frameHeight)
+            } else {
+                padded
+            }
+            val output = ByteArrayOutputStream()
+            cropped.compress(Bitmap.CompressFormat.PNG, 100, output)
+            if (cropped !== padded) cropped.recycle()
+            padded.recycle()
+            output.toByteArray()
+        }
+    }
+
+    fun stop() {
+        runCatching { display?.release() }
+        runCatching { reader?.close() }
+        runCatching { projection?.stop() }
+        display = null
+        reader = null
+        projection = null
+        _ready.value = false
+    }
+}

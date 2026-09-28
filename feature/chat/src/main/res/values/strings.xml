@@ -46,6 +46,9 @@
     <string name="chat_menu_export">导出对话</string>
     <string name="chat_menu_compress">压缩上下文</string>
     <string name="chat_menu_distill">提炼记忆</string>
+    <string name="chat_menu_screen_analysis">分析屏幕</string>
+    <string name="chat_screen_prompt">请分析这张屏幕截图，告诉我上面有什么，并给出可操作的下一步建议。</string>
+    <string name="chat_error_screen_capture">屏幕捕获失败：请重新触发「分析屏幕」并同意系统授权</string>
 
     <string name="chat_action_copy">复制</string>
     <string name="chat_action_star">收藏</string>

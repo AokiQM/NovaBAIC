@@ -46,6 +46,9 @@
     <string name="chat_menu_export">Export chat</string>
     <string name="chat_menu_compress">Compress context</string>
     <string name="chat_menu_distill">Distill memory</string>
+    <string name="chat_menu_screen_analysis">Analyze screen</string>
+    <string name="chat_screen_prompt">Analyze this screenshot, describe what is on it, and suggest concrete next steps.</string>
+    <string name="chat_error_screen_capture">Screen capture failed: trigger "Analyze screen" again and approve the system dialog</string>
 
     <string name="chat_action_copy">Copy</string>
     <string name="chat_action_star">Star</string>

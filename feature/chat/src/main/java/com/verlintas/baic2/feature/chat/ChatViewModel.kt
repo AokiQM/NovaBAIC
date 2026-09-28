@@ -24,6 +24,7 @@ import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.device.api.ScreenshotProvider
 import com.verlintas.baic2.device.api.SpeechOutput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
@@ -84,6 +85,7 @@ data class ChatError(
         API_KEY,
         UNSUPPORTED,
         INTERNAL,
+        SCREEN_CAPTURE,
     }
 }
 
@@ -105,6 +107,7 @@ class ChatViewModel @Inject constructor(
     private val auxiliaryTasks: AuxiliaryTasks,
     private val attachmentProcessor: AttachmentProcessor,
     private val speechOutput: SpeechOutput,
+    private val screenshotProvider: ScreenshotProvider,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -203,6 +206,34 @@ class ChatViewModel @Inject constructor(
 
     fun dismissAttachmentError() {
         attachmentError.value = null
+    }
+
+    val screenCaptureReady: StateFlow<Boolean> = screenshotProvider.ready
+
+    fun createScreenCaptureIntent(): android.content.Intent = screenshotProvider.createPermissionIntent()
+
+    fun onScreenPermissionResult(resultCode: Int, data: android.content.Intent): Boolean =
+        screenshotProvider.onPermissionResult(resultCode, data)
+
+    /** Captures the screen and sends it to the model as an image attachment. */
+    fun analyzeScreen(prompt: String) {
+        if (running.value) return
+        runJob = viewModelScope.launch {
+            auxBusy.value = true
+            val bytes = try {
+                screenshotProvider.capture().getOrElse { failure ->
+                    error.value = ChatError(ChatError.Kind.SCREEN_CAPTURE, failure.message)
+                    return@launch
+                }
+            } finally {
+                auxBusy.value = false
+            }
+            val attachment = attachmentProcessor.importImageBytes(bytes).getOrElse { failure ->
+                error.value = ChatError(ChatError.Kind.SCREEN_CAPTURE, failure.message)
+                return@launch
+            }
+            executeTurn(prompt, attachments = listOf(attachment))
+        }
     }
 
     fun speakMessage(text: String) {

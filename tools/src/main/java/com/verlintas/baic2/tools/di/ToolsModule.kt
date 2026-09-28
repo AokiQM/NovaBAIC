@@ -42,12 +42,28 @@ object ToolsModule {
     @Singleton
     fun provideToolContext(
         @ApplicationContext context: Context,
+        screenshotProvider: com.verlintas.baic2.device.api.ScreenshotProvider,
+        ocrProvider: com.verlintas.baic2.device.api.OcrProvider,
     ): ToolContext = ToolContext(
         appContext = context,
         permissions = PermissionChecker { permission ->
             context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
         },
+        screenshot = screenshotProvider,
+        ocr = ocrProvider,
     )
+
+    @Provides
+    @IntoSet
+    fun takeScreenshotTool(): DeviceTool = com.verlintas.baic2.tools.TakeScreenshotTool()
+
+    @Provides
+    @IntoSet
+    fun screenOcrTool(): DeviceTool = com.verlintas.baic2.tools.ScreenOcrTool()
+
+    @Provides
+    @IntoSet
+    fun uiFindTool(): DeviceTool = com.verlintas.baic2.tools.UiFindTool()
 
     @Provides
     @IntoSet
