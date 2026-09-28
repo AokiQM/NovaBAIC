@@ -2,12 +2,16 @@ package com.verlintas.baic2.feature.library
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.verlintas.baic2.core.data.repository.McpServerRepository
 import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.Memory
+import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.tools.automation.AutomationManager
+import com.verlintas.baic2.mcp.McpManager
+import com.verlintas.baic2.mcp.McpServerStatus
 import com.verlintas.baic2.tools.skills.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -21,6 +25,8 @@ data class LibraryUiState(
     val automations: List<Automation> = emptyList(),
     val memories: List<Memory> = emptyList(),
     val skills: List<Skill> = emptyList(),
+    val mcpServers: List<McpServer> = emptyList(),
+    val mcpStatus: Map<Long, McpServerStatus> = emptyMap(),
     val loading: Boolean = true,
 )
 
@@ -29,7 +35,31 @@ class LibraryViewModel @Inject constructor(
     private val automationManager: AutomationManager,
     private val memoryRepository: MemoryRepository,
     private val skillRepository: SkillRepository,
+    private val mcpServerRepository: McpServerRepository,
+    private val mcpManager: McpManager,
 ) : ViewModel() {
+
+    fun addMcpServer(name: String, url: String) {
+        if (name.isBlank() || url.isBlank()) return
+        viewModelScope.launch {
+            mcpServerRepository.add(name.trim(), url.trim())
+            mcpManager.refresh()
+        }
+    }
+
+    fun setMcpEnabled(id: Long, enabled: Boolean) {
+        viewModelScope.launch {
+            mcpServerRepository.setEnabled(id, enabled)
+            mcpManager.refresh()
+        }
+    }
+
+    fun deleteMcpServer(id: Long) {
+        viewModelScope.launch {
+            mcpServerRepository.delete(id)
+            mcpManager.refresh()
+        }
+    }
 
     private val skills = kotlinx.coroutines.flow.MutableStateFlow<List<Skill>>(emptyList())
 
@@ -58,11 +88,15 @@ class LibraryViewModel @Inject constructor(
         automationManager.observeAll(),
         memoryRepository.observe(MemoryKind.MEMORY),
         skills,
-    ) { automations, memories, skillList ->
+        mcpServerRepository.observeAll(),
+        mcpManager.status,
+    ) { automations, memories, skillList, mcpServers, mcpStatus ->
         LibraryUiState(
             automations = automations,
             memories = memories,
             skills = skillList,
+            mcpServers = mcpServers,
+            mcpStatus = mcpStatus,
             loading = false,
         )
     }.stateIn(

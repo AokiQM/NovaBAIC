@@ -11,4 +11,13 @@
     <string name="library_skills_import">导入技能（skill.yaml）</string>
     <string name="library_skills_empty">还没有技能。导入 skill.yaml，或让 AI 完成一次操作后在聊天菜单里「保存为技能」</string>
     <string name="library_skill_tools">%1$d 个工具</string>
+    <string name="library_mcp_title">MCP 服务器</string>
+    <string name="library_mcp_add">添加服务器</string>
+    <string name="library_mcp_name">名称</string>
+    <string name="library_mcp_url">地址（Streamable HTTP）</string>
+    <string name="library_mcp_empty">还没有 MCP 服务器。添加远程 MCP 端点后，它的工具会自动并入 AI 的工具箱</string>
+    <string name="library_mcp_connected">已连接 · %1$d 个工具</string>
+    <string name="library_mcp_failed">连接失败：%1$s</string>
+    <string name="library_mcp_disabled">已停用</string>
+    <string name="library_mcp_save">保存</string>
 </resources>

@@ -112,6 +112,16 @@ data class AutomationEntity(
     val createdAt: Long,
 )
 
+@Entity(tableName = "mcp_servers")
+data class McpServerEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val name: String,
+    val url: String,
+    val headersJson: String,
+    val enabled: Boolean,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "plans")
 data class PlanEntity(
     @PrimaryKey val conversationId: Long,

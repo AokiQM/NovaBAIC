@@ -33,8 +33,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryEntity::class,
         PlanEntity::class,
         AutomationEntity::class,
+        McpServerEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -52,6 +53,8 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun planDao(): PlanDao
 
     abstract fun automationDao(): AutomationDao
+
+    abstract fun mcpServerDao(): McpServerDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -77,6 +80,23 @@ abstract class Baic2Database : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
+                )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS mcp_servers (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        headersJson TEXT NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
                 )
             }
         }

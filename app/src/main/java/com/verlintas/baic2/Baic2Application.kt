@@ -20,9 +20,13 @@
 package com.verlintas.baic2
 
 import android.app.Application
+import com.verlintas.baic2.mcp.McpManager
 import com.verlintas.baic2.tools.automation.AutomationBootstrap
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class Baic2Application : Application() {
@@ -30,8 +34,14 @@ class Baic2Application : Application() {
     @Inject
     lateinit var automationBootstrap: AutomationBootstrap
 
+    @Inject
+    lateinit var mcpManager: McpManager
+
     override fun onCreate() {
         super.onCreate()
         runCatching { automationBootstrap.start() }
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { mcpManager.refresh() }
+        }
     }
 }

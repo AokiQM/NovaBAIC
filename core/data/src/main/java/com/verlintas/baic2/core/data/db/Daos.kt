@@ -195,6 +195,25 @@ data class RunSummaryRow(
 )
 
 @Dao
+interface McpServerDao {
+
+    @Insert
+    suspend fun insert(entity: McpServerEntity): Long
+
+    @Query("SELECT * FROM mcp_servers ORDER BY id ASC")
+    fun observeAll(): Flow<List<McpServerEntity>>
+
+    @Query("SELECT * FROM mcp_servers ORDER BY id ASC")
+    suspend fun getAll(): List<McpServerEntity>
+
+    @Query("UPDATE mcp_servers SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query("DELETE FROM mcp_servers WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface AutomationDao {
 
     @Insert

@@ -38,6 +38,7 @@ TOOL_ARGS = {
     "web_search": {"query": "BAIC2 Android AI agent", "limit": 3},
     "web_read": {"url": "https://example.com", "max_chars": 500},
     "spawn_agent": {"task": "汇报当前设备与时间信息", "mode": "research"},
+    "mock_echo": {"text": "hi from baic2"},
     "load_skill": {"id": "status-report"},
     "status_report": {},
     "automation": {

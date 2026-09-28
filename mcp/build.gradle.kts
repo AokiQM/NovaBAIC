@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -20,11 +22,18 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":core:network"))
+    implementation(project(":core:data"))
+    implementation(project(":tools"))
 
     api(libs.okhttp)
     api(libs.kotlinx.serialization.json)
     api(libs.kotlinx.coroutines.android)
 
-    testImplementation(libs.kotlin.test)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }

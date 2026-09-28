@@ -29,6 +29,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,10 +43,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import com.verlintas.baic2.core.model.Automation
+import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.Skill
+import com.verlintas.baic2.mcp.McpServerStatus
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 
@@ -53,12 +61,57 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var mcpDialogOpen by rememberSaveable { mutableStateOf(false) }
     val skillPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri?.let {
             viewModel.importSkill(it, it.lastPathSegment?.substringAfterLast('/'))
         }
+    }
+
+    if (mcpDialogOpen) {
+        var name by rememberSaveable { mutableStateOf("") }
+        var url by rememberSaveable { mutableStateOf("https://") }
+        AlertDialog(
+            onDismissRequest = { mcpDialogOpen = false },
+            title = { Text(stringResource(R.string.library_mcp_add)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.library_mcp_name)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(Baic2Spacing.sm))
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.library_mcp_url)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.addMcpServer(name, url)
+                        mcpDialogOpen = false
+                    },
+                    enabled = name.isNotBlank() && url.startsWith("http"),
+                ) {
+                    Text(stringResource(R.string.library_mcp_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mcpDialogOpen = false }) {
+                    Text(stringResource(R.string.library_delete))
+                }
+            },
+        )
     }
 
     LazyColumn(
@@ -133,6 +186,34 @@ fun LibraryScreen(
                 SkillRow(
                     skill = skill,
                     onDelete = { viewModel.deleteSkill(skill.id) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+
+        item(key = "mcp-title") {
+            SectionLabel(stringResource(R.string.library_mcp_title))
+        }
+        item(key = "mcp-add") {
+            OutlinedButton(
+                onClick = { mcpDialogOpen = true },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.library_mcp_add))
+            }
+        }
+        if (state.mcpServers.isEmpty()) {
+            item(key = "mcp-empty") {
+                HintCard(stringResource(R.string.library_mcp_empty))
+            }
+        } else {
+            items(state.mcpServers, key = { "mcp-${it.id}" }) { server ->
+                McpRow(
+                    server = server,
+                    status = state.mcpStatus[server.id],
+                    onToggle = { enabled -> viewModel.setMcpEnabled(server.id, enabled) },
+                    onDelete = { viewModel.deleteMcpServer(server.id) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -230,6 +311,68 @@ private fun AutomationRow(
             checked = automation.enabled,
             onCheckedChange = onToggle,
         )
+        IconButton(onClick = onDelete) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = stringResource(R.string.library_delete),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun McpRow(
+    server: McpServer,
+    status: McpServerStatus?,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            .padding(start = Baic2Spacing.lg, end = Baic2Spacing.sm, top = Baic2Spacing.sm, bottom = Baic2Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = server.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            val statusText = when (status) {
+                is McpServerStatus.Connected ->
+                    stringResource(R.string.library_mcp_connected, status.toolCount)
+
+                is McpServerStatus.Failed ->
+                    stringResource(R.string.library_mcp_failed, status.reason)
+
+                McpServerStatus.Disabled -> stringResource(R.string.library_mcp_disabled)
+                null -> server.url
+            }
+            Text(
+                text = statusText,
+                style = Baic2Mono.label,
+                color = if (status is McpServerStatus.Failed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Switch(checked = server.enabled, onCheckedChange = onToggle)
         IconButton(onClick = onDelete) {
             Icon(
                 imageVector = Icons.Outlined.Delete,

@@ -23,6 +23,7 @@ import com.verlintas.baic2.core.data.db.AgentEntity
 import com.verlintas.baic2.core.data.db.AutomationEntity
 import com.verlintas.baic2.core.data.db.ConversationEntity
 import com.verlintas.baic2.core.data.db.MemoryEntity
+import com.verlintas.baic2.core.data.db.McpServerEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
 import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
@@ -35,6 +36,7 @@ import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
+import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.Plan
@@ -166,6 +168,26 @@ class ChatMapper @Inject constructor(private val json: Json) {
         state = enumOf(row.state, RunState.RUNNING),
         startedAt = row.startedAt,
         updatedAt = row.updatedAt,
+    )
+
+    fun mcpServerToModel(entity: McpServerEntity): McpServer = McpServer(
+        id = entity.id,
+        name = entity.name,
+        url = entity.url,
+        headers = runCatching {
+            json.decodeFromString<Map<String, String>>(entity.headersJson)
+        }.getOrDefault(emptyMap()),
+        enabled = entity.enabled,
+        createdAt = entity.createdAt,
+    )
+
+    fun mcpServerToEntity(server: McpServer): McpServerEntity = McpServerEntity(
+        id = server.id,
+        name = server.name,
+        url = server.url,
+        headersJson = json.encodeToString(server.headers),
+        enabled = server.enabled,
+        createdAt = server.createdAt,
     )
 
     fun automationToModel(entity: AutomationEntity): Automation = Automation(

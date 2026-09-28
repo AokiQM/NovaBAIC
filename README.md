@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M4 完成** — 工具矩阵 46 个（Web/文件/媒体/设备状态/个人数据/提醒/自动化/技能/子代理）；自动化引擎（定时/电量触发 + 前台调度）；Skills v2（YAML recipe + 动态注册 + 录制）；子代理并行（独立预算与上下文）；98 个单元测试全绿。下一步 M5：MCP 客户端 + 评测扩充。
+**状态：M5 完成** — M4 能力之上加入 MCP 远程客户端（Streamable HTTP，工具自动并入工具箱，Library 管理）；103 个单元测试全绿。下一步：审查与修复 + 0.1.0 发布。
 
 ## 核心目标
 
