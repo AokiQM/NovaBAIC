@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_chat" translatable="false">CHAT</string>
+    <string name="mode_chat_plus" translatable="false">CHAT+</string>
+    <string name="mode_act" translatable="false">ACT</string>
+    <string name="mode_max" translatable="false">MAX</string>
+</resources>

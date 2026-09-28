@@ -1,6 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_chat_title">聊天</string>
-    <string name="feature_chat_description">流式聊天、工具卡与 Markdown 渲染将在 M1 落地</string>
-    <string name="feature_chat_milestone" translatable="false">M1</string>
+    <string name="chat_untitled">未命名对话</string>
+    <string name="chat_back">返回</string>
+    <string name="chat_send">发送</string>
+    <string name="chat_stop">停止</string>
+    <string name="chat_input_hint">发送消息…</string>
+    <string name="chat_thinking">思考过程</string>
+    <string name="chat_retry">重试</string>
+    <string name="chat_dismiss">忽略</string>
+
+    <string name="chat_welcome_title">开始对话</string>
+    <string name="chat_welcome_subtitle">本地优先 · 密钥不出设备</string>
+    <string name="chat_suggestion_1">帮我搜索今天的科技新闻并总结</string>
+    <string name="chat_suggestion_2">看看我的屏幕上有什么</string>
+    <string name="chat_suggestion_3">用一句话解释量子纠缠</string>
+
+    <string name="chat_error_provider">请求失败：%1$s</string>
+    <string name="chat_error_budget">已达到本轮预算上限</string>
+    <string name="chat_error_no_agent">尚未配置 AI 服务，请回到对话页配置</string>
+    <string name="chat_error_api_key">API Key 不可用，请重新配置服务</string>
+    <string name="chat_error_unsupported">该服务商暂未支持</string>
+    <string name="chat_error_internal">内部错误：%1$s</string>
+
+    <string name="chat_tool_pending">等待</string>
+    <string name="chat_tool_running">执行中</string>
+    <string name="chat_tool_done">完成</string>
+    <string name="chat_tool_failed">失败</string>
+    <string name="chat_tool_denied">已拒绝</string>
+    <string name="chat_tool_rejected">已跳过</string>
+
+    <string name="chat_mode_title">模式</string>
+    <string name="chat_mode_chat_title">纯对话</string>
+    <string name="chat_mode_chat_description">不调用任何工具</string>
+    <string name="chat_mode_chat_plus_title">研究</string>
+    <string name="chat_mode_chat_plus_description">只读工具，先计划再行动</string>
+    <string name="chat_mode_act_title">执行</string>
+    <string name="chat_mode_act_description">每次工具调用都需要确认</string>
+    <string name="chat_mode_max_title">自主</string>
+    <string name="chat_mode_max_description">自主执行，受预算约束</string>
 </resources>

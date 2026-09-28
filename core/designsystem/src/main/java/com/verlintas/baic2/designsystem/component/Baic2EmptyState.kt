@@ -36,6 +36,7 @@ fun Baic2EmptyState(
     description: String? = null,
     icon: ImageVector? = null,
     badge: String? = null,
+    action: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -97,6 +98,11 @@ fun Baic2EmptyState(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+
+        if (action != null) {
+            Spacer(Modifier.height(Baic2Spacing.xl))
+            action()
         }
     }
 }

@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M0.5（导航壳重做）** — 16 模块工程、Hilt、暗色优先设计系统、左上角悬浮 Dock 导航、CI 全绿。
+**状态：M1（垂直切片）完成** — 16 模块工程、Hilt、暗色优先设计系统、悬浮 Dock 导航、Room 持久化、OpenAI 兼容流式聊天、AgentLoop 引擎（模式门/预算/工具契约）、评测 harness（4 场景）、CI 全绿。
 
 ## 核心目标
 
@@ -47,8 +47,16 @@
 ```bash
 # JDK 17 + Android SDK（platform 37, build-tools 37.0.0）
 ./gradlew :app:assembleDebug     # APK: app/build/outputs/apk/debug/app-debug.apk
-./gradlew test                   # 单元测试
+./gradlew test                   # 单元测试（54+）
 ./gradlew lintDebug              # Android Lint
+```
+
+### 本地联调（无需 API Key）
+
+```bash
+python3 dev/mock-openai-server.py 8765   # OpenAI 兼容 mock（流式 + 思考 + Markdown）
+adb reverse tcp:8765 tcp:8765            # 模拟器/真机访问宿主机
+# App 内配置：Base URL http://localhost:8765/v1，Key 任意
 ```
 
 ## 文档
@@ -61,8 +69,9 @@
 | 阶段 | 状态 |
 | --- | --- |
 | M0 工程骨架 | ✅ 完成 |
-| M1 垂直切片（Agents + 流式聊天 + Runtime 骨架 + eval 骨架） | 下一步 |
-| M2 完整聊天（三家 Provider/附件/语音/记忆） | 计划中 |
+| M0.5 导航壳重做 | ✅ 完成 |
+| M1 垂直切片（Agents + 流式聊天 + Runtime 骨架 + eval 骨架） | ✅ 完成 |
+| M2 完整聊天（三家 Provider/附件/语音/记忆） | 下一步 |
 | M3 Runtime v1（计划-验证 + Tasks 控制台 + 后台运行） | 计划中 |
 | M4 子代理 + 工具 + 自动化 + Skills v2 | 计划中 |
 | M5 MCP + 评测扩充 + CI 指标门禁 | 计划中 |

@@ -1,5 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_chat_title">Chat</string>
-    <string name="feature_chat_description">Streaming chat, tool cards and Markdown land in M1</string>
+    <string name="chat_untitled">Untitled</string>
+    <string name="chat_back">Back</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_stop">Stop</string>
+    <string name="chat_input_hint">Message…</string>
+    <string name="chat_thinking">Reasoning</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_dismiss">Dismiss</string>
+
+    <string name="chat_welcome_title">Start a conversation</string>
+    <string name="chat_welcome_subtitle">Local-first · keys stay on device</string>
+    <string name="chat_suggestion_1">Search today\'s tech news and summarize</string>
+    <string name="chat_suggestion_2">What\'s on my screen right now?</string>
+    <string name="chat_suggestion_3">Explain quantum entanglement in one sentence</string>
+
+    <string name="chat_error_provider">Request failed: %1$s</string>
+    <string name="chat_error_budget">Run budget exhausted</string>
+    <string name="chat_error_no_agent">No AI service configured. Set one up from the chats screen</string>
+    <string name="chat_error_api_key">API key unavailable, please reconfigure the service</string>
+    <string name="chat_error_unsupported">This provider is not supported yet</string>
+    <string name="chat_error_internal">Internal error: %1$s</string>
+
+    <string name="chat_tool_pending">pending</string>
+    <string name="chat_tool_running">running</string>
+    <string name="chat_tool_done">done</string>
+    <string name="chat_tool_failed">failed</string>
+    <string name="chat_tool_denied">denied</string>
+    <string name="chat_tool_rejected">skipped</string>
+
+    <string name="chat_mode_title">Mode</string>
+    <string name="chat_mode_chat_title">Conversation</string>
+    <string name="chat_mode_chat_description">No tools at all</string>
+    <string name="chat_mode_chat_plus_title">Research</string>
+    <string name="chat_mode_chat_plus_description">Read-only tools, plan before acting</string>
+    <string name="chat_mode_act_title">Act</string>
+    <string name="chat_mode_act_description">Every tool call needs confirmation</string>
+    <string name="chat_mode_max_title">Max</string>
+    <string name="chat_mode_max_description">Autonomous, budget-bound</string>
 </resources>

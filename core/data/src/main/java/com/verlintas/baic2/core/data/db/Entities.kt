@@ -1,0 +1,67 @@
+package com.verlintas.baic2.core.data.db
+
+import androidx.room.Embedded
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "agents")
+data class AgentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val name: String,
+    val provider: String,
+    val baseUrl: String,
+    val model: String,
+    val temperature: Double,
+    val maxTokens: Int?,
+    val reasoning: Boolean,
+    val systemPrompt: String,
+    val encryptedApiKey: String,
+    val isDefault: Boolean,
+    val createdAt: Long,
+)
+
+@Entity(tableName = "conversations")
+data class ConversationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val title: String,
+    val agentId: Long?,
+    val mode: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(
+    tableName = "messages",
+    indices = [Index(value = ["conversationId"])],
+)
+data class MessageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val conversationId: Long,
+    val role: String,
+    val content: String,
+    val thinking: String?,
+    val toolCallsJson: String,
+    val toolCallId: String?,
+    val toolName: String?,
+    val model: String?,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "runs",
+    indices = [Index(value = ["conversationId"])],
+)
+data class RunEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val conversationId: Long,
+    val mode: String,
+    val state: String,
+    val startedAt: Long,
+    val updatedAt: Long,
+)
+
+data class ConversationSummary(
+    @Embedded val conversation: ConversationEntity,
+    val lastMessage: String?,
+)

@@ -1,6 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_conversations_title">对话</string>
-    <string name="feature_conversations_description">会话列表、搜索、置顶与归档将在 M1 落地</string>
-    <string name="feature_conversations_milestone" translatable="false">M1</string>
+
+    <string name="conversations_subtitle">%1$d 个对话 · %2$s</string>
+    <string name="conversations_subtitle_no_agent">%1$d 个对话 · 未配置服务</string>
+    <string name="conversations_empty_title">还没有对话</string>
+    <string name="conversations_empty_description">配置一个 AI 服务，开始你的第一次对话</string>
+    <string name="conversations_start">开始新对话</string>
+    <string name="conversations_new">新对话</string>
+    <string name="conversations_untitled">未命名对话</string>
+    <string name="conversations_no_messages">暂无消息</string>
+    <string name="conversations_delete">删除对话</string>
+
+    <string name="agent_banner_title">尚未配置 AI 服务</string>
+    <string name="agent_banner_action">立即配置</string>
+    <string name="agent_setup_action">配置 AI 服务</string>
+
+    <string name="agent_setup_title">配置 AI 服务</string>
+    <string name="agent_setup_subtitle">支持 OpenAI 兼容接口（DeepSeek / Kimi / Qwen / Ollama / 网关…）</string>
+    <string name="agent_setup_base_url">Base URL</string>
+    <string name="agent_setup_api_key">API Key</string>
+    <string name="agent_setup_model">模型</string>
+    <string name="agent_setup_fetch_models">拉取</string>
+    <string name="agent_setup_save">保存</string>
+    <string name="agent_setup_hint">Key 使用 Android Keystore 加密存储，只会发送给你配置的服务商</string>
+    <string name="agent_setup_error_key">请填写 API Key</string>
+    <string name="agent_setup_error_url">请填写 Base URL</string>
+    <string name="agent_setup_error_model">请填写模型名</string>
+    <string name="agent_setup_error_keystore">Key 加密失败，请重试</string>
+    <string name="agent_setup_error_auth">认证失败：请检查 API Key</string>
+    <string name="agent_setup_error_network">网络请求失败：请检查网络与 Base URL</string>
+    <string name="agent_setup_error_rate_limit">请求过于频繁，请稍后再试</string>
+    <string name="agent_setup_error_generic">请求失败：%1$s</string>
+
+    <string name="preset_deepseek" translatable="false">DeepSeek</string>
+    <string name="preset_openai" translatable="false">OpenAI</string>
+    <string name="preset_siliconflow" translatable="false">SiliconFlow</string>
+    <string name="preset_moonshot" translatable="false">Kimi</string>
+    <string name="preset_qwen" translatable="false">Qwen</string>
+    <string name="preset_custom">自定义</string>
 </resources>

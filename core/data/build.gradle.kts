@@ -1,7 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
@@ -27,6 +32,9 @@ dependencies {
     api(libs.androidx.datastore.preferences)
     api(libs.kotlinx.coroutines.android)
 
-    testImplementation(libs.kotlin.test)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
 }

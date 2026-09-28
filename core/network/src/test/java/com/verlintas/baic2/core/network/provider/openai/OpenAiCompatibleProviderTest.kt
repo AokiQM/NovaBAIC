@@ -1,0 +1,297 @@
+package com.verlintas.baic2.core.network.provider.openai
+
+import com.verlintas.baic2.core.model.ChatMessage
+import com.verlintas.baic2.core.model.ChatRequest
+import com.verlintas.baic2.core.model.ChatRole
+import com.verlintas.baic2.core.model.ProviderConfig
+import com.verlintas.baic2.core.model.ProviderError
+import com.verlintas.baic2.core.model.ProviderId
+import com.verlintas.baic2.core.model.StreamEvent
+import com.verlintas.baic2.core.model.ToolSpec
+import com.verlintas.baic2.core.network.provider.ProviderException
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+
+class OpenAiCompatibleProviderTest {
+
+    private lateinit var server: MockWebServer
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+    private val provider = OpenAiCompatibleProvider(OkHttpClient(), json)
+
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+    }
+
+    @After
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    private fun config() = ProviderConfig(
+        provider = ProviderId.OPENAI_COMPATIBLE,
+        baseUrl = server.url("/v1").toString().trimEnd('/'),
+        apiKey = "sk-test",
+        model = "test-model",
+    )
+
+    private fun request(
+        messages: List<ChatMessage> = listOf(ChatMessage(role = ChatRole.USER, content = "hi")),
+        tools: List<ToolSpec> = emptyList(),
+    ) = ChatRequest(
+        config = config(),
+        systemPrompt = "be nice",
+        messages = messages,
+        tools = tools,
+    )
+
+    private fun sseBody(vararg payloads: String): String = buildString {
+        payloads.forEach { payload ->
+            append("data: ").append(payload).append("\n\n")
+        }
+    }
+
+    private fun enqueueSse(vararg payloads: String) {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody(sseBody(*payloads)),
+        )
+    }
+
+    @Test
+    fun streamsTextDeltasAndDone() = runTest {
+        enqueueSse(
+            """{"choices":[{"delta":{"content":"Hel"}}]}""",
+            """{"choices":[{"delta":{"content":"lo"}}]}""",
+            "[DONE]",
+        )
+
+        val events = provider.stream(request()).toList()
+
+        assertEquals(
+            listOf(
+                StreamEvent.TextDelta("Hel"),
+                StreamEvent.TextDelta("lo"),
+                StreamEvent.Done,
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun emitsThinkingAndUsage() = runTest {
+        enqueueSse(
+            """{"choices":[{"delta":{"reasoning_content":"hmm"}}]}""",
+            """{"choices":[{"delta":{"content":"ok"}}],"usage":{"prompt_tokens":10,"completion_tokens":2}}""",
+            "[DONE]",
+        )
+
+        val events = provider.stream(request()).toList()
+
+        assertEquals(
+            listOf(
+                StreamEvent.ThinkingDelta("hmm"),
+                StreamEvent.TextDelta("ok"),
+                StreamEvent.Usage(10, 2),
+                StreamEvent.Done,
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun assemblesToolCallsFromFragments() = runTest {
+        enqueueSse(
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"get_weather","arguments":"{\"ci"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ty\":\"SF\"}"}}]}}]}""",
+            "[DONE]",
+        )
+
+        val events = provider.stream(request()).toList()
+        val toolCalls = events.filterIsInstance<StreamEvent.ToolCallsDone>().single()
+
+        assertEquals(1, toolCalls.calls.size)
+        assertEquals("call_1", toolCalls.calls[0].id)
+        assertEquals("get_weather", toolCalls.calls[0].name)
+        assertEquals("""{"city":"SF"}""", toolCalls.calls[0].argumentsJson)
+        assertEquals(StreamEvent.Done, events.last())
+    }
+
+    @Test
+    fun mapsAuthError() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"error":{"message":"bad key"}}"""),
+        )
+
+        val events = provider.stream(request()).toList()
+        val failure = events.filterIsInstance<StreamEvent.Failed>().single()
+
+        assertEquals(ProviderError.Kind.AUTH, failure.error.kind)
+        assertEquals("bad key", failure.error.message)
+        assertEquals(401, failure.error.httpStatus)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun retriesServerErrorOnceThenSucceeds() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(503)
+                .setHeader("Retry-After", "0")
+                .setBody("busy"),
+        )
+        enqueueSse("""{"choices":[{"delta":{"content":"ok"}}]}""", "[DONE]")
+
+        val events = provider.stream(request()).toList()
+
+        assertEquals(
+            listOf(StreamEvent.TextDelta("ok"), StreamEvent.Done),
+            events,
+        )
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun buildsRequestWithSystemPromptHistoryAndTools() = runTest {
+        enqueueSse("[DONE]")
+        val tools = listOf(
+            ToolSpec(
+                name = "get_weather",
+                description = "weather lookup",
+                parametersJson = """{"type":"object","properties":{"city":{"type":"string"}}}""",
+            ),
+        )
+
+        provider.stream(request(tools = tools)).toList()
+
+        val recorded = server.takeRequest()
+        assertEquals("/v1/chat/completions", recorded.path)
+        assertEquals("Bearer sk-test", recorded.getHeader("Authorization"))
+
+        val body = json.parseToJsonElement(recorded.body.readUtf8()).jsonObject
+        assertEquals("test-model", body.getValue("model").jsonPrimitive.content)
+        assertTrue(body.getValue("stream").jsonPrimitive.content == "true")
+
+        val messages = body.getValue("messages").jsonArray
+        assertEquals("system", messages[0].jsonObject.getValue("role").jsonPrimitive.content)
+        assertEquals("be nice", messages[0].jsonObject.getValue("content").jsonPrimitive.content)
+        assertEquals("user", messages[1].jsonObject.getValue("role").jsonPrimitive.content)
+
+        val wireTools = body.getValue("tools").jsonArray
+        val function = wireTools[0].jsonObject.getValue("function").jsonObject
+        assertEquals("get_weather", function.getValue("name").jsonPrimitive.content)
+        val params = function.getValue("parameters") as JsonObject
+        assertEquals(
+            "string",
+            params.getValue("properties").jsonObject
+                .getValue("city").jsonObject
+                .getValue("type").jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun listModelsParsesIds() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"data":[{"id":"a"},{"id":"b"},{"id":""}]}"""),
+        )
+
+        val models = provider.listModels(config())
+
+        assertEquals(listOf("a", "b"), models)
+        assertEquals("/v1/models", server.takeRequest().path)
+    }
+
+    @Test
+    fun listModelsThrowsTypedError() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setBody("""{"error":{"message":"nope"}}"""),
+        )
+
+        val exception = assertFailsWith<ProviderException> {
+            provider.listModels(config())
+        }
+
+        assertEquals(ProviderError.Kind.AUTH, exception.error.kind)
+    }
+
+    @Test
+    fun unknownJsonFieldsAreIgnored() = runTest {
+        enqueueSse(
+            """{"choices":[{"delta":{"content":"x"},"future_field":1}],"vendor_extra":true}""",
+            "[DONE]",
+        )
+
+        val events = provider.stream(request()).toList()
+
+        assertEquals(listOf(StreamEvent.TextDelta("x"), StreamEvent.Done), events)
+    }
+
+    @Test
+    fun assistantToolCallsAreMappedOnTheWire() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "weather?"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "",
+                toolCalls = listOf(
+                    com.verlintas.baic2.core.model.ToolCall(
+                        id = "call_9",
+                        name = "get_weather",
+                        argumentsJson = """{"city":"SF"}""",
+                    ),
+                ),
+            ),
+            ChatMessage(
+                role = ChatRole.TOOL,
+                content = """{"temp":18}""",
+                toolCallId = "call_9",
+                toolName = "get_weather",
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val messages = body.getValue("messages").jsonArray
+        val assistant = messages[2].jsonObject
+        assertEquals("assistant", assistant.getValue("role").jsonPrimitive.content)
+        val toolCall = assistant.getValue("tool_calls").jsonArray[0].jsonObject
+        assertEquals("call_9", toolCall.getValue("id").jsonPrimitive.content)
+        assertEquals(
+            "get_weather",
+            toolCall.getValue("function").jsonObject.getValue("name").jsonPrimitive.content,
+        )
+        val toolResult = messages[3].jsonObject
+        assertEquals("tool", toolResult.getValue("role").jsonPrimitive.content)
+        assertEquals("call_9", toolResult.getValue("tool_call_id").jsonPrimitive.content)
+    }
+}

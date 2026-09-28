@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,10 +75,18 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Motion
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
+import com.verlintas.baic2.feature.chat.ChatScreen
 import com.verlintas.baic2.feature.conversations.ConversationsScreen
 import com.verlintas.baic2.feature.settings.SettingsScreen
 import com.verlintas.baic2.feature.tasks.TasksScreen
@@ -103,6 +112,13 @@ private enum class Baic2Destination(
 fun Baic2App() {
     var destination by rememberSaveable { mutableStateOf(Baic2Destination.Chats) }
     var dockOpen by rememberSaveable { mutableStateOf(false) }
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val onChatRoute = backStackEntry?.destination?.route == ROUTE_CHAT
+
+    LaunchedEffect(onChatRoute) {
+        if (onChatRoute) dockOpen = false
+    }
 
     BackHandler(enabled = dockOpen) { dockOpen = false }
 
@@ -124,24 +140,65 @@ fun Baic2App() {
             label = "zone-content",
         ) { dest ->
             when (dest) {
-                Baic2Destination.Chats -> ConversationsScreen()
+                Baic2Destination.Chats -> ChatsZone(navController)
                 Baic2Destination.Tasks -> TasksScreen()
                 Baic2Destination.Library -> LibraryPlaceholder()
                 Baic2Destination.Settings -> SettingsScreen()
             }
         }
 
-        ZoneDock(
-            current = destination,
-            open = dockOpen,
-            onToggle = { dockOpen = !dockOpen },
-            onSelect = { dest ->
-                destination = dest
-                dockOpen = false
-            },
-            onDismiss = { dockOpen = false },
-        )
+        DockScrim(visible = dockOpen && !onChatRoute, onDismiss = { dockOpen = false })
+
+        // The dock (and its label) would collide with the chat top bar, so it
+        // steps aside while a conversation is open.
+        AnimatedVisibility(
+            visible = !onChatRoute,
+            enter = fadeIn(tween(durationMillis = 160)) +
+                scaleIn(initialScale = 0.9f, animationSpec = Baic2Motion.spatialFast()),
+            exit = fadeOut(tween(durationMillis = 120)) +
+                scaleOut(targetScale = 0.9f, animationSpec = Baic2Motion.effectsFast()),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            DockAnchor(
+                current = destination,
+                open = dockOpen,
+                onToggle = { dockOpen = !dockOpen },
+                onSelect = { dest ->
+                    destination = dest
+                    dockOpen = false
+                },
+            )
+        }
     }
+}
+
+@Composable
+private fun ChatsZone(navController: NavHostController) {
+    NavHost(
+        navController = navController,
+        startDestination = ROUTE_CONVERSATIONS,
+    ) {
+        composable(ROUTE_CONVERSATIONS) {
+            ConversationsScreen(
+                onOpenConversation = { id -> navController.navigate("chat/$id") },
+            )
+        }
+        composable(
+            route = ROUTE_CHAT,
+            arguments = listOf(
+                navArgument(ChatViewModelArgs.CONVERSATION_ID) { type = NavType.LongType },
+            ),
+        ) {
+            ChatScreen(onBack = { navController.popBackStack() })
+        }
+    }
+}
+
+private const val ROUTE_CONVERSATIONS = "conversations"
+private const val ROUTE_CHAT = "chat/{conversationId}"
+
+private object ChatViewModelArgs {
+    const val CONVERSATION_ID = "conversationId"
 }
 
 // Temporary M0 placeholder: the Library surface (skills / automations /
@@ -157,17 +214,12 @@ private fun LibraryPlaceholder() {
 }
 
 @Composable
-private fun BoxScope.ZoneDock(
-    current: Baic2Destination,
-    open: Boolean,
-    onToggle: () -> Unit,
-    onSelect: (Baic2Destination) -> Unit,
+private fun BoxScope.DockScrim(
+    visible: Boolean,
     onDismiss: () -> Unit,
 ) {
-    val haptics = LocalHapticFeedback.current
-
     AnimatedVisibility(
-        visible = open,
+        visible = visible,
         enter = fadeIn(tween(durationMillis = 220)),
         exit = fadeOut(tween(durationMillis = 160)),
     ) {
@@ -178,10 +230,19 @@ private fun BoxScope.ZoneDock(
                 .pointerInput(Unit) { detectTapGestures { onDismiss() } },
         )
     }
+}
+
+@Composable
+private fun DockAnchor(
+    current: Baic2Destination,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onSelect: (Baic2Destination) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
-            .align(Alignment.TopStart)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(Baic2Spacing.md),
     ) {
