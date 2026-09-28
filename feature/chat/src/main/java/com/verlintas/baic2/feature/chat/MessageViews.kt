@@ -72,6 +72,7 @@ fun MessageRow(
     onToggleStar: (ChatMessage) -> Unit,
     onEdit: (ChatMessage) -> Unit,
     onDelete: (ChatMessage) -> Unit,
+    onSpeak: (ChatMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (message.role) {
@@ -81,6 +82,7 @@ fun MessageRow(
             onToggleStar = onToggleStar,
             onEdit = onEdit,
             onDelete = onDelete,
+            onSpeak = onSpeak,
             modifier = modifier,
         ) { innerModifier ->
             when (message.role) {
@@ -104,6 +106,7 @@ private fun MessageActionBox(
     onToggleStar: (ChatMessage) -> Unit,
     onEdit: (ChatMessage) -> Unit,
     onDelete: (ChatMessage) -> Unit,
+    onSpeak: (ChatMessage) -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -148,6 +151,15 @@ private fun MessageActionBox(
                     onToggleStar(message)
                 },
             )
+            if (message.role == ChatRole.ASSISTANT && message.content.isNotBlank()) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_action_speak)) },
+                    onClick = {
+                        menuOpen = false
+                        onSpeak(message)
+                    },
+                )
+            }
             if (message.role == ChatRole.USER) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.chat_action_edit)) },

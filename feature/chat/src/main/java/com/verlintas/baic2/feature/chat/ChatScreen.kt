@@ -1,8 +1,12 @@
 package com.verlintas.baic2.feature.chat
 
+import android.Manifest
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -91,12 +95,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
@@ -152,6 +158,52 @@ fun ChatScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri?.let { viewModel.importTextFile(it) }
+    }
+
+    var voiceHint by remember { mutableStateOf<String?>(null) }
+    val deniedHint = stringResource(R.string.chat_voice_denied)
+    val unavailableHint = stringResource(R.string.chat_voice_unavailable)
+    val voicePrompt = stringResource(R.string.chat_voice_input)
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val recognized = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!recognized.isNullOrBlank()) input = recognized
+        }
+    }
+
+    fun launchRecognizer() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, voicePrompt)
+        }
+        runCatching { speechLauncher.launch(intent) }
+            .onFailure { voiceHint = unavailableHint }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) launchRecognizer() else voiceHint = deniedHint
+    }
+
+    fun startVoiceInput() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) launchRecognizer() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    LaunchedEffect(voiceHint) {
+        if (voiceHint != null) {
+            kotlinx.coroutines.delay(3_000)
+            voiceHint = null
+        }
     }
 
     LaunchedEffect(attachmentError) {
@@ -255,6 +307,7 @@ fun ChatScreen(
                     onToggleStar = { viewModel.toggleStar(it.id) },
                     onEdit = { editTarget = it },
                     onDelete = { viewModel.deleteMessage(it.id) },
+                    onSpeak = { viewModel.speakMessage(it.content) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -314,6 +367,8 @@ fun ChatScreen(
             isRunning = state.isRunning,
             pendingAttachments = state.pendingAttachments,
             attachmentError = attachmentError,
+            voiceHint = voiceHint,
+            onVoiceInput = ::startVoiceInput,
             onAttachImages = {
                 imagePicker.launch(
                     androidx.activity.result.PickVisualMediaRequest(
@@ -702,6 +757,8 @@ private fun InputBar(
     isRunning: Boolean,
     pendingAttachments: List<Attachment>,
     attachmentError: AttachmentError?,
+    voiceHint: String?,
+    onVoiceInput: () -> Unit,
     onAttachImages: () -> Unit,
     onAttachFile: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
@@ -767,6 +824,15 @@ private fun InputBar(
             }
         }
 
+        voiceHint?.let { hint ->
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = Baic2Spacing.sm),
+            )
+        }
+
         Row(verticalAlignment = Alignment.Bottom) {
             Box {
                 val attachShape = RoundedCornerShape(16.dp)
@@ -805,6 +871,26 @@ private fun InputBar(
                         },
                     )
                 }
+            }
+
+            Spacer(Modifier.width(Baic2Spacing.sm))
+
+            val voiceShape = RoundedCornerShape(16.dp)
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(voiceShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, voiceShape)
+                    .clickable { onVoiceInput() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_mic),
+                    contentDescription = stringResource(R.string.chat_voice_input),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
             }
 
             Spacer(Modifier.width(Baic2Spacing.sm))

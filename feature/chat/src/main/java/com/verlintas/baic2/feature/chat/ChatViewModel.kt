@@ -24,6 +24,7 @@ import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.device.api.SpeechOutput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,6 +104,7 @@ class ChatViewModel @Inject constructor(
     private val agentLoop: AgentLoop,
     private val auxiliaryTasks: AuxiliaryTasks,
     private val attachmentProcessor: AttachmentProcessor,
+    private val speechOutput: SpeechOutput,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -201,6 +203,19 @@ class ChatViewModel @Inject constructor(
 
     fun dismissAttachmentError() {
         attachmentError.value = null
+    }
+
+    fun speakMessage(text: String) {
+        speechOutput.speak(text)
+    }
+
+    fun stopSpeaking() {
+        speechOutput.stop()
+    }
+
+    override fun onCleared() {
+        speechOutput.stop()
+        super.onCleared()
     }
 
     private fun Throwable.toAttachmentError(): AttachmentError = when (message) {

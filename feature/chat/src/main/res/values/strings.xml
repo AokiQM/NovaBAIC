@@ -51,7 +51,12 @@
     <string name="chat_action_star">收藏</string>
     <string name="chat_action_unstar">取消收藏</string>
     <string name="chat_action_edit">编辑并重发</string>
+    <string name="chat_action_speak">朗读</string>
     <string name="chat_action_delete">删除</string>
+
+    <string name="chat_voice_input">语音输入</string>
+    <string name="chat_voice_denied">需要麦克风权限才能语音输入</string>
+    <string name="chat_voice_unavailable">当前设备不支持语音识别</string>
 
     <string name="chat_search_hint">搜索消息…</string>
     <string name="chat_search_close">关闭搜索</string>

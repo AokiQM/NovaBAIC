@@ -51,7 +51,12 @@
     <string name="chat_action_star">Star</string>
     <string name="chat_action_unstar">Unstar</string>
     <string name="chat_action_edit">Edit &amp; resend</string>
+    <string name="chat_action_speak">Read aloud</string>
     <string name="chat_action_delete">Delete</string>
+
+    <string name="chat_voice_input">Voice input</string>
+    <string name="chat_voice_denied">Microphone permission is required for voice input</string>
+    <string name="chat_voice_unavailable">Speech recognition is not available on this device</string>
 
     <string name="chat_search_hint">Search messages…</string>
     <string name="chat_search_close">Close search</string>
