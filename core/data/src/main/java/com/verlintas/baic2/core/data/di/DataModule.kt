@@ -28,7 +28,7 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): Baic2Database =
         Room.databaseBuilder(context, Baic2Database::class.java, "baic2.db")
-            .addMigrations(Baic2Database.MIGRATION_1_2)
+            .addMigrations(Baic2Database.MIGRATION_1_2, Baic2Database.MIGRATION_2_3)
             .build()
 
     @Provides

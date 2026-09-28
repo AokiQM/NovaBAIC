@@ -61,6 +61,14 @@
     <string name="chat_edit_title">编辑消息</string>
     <string name="chat_edit_confirm">重发</string>
 
+    <string name="chat_attach">附件</string>
+    <string name="chat_attach_images">图片</string>
+    <string name="chat_attach_file">文件</string>
+    <string name="chat_attachment_remove">移除</string>
+    <string name="chat_attachment_too_large">文件过大（上限 1MB）</string>
+    <string name="chat_attachment_unsupported">暂不支持该文件类型</string>
+    <string name="chat_attachment_failed">读取附件失败</string>
+
     <string name="chat_export_you">你</string>
     <string name="chat_export_assistant">助手</string>
     <string name="chat_export_tool">工具调用</string>

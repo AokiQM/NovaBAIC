@@ -68,6 +68,11 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write(f"[mock] system={system_text[:60]!r} count={len(system_parts)}\n")
         if len(system_parts) > 1:
             sys.stderr.write(f"[mock] extra-system={system_parts[1][:120]!r}\n")
+        for message in payload.get("messages", []):
+            content = message.get("content")
+            if isinstance(content, list):
+                kinds = [part.get("type") for part in content if isinstance(part, dict)]
+                sys.stderr.write(f"[mock] parts={kinds}\n")
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

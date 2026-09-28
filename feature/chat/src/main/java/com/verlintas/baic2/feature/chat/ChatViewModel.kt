@@ -3,6 +3,7 @@ package com.verlintas.baic2.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.verlintas.baic2.core.data.attachment.AttachmentProcessor
 import com.verlintas.baic2.core.data.repository.AgentRepository
 import com.verlintas.baic2.core.data.repository.ApiKeyUnavailableException
 import com.verlintas.baic2.core.data.repository.ConversationRepository
@@ -13,6 +14,8 @@ import com.verlintas.baic2.core.engine.AgentFailure
 import com.verlintas.baic2.core.engine.AgentLoop
 import com.verlintas.baic2.core.engine.AuxiliaryTasks
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.Attachment
+import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.MemoryKind
@@ -32,6 +35,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -59,7 +63,14 @@ data class ChatUiState(
     val usagePromptTokens: Long? = null,
     val contextWindow: Long? = null,
     val auxBusy: Boolean = false,
+    val pendingAttachments: List<Attachment> = emptyList(),
 )
+
+enum class AttachmentError {
+    TOO_LARGE,
+    UNSUPPORTED,
+    READ_FAILED,
+}
 
 data class ChatError(
     val kind: Kind,
@@ -91,6 +102,7 @@ class ChatViewModel @Inject constructor(
     private val memoryRepository: MemoryRepository,
     private val agentLoop: AgentLoop,
     private val auxiliaryTasks: AuxiliaryTasks,
+    private val attachmentProcessor: AttachmentProcessor,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -102,6 +114,10 @@ class ChatViewModel @Inject constructor(
     private val error = MutableStateFlow<ChatError?>(null)
     private val usage = MutableStateFlow<Long?>(null)
     private val auxBusy = MutableStateFlow(false)
+    private val pendingAttachments = MutableStateFlow<List<Attachment>>(emptyList())
+    private val attachmentError = MutableStateFlow<AttachmentError?>(null)
+
+    val attachmentErrors: StateFlow<AttachmentError?> = attachmentError.asStateFlow()
 
     val uiState: StateFlow<ChatUiState> = combine(
         conversationRepository.observeConversation(conversationId),
@@ -110,8 +126,10 @@ class ChatViewModel @Inject constructor(
         combine(running, error, usage) { isRunning, currentError, usageTokens ->
             Triple(isRunning, currentError, usageTokens)
         },
-        auxBusy,
-    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), busy ->
+        combine(auxBusy, pendingAttachments) { busy, attachments ->
+            busy to attachments
+        },
+    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), (busy, attachments) ->
         ChatUiState(
             title = conversation?.title.orEmpty(),
             mode = conversation?.mode ?: AppMode.CHAT,
@@ -124,6 +142,7 @@ class ChatViewModel @Inject constructor(
             usagePromptTokens = usageTokens,
             contextWindow = ModelContextWindows.forModel(conversationModel(messages)),
             auxBusy = busy,
+            pendingAttachments = attachments,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -140,8 +159,54 @@ class ChatViewModel @Inject constructor(
 
     fun send(text: String) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() || running.value) return
-        runJob = viewModelScope.launch { executeTurn(trimmed) }
+        val attachments = pendingAttachments.value
+        if ((trimmed.isEmpty() && attachments.isEmpty()) || running.value) return
+        pendingAttachments.value = emptyList()
+        runJob = viewModelScope.launch { executeTurn(trimmed, attachments = attachments) }
+    }
+
+    fun importImages(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val room = (MAX_IMAGE_ATTACHMENTS - pendingAttachments.value.size).coerceAtLeast(0)
+            val imported = uris.take(room).mapNotNull { uri ->
+                attachmentProcessor.importImage(uri).getOrElse { failure ->
+                    attachmentError.value = failure.toAttachmentError()
+                    null
+                }
+            }
+            pendingAttachments.update { it + imported }
+        }
+    }
+
+    fun importTextFile(uri: android.net.Uri) {
+        viewModelScope.launch {
+            attachmentProcessor.importTextFile(uri)
+                .onSuccess { attachment ->
+                    pendingAttachments.update { it + attachment }
+                }
+                .onFailure { failure ->
+                    attachmentError.value = failure.toAttachmentError()
+                }
+        }
+    }
+
+    fun removePendingAttachment(id: String) {
+        val removed = pendingAttachments.value.firstOrNull { it.id == id }
+        pendingAttachments.update { list -> list.filterNot { it.id == id } }
+        removed?.let { attachment ->
+            viewModelScope.launch { attachmentProcessor.delete(attachment) }
+        }
+    }
+
+    fun dismissAttachmentError() {
+        attachmentError.value = null
+    }
+
+    private fun Throwable.toAttachmentError(): AttachmentError = when (message) {
+        "file_too_large" -> AttachmentError.TOO_LARGE
+        "unsupported_type" -> AttachmentError.UNSUPPORTED
+        else -> AttachmentError.READ_FAILED
     }
 
     fun stop() {
@@ -250,7 +315,11 @@ class ChatViewModel @Inject constructor(
         }.trim() + "\n"
     }
 
-    private suspend fun executeTurn(text: String, appendUserMessage: Boolean = true) {
+    private suspend fun executeTurn(
+        text: String,
+        appendUserMessage: Boolean = true,
+        attachments: List<Attachment> = emptyList(),
+    ) {
         val conversation = conversationRepository.get(conversationId) ?: return
         val agent = conversation.agentId?.let { agentRepository.getAgent(it) }
             ?: agentRepository.getDefaultAgent()
@@ -275,6 +344,7 @@ class ChatViewModel @Inject constructor(
                     conversationId = conversationId,
                     role = ChatRole.USER,
                     content = text,
+                    attachments = attachments,
                     createdAt = System.currentTimeMillis(),
                 ),
             )
@@ -283,7 +353,8 @@ class ChatViewModel @Inject constructor(
             }
         }
 
-        val history = withMemories(conversationRepository.getMessages(conversationId))
+        val rawHistory = conversationRepository.getMessages(conversationId)
+        val history = withMemories(prepareHistory(rawHistory))
         val runId = runRepository.start(conversationId, conversation.mode)
 
         running.value = true
@@ -392,6 +463,31 @@ class ChatViewModel @Inject constructor(
             }
             maybeDistillAutomatically(config)
             maybeAutoCompress(config)
+        }
+    }
+
+    /**
+     * Images are only materialized for the newest user turn; older image and
+     * file attachments are replaced by a short marker so history stays cheap
+     * (the assistant already answered them).
+     */
+    private suspend fun prepareHistory(messages: List<ChatMessage>): List<ChatMessage> {
+        val lastUserId = messages.lastOrNull { it.role == ChatRole.USER }?.id
+        return messages.map { message ->
+            if (message.attachments.isEmpty()) return@map message
+            if (message.id == lastUserId) {
+                message.copy(
+                    attachments = message.attachments.map { attachmentProcessor.withBase64(it) },
+                )
+            } else {
+                val marker = message.attachments.joinToString(" ") { attachment ->
+                    "[附件: ${attachment.fileName ?: attachment.kind.name}]"
+                }
+                message.copy(
+                    content = message.content.ifBlank { marker },
+                    attachments = emptyList(),
+                )
+            }
         }
     }
 
@@ -585,5 +681,6 @@ class ChatViewModel @Inject constructor(
         private const val KEEP_RECENT_MESSAGES = 6
         private const val DISTILL_EVERY_MESSAGES = 10
         private const val AUTO_COMPRESS_THRESHOLD = 0.85
+        private const val MAX_IMAGE_ATTACHMENTS = 4
     }
 }

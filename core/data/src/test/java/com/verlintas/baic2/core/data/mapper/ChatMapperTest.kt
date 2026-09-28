@@ -63,6 +63,41 @@ class ChatMapperTest {
     }
 
     @Test
+    fun attachmentsRoundTripWithoutBase64() {
+        val message = ChatMessage(
+            id = 11,
+            conversationId = 2,
+            role = ChatRole.USER,
+            content = "look",
+            attachments = listOf(
+                com.verlintas.baic2.core.model.Attachment(
+                    id = "a1",
+                    kind = com.verlintas.baic2.core.model.AttachmentKind.IMAGE,
+                    mimeType = "image/jpeg",
+                    localPath = "/data/attachments/a1.jpg",
+                    base64 = "SHOULD_NOT_PERSIST",
+                    sizeBytes = 123,
+                ),
+                com.verlintas.baic2.core.model.Attachment(
+                    id = "t1",
+                    kind = com.verlintas.baic2.core.model.AttachmentKind.TEXT,
+                    mimeType = "text/plain",
+                    fileName = "notes.txt",
+                    text = "hello",
+                ),
+            ),
+        )
+
+        val entity = mapper.messageToEntity(message)
+        val restored = mapper.messageToModel(entity)
+
+        assertEquals(2, restored.attachments.size)
+        assertEquals("/data/attachments/a1.jpg", restored.attachments[0].localPath)
+        assertEquals(null, restored.attachments[0].base64)
+        assertEquals("hello", restored.attachments[1].text)
+    }
+
+    @Test
     fun unknownEnumValuesFallBack() {
         val entity = ConversationEntity(
             id = 1,

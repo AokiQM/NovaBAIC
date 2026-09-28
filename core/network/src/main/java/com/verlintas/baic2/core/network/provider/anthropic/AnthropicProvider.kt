@@ -235,7 +235,7 @@ class AnthropicProvider(
         request.messages.forEach { message ->
             when (message.role) {
                 ChatRole.SYSTEM -> Unit
-                ChatRole.USER -> append("user", listOf(AnthropicBlock(type = "text", text = message.content)))
+                ChatRole.USER -> append("user", userBlocks(message))
                 ChatRole.ASSISTANT -> {
                     val blocks = buildList {
                         if (message.content.isNotBlank()) {
@@ -290,6 +290,44 @@ class AnthropicProvider(
             },
         )
     }
+
+    private fun userBlocks(message: com.verlintas.baic2.core.model.ChatMessage): List<AnthropicBlock> =
+        buildList {
+            val text = buildTextWithAttachments(message)
+            if (text.isNotBlank()) {
+                add(AnthropicBlock(type = "text", text = text))
+            }
+            message.attachments
+                .filter {
+                    it.kind == com.verlintas.baic2.core.model.AttachmentKind.IMAGE && it.base64 != null
+                }
+                .forEach { image ->
+                    add(
+                        AnthropicBlock(
+                            type = "image",
+                            source = AnthropicImageSource(
+                                mediaType = image.mimeType,
+                                data = image.base64.orEmpty(),
+                            ),
+                        ),
+                    )
+                }
+        }
+
+    private fun buildTextWithAttachments(
+        message: com.verlintas.baic2.core.model.ChatMessage,
+    ): String = buildString {
+        append(message.content)
+        message.attachments
+            .filter { it.kind == com.verlintas.baic2.core.model.AttachmentKind.TEXT }
+            .forEach { attachment ->
+                attachment.text?.let { text ->
+                    if (isNotBlank()) append("\n\n")
+                    append("[附件: ").append(attachment.fileName ?: "text").append("]\n")
+                    append(text)
+                }
+            }
+    }.trim()
 
     private fun parseJsonObject(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
@@ -356,8 +394,16 @@ private data class AnthropicBlock(
     val id: String? = null,
     val name: String? = null,
     val input: JsonObject? = null,
+    val source: AnthropicImageSource? = null,
     @SerialName("tool_use_id") val toolUseId: String? = null,
     val content: String? = null,
+)
+
+@Serializable
+private data class AnthropicImageSource(
+    val type: String = "base64",
+    @SerialName("media_type") val mediaType: String,
+    val data: String,
 )
 
 @Serializable

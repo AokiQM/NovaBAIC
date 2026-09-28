@@ -204,7 +204,7 @@ class GeminiProvider(
         request.messages.forEach { message ->
             when (message.role) {
                 ChatRole.SYSTEM -> Unit
-                ChatRole.USER -> append("user", listOf(GeminiPart(text = message.content)))
+                ChatRole.USER -> append("user", userParts(message))
                 ChatRole.ASSISTANT -> {
                     val parts = buildList {
                         if (message.content.isNotBlank()) add(GeminiPart(text = message.content))
@@ -263,6 +263,43 @@ class GeminiProvider(
         )
     }
 
+    private fun userParts(message: com.verlintas.baic2.core.model.ChatMessage): List<GeminiPart> =
+        buildList {
+            val text = buildTextWithAttachments(message)
+            if (text.isNotBlank()) {
+                add(GeminiPart(text = text))
+            }
+            message.attachments
+                .filter {
+                    it.kind == com.verlintas.baic2.core.model.AttachmentKind.IMAGE && it.base64 != null
+                }
+                .forEach { image ->
+                    add(
+                        GeminiPart(
+                            inlineData = GeminiInlineData(
+                                mimeType = image.mimeType,
+                                data = image.base64.orEmpty(),
+                            ),
+                        ),
+                    )
+                }
+        }
+
+    private fun buildTextWithAttachments(
+        message: com.verlintas.baic2.core.model.ChatMessage,
+    ): String = buildString {
+        append(message.content)
+        message.attachments
+            .filter { it.kind == com.verlintas.baic2.core.model.AttachmentKind.TEXT }
+            .forEach { attachment ->
+                attachment.text?.let { text ->
+                    if (isNotBlank()) append("\n\n")
+                    append("[附件: ").append(attachment.fileName ?: "text").append("]\n")
+                    append(text)
+                }
+            }
+    }.trim()
+
     private fun parseJsonObject(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
             ?: JsonObject(emptyMap())
@@ -301,6 +338,13 @@ private data class GeminiPart(
     val thought: Boolean? = null,
     @SerialName("functionCall") val functionCall: GeminiFunctionCall? = null,
     @SerialName("functionResponse") val functionResponse: GeminiFunctionResponse? = null,
+    @SerialName("inlineData") val inlineData: GeminiInlineData? = null,
+)
+
+@Serializable
+private data class GeminiInlineData(
+    @SerialName("mimeType") val mimeType: String,
+    val data: String,
 )
 
 @Serializable

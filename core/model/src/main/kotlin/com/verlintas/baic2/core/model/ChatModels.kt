@@ -20,6 +20,7 @@ data class ChatMessage(
     val content: String = "",
     val thinking: String? = null,
     val toolCalls: List<ToolCall> = emptyList(),
+    val attachments: List<Attachment> = emptyList(),
     val toolCallId: String? = null,
     val toolName: String? = null,
     val model: String? = null,

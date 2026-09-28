@@ -255,6 +255,66 @@ class OpenAiCompatibleProviderTest {
     }
 
     @Test
+    fun mapsImageAttachmentToContentParts() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(
+                role = ChatRole.USER,
+                content = "what is this?",
+                attachments = listOf(
+                    com.verlintas.baic2.core.model.Attachment(
+                        id = "a1",
+                        kind = com.verlintas.baic2.core.model.AttachmentKind.IMAGE,
+                        mimeType = "image/jpeg",
+                        base64 = "QUJD",
+                    ),
+                ),
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val content = body.getValue("messages").jsonArray[1].jsonObject.getValue("content")
+        val parts = content as kotlinx.serialization.json.JsonArray
+        assertEquals("text", parts[0].jsonObject.getValue("type").jsonPrimitive.content)
+        assertEquals(
+            "data:image/jpeg;base64,QUJD",
+            parts[1].jsonObject.getValue("image_url").jsonObject
+                .getValue("url").jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun mapsTextAttachmentIntoThePrompt() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(
+                role = ChatRole.USER,
+                content = "check this",
+                attachments = listOf(
+                    com.verlintas.baic2.core.model.Attachment(
+                        id = "t1",
+                        kind = com.verlintas.baic2.core.model.AttachmentKind.TEXT,
+                        mimeType = "text/plain",
+                        fileName = "notes.txt",
+                        text = "hello attachment",
+                    ),
+                ),
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val content = body.getValue("messages").jsonArray[1].jsonObject
+            .getValue("content").jsonPrimitive.content
+        assertTrue(content.contains("check this"))
+        assertTrue(content.contains("[附件: notes.txt]"))
+        assertTrue(content.contains("hello attachment"))
+    }
+
+    @Test
     fun assistantToolCallsAreMappedOnTheWire() = runTest {
         enqueueSse("[DONE]")
         val history = listOf(

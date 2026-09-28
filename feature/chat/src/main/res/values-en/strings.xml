@@ -61,6 +61,14 @@
     <string name="chat_edit_title">Edit message</string>
     <string name="chat_edit_confirm">Resend</string>
 
+    <string name="chat_attach">Attach</string>
+    <string name="chat_attach_images">Images</string>
+    <string name="chat_attach_file">File</string>
+    <string name="chat_attachment_remove">Remove</string>
+    <string name="chat_attachment_too_large">File too large (1 MB max)</string>
+    <string name="chat_attachment_unsupported">Unsupported file type</string>
+    <string name="chat_attachment_failed">Failed to read the attachment</string>
+
     <string name="chat_export_you">You</string>
     <string name="chat_export_assistant">Assistant</string>
     <string name="chat_export_tool">Tool call</string>

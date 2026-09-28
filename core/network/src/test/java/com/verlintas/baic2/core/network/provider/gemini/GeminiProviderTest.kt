@@ -179,6 +179,33 @@ class GeminiProviderTest {
     }
 
     @Test
+    fun mapsImageAttachmentToInlineData() = runTest {
+        enqueueSse("""{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}""")
+        val history = listOf(
+            ChatMessage(
+                role = ChatRole.USER,
+                content = "what is this?",
+                attachments = listOf(
+                    com.verlintas.baic2.core.model.Attachment(
+                        id = "a1",
+                        kind = com.verlintas.baic2.core.model.AttachmentKind.IMAGE,
+                        mimeType = "image/jpeg",
+                        base64 = "QUJD",
+                    ),
+                ),
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val contents = body.getValue("contents").toString()
+        assertTrue(contents.contains("\"inlineData\""))
+        assertTrue(contents.contains("\"mimeType\":\"image/jpeg\""))
+        assertTrue(contents.contains("\"data\":\"QUJD\""))
+    }
+
+    @Test
     fun listModelsStripsPrefix() = runTest {
         server.enqueue(
             MockResponse()

@@ -77,6 +77,7 @@ class ChatMapper @Inject constructor(private val json: Json) {
         content = entity.content,
         thinking = entity.thinking,
         toolCalls = decodeToolCalls(entity.toolCallsJson),
+        attachments = decodeAttachments(entity.attachmentsJson),
         toolCallId = entity.toolCallId,
         toolName = entity.toolName,
         model = entity.model,
@@ -91,12 +92,24 @@ class ChatMapper @Inject constructor(private val json: Json) {
         content = message.content,
         thinking = message.thinking,
         toolCallsJson = encodeToolCalls(message.toolCalls),
+        attachmentsJson = encodeAttachments(message.attachments),
         toolCallId = message.toolCallId,
         toolName = message.toolName,
         model = message.model,
         createdAt = message.createdAt,
         starred = message.starred,
     )
+
+    /** Ephemeral base64 payloads are never persisted. */
+    fun encodeAttachments(attachments: List<com.verlintas.baic2.core.model.Attachment>): String =
+        json.encodeToString(attachments.map { it.copy(base64 = null) })
+
+    private fun decodeAttachments(raw: String): List<com.verlintas.baic2.core.model.Attachment> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            json.decodeFromString<List<com.verlintas.baic2.core.model.Attachment>>(raw)
+        }.getOrDefault(emptyList())
+    }
 
     fun memoryToModel(entity: MemoryEntity): Memory = Memory(
         id = entity.id,

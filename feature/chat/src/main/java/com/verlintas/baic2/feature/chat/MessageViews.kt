@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +54,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.verlintas.baic2.core.model.Attachment
+import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.ToolCall
@@ -80,7 +84,11 @@ fun MessageRow(
             modifier = modifier,
         ) { innerModifier ->
             when (message.role) {
-                ChatRole.USER -> UserBubble(text = message.content, modifier = innerModifier)
+                ChatRole.USER -> UserBubble(
+                    text = message.content,
+                    attachments = message.attachments,
+                    modifier = innerModifier,
+                )
                 else -> AssistantMessage(message = message, modifier = innerModifier)
             }
         }
@@ -163,6 +171,7 @@ private fun MessageActionBox(
 @Composable
 private fun UserBubble(
     text: String,
+    attachments: List<Attachment>,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -175,19 +184,52 @@ private fun UserBubble(
             bottomStart = 18.dp,
             bottomEnd = 6.dp,
         )
-        Box(
+        Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
                 .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f), shape)
                 .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            attachments.filter { it.kind == AttachmentKind.IMAGE }.forEach { image ->
+                image.localPath?.let { path ->
+                    LocalImageThumbnail(
+                        path = path,
+                        modifier = Modifier
+                            .widthIn(max = 260.dp)
+                            .heightIn(max = 220.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+            }
+            if (text.isNotBlank()) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            attachments.filter { it.kind == AttachmentKind.TEXT }.forEach { attachment ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(Baic2Spacing.xs))
+                    Text(
+                        text = attachment.fileName ?: "attachment",
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }

@@ -3,6 +3,8 @@ package com.verlintas.baic2.feature.chat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -34,21 +36,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -80,6 +87,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -90,6 +98,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.Attachment
+import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.designsystem.Baic2Mono
@@ -132,6 +142,24 @@ fun ChatScreen(
         emptyConversation = stringResource(R.string.chat_export_empty),
     )
     val exportChooserTitle = stringResource(R.string.chat_export_chooser)
+    val attachmentError by viewModel.attachmentErrors.collectAsStateWithLifecycle()
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(4),
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.importImages(uris)
+    }
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let { viewModel.importTextFile(it) }
+    }
+
+    LaunchedEffect(attachmentError) {
+        if (attachmentError != null) {
+            kotlinx.coroutines.delay(3_000)
+            viewModel.dismissAttachmentError()
+        }
+    }
 
     LaunchedEffect(searchQuery, matches.size) {
         matchIndex = 0
@@ -284,6 +312,27 @@ fun ChatScreen(
             value = input,
             onValueChange = { input = it },
             isRunning = state.isRunning,
+            pendingAttachments = state.pendingAttachments,
+            attachmentError = attachmentError,
+            onAttachImages = {
+                imagePicker.launch(
+                    androidx.activity.result.PickVisualMediaRequest(
+                        ActivityResultContracts.PickVisualMedia.ImageOnly,
+                    ),
+                )
+            },
+            onAttachFile = {
+                filePicker.launch(
+                    arrayOf(
+                        "text/*",
+                        "application/json",
+                        "application/xml",
+                        "application/javascript",
+                    ),
+                )
+            },
+            onRemoveAttachment = viewModel::removePendingAttachment,
+            onDismissAttachmentError = viewModel::dismissAttachmentError,
             onSend = {
                 val text = input
                 input = ""
@@ -651,10 +700,17 @@ private fun InputBar(
     value: String,
     onValueChange: (String) -> Unit,
     isRunning: Boolean,
+    pendingAttachments: List<Attachment>,
+    attachmentError: AttachmentError?,
+    onAttachImages: () -> Unit,
+    onAttachFile: () -> Unit,
+    onRemoveAttachment: (String) -> Unit,
+    onDismissAttachmentError: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    var attachMenuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
 
     Column(
@@ -665,7 +721,94 @@ private fun InputBar(
             .navigationBarsPadding()
             .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
     ) {
+        if (pendingAttachments.isNotEmpty()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
+                modifier = Modifier.padding(bottom = Baic2Spacing.sm),
+            ) {
+                items(pendingAttachments, key = { it.id }) { attachment ->
+                    PendingAttachmentChip(
+                        attachment = attachment,
+                        onRemove = { onRemoveAttachment(attachment.id) },
+                    )
+                }
+            }
+        }
+
+        attachmentError?.let { error ->
+            val shape = RoundedCornerShape(10.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Baic2Spacing.sm)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), shape)
+                    .clickable(onClick = onDismissAttachmentError)
+                    .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(Baic2Spacing.sm))
+                Text(
+                    text = when (error) {
+                        AttachmentError.TOO_LARGE -> stringResource(R.string.chat_attachment_too_large)
+                        AttachmentError.UNSUPPORTED -> stringResource(R.string.chat_attachment_unsupported)
+                        AttachmentError.READ_FAILED -> stringResource(R.string.chat_attachment_failed)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+
         Row(verticalAlignment = Alignment.Bottom) {
+            Box {
+                val attachShape = RoundedCornerShape(16.dp)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(attachShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, attachShape)
+                        .clickable { attachMenuOpen = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = stringResource(R.string.chat_attach),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = attachMenuOpen,
+                    onDismissRequest = { attachMenuOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_attach_images)) },
+                        onClick = {
+                            attachMenuOpen = false
+                            onAttachImages()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_attach_file)) },
+                        onClick = {
+                            attachMenuOpen = false
+                            onAttachFile()
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(Baic2Spacing.sm))
+
             val shape = RoundedCornerShape(20.dp)
             Box(
                 modifier = Modifier
@@ -714,7 +857,7 @@ private fun InputBar(
             Spacer(Modifier.width(Baic2Spacing.sm))
             SendButton(
                 isRunning = isRunning,
-                enabled = value.isNotBlank(),
+                enabled = value.isNotBlank() || pendingAttachments.isNotEmpty(),
                 onSend = {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onSend()
@@ -725,6 +868,91 @@ private fun InputBar(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun PendingAttachmentChip(
+    attachment: Attachment,
+    onRemove: () -> Unit,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(
+                start = if (attachment.kind == AttachmentKind.IMAGE) 2.dp else Baic2Spacing.md,
+                end = 2.dp,
+                top = 2.dp,
+                bottom = 2.dp,
+            ),
+        ) {
+            if (attachment.kind == AttachmentKind.IMAGE) {
+                attachment.localPath?.let { path ->
+                    LocalImageThumbnail(
+                        path = path,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(Baic2Spacing.sm))
+                Text(
+                    text = attachment.fileName ?: stringResource(R.string.chat_attach_file),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 140.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.chat_attachment_remove),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun LocalImageThumbnail(
+    path: String,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { android.graphics.BitmapFactory.decodeFile(path) }.getOrNull()
+        }
+    }
+    bitmap?.let { image ->
+        androidx.compose.foundation.Image(
+            bitmap = image.asImageBitmap(),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = modifier,
+        )
     }
 }
 

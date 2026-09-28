@@ -29,8 +29,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -181,23 +184,27 @@ class OpenAiCompatibleProvider(
     private fun buildPayload(request: ChatRequest): WireRequest {
         val messages = buildList {
             if (request.systemPrompt.isNotBlank()) {
-                add(WireMessage(role = "system", content = request.systemPrompt))
+                add(WireMessage(role = "system", content = JsonPrimitive(request.systemPrompt)))
             }
             request.messages.forEach { message ->
                 when (message.role) {
-                    ChatRole.SYSTEM -> add(WireMessage(role = "system", content = message.content))
-                    ChatRole.USER -> add(WireMessage(role = "user", content = message.content))
+                    ChatRole.SYSTEM -> add(
+                        WireMessage(role = "system", content = JsonPrimitive(message.content)),
+                    )
+                    ChatRole.USER -> add(WireMessage(role = "user", content = buildUserContent(message)))
                     ChatRole.TOOL -> add(
                         WireMessage(
                             role = "tool",
-                            content = message.content,
+                            content = JsonPrimitive(message.content),
                             toolCallId = message.toolCallId,
                         ),
                     )
                     ChatRole.ASSISTANT -> add(
                         WireMessage(
                             role = "assistant",
-                            content = message.content.ifEmpty { null },
+                            content = message.content
+                                .takeIf { it.isNotBlank() }
+                                ?.let { JsonPrimitive(it) },
                             toolCalls = message.toolCalls
                                 .takeIf { it.isNotEmpty() }
                                 ?.map { call ->
@@ -228,6 +235,59 @@ class OpenAiCompatibleProvider(
             tools = tools,
         )
     }
+
+    /**
+     * Plain user messages stay a JSON string; messages with images become the
+     * OpenAI content-parts array (text + data URLs).
+     */
+    private fun buildUserContent(message: com.verlintas.baic2.core.model.ChatMessage): JsonElement? {
+        val textContent = buildTextWithAttachments(message)
+        val images = message.attachments.filter {
+            it.kind == com.verlintas.baic2.core.model.AttachmentKind.IMAGE && it.base64 != null
+        }
+        if (images.isEmpty()) {
+            return JsonPrimitive(textContent)
+        }
+        return JsonArray(
+            buildList {
+                if (textContent.isNotBlank()) {
+                    add(
+                        buildJsonObject {
+                            put("type", "text")
+                            put("text", textContent)
+                        },
+                    )
+                }
+                images.forEach { image ->
+                    add(
+                        buildJsonObject {
+                            put("type", "image_url")
+                            put(
+                                "image_url",
+                                buildJsonObject {
+                                    put("url", "data:${image.mimeType};base64,${image.base64}")
+                                },
+                            )
+                        },
+                    )
+                }
+            },
+        )
+    }
+
+    private fun buildTextWithAttachments(message: com.verlintas.baic2.core.model.ChatMessage): String =
+        buildString {
+            append(message.content)
+            message.attachments
+                .filter { it.kind == com.verlintas.baic2.core.model.AttachmentKind.TEXT }
+                .forEach { attachment ->
+                    attachment.text?.let { text ->
+                        if (isNotBlank()) append("\n\n")
+                        append("[附件: ").append(attachment.fileName ?: "text").append("]\n")
+                        append(text)
+                    }
+                }
+        }.trim()
 
     private fun parseParameters(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
@@ -272,7 +332,7 @@ private data class WireRequest(
 @Serializable
 private data class WireMessage(
     val role: String,
-    val content: String? = null,
+    val content: JsonElement? = null,
     @SerialName("tool_calls") val toolCalls: List<WireToolCall>? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
 )

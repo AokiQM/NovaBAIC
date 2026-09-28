@@ -215,6 +215,33 @@ class AnthropicProviderTest {
     }
 
     @Test
+    fun mapsImageAttachmentToImageBlock() = runTest {
+        enqueueSse(sse("message_stop" to """{"type":"message_stop"}"""))
+        val history = listOf(
+            ChatMessage(
+                role = ChatRole.USER,
+                content = "what is this?",
+                attachments = listOf(
+                    com.verlintas.baic2.core.model.Attachment(
+                        id = "a1",
+                        kind = com.verlintas.baic2.core.model.AttachmentKind.IMAGE,
+                        mimeType = "image/jpeg",
+                        base64 = "QUJD",
+                    ),
+                ),
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val content = body.getValue("messages").toString()
+        assertTrue(content.contains("\"type\":\"image\""))
+        assertTrue(content.contains("\"media_type\":\"image/jpeg\""))
+        assertTrue(content.contains("\"data\":\"QUJD\""))
+    }
+
+    @Test
     fun listModelsParsesIds() = runTest {
         server.enqueue(
             MockResponse()
