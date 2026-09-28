@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_settings_title">设置</string>
-    <string name="feature_settings_description">Agents、权限中心与外观设置将在 M2 落地</string>
-    <string name="feature_settings_milestone" translatable="false">M2</string>
+
+    <string name="settings_agents_title">AI 服务</string>
+    <string name="settings_agents_add">添加服务</string>
+    <string name="settings_agents_default">默认服务</string>
+    <string name="settings_agents_delete">删除</string>
+    <string name="settings_provider_openai">OpenAI 兼容</string>
+    <string name="settings_provider_claude">Claude</string>
+    <string name="settings_provider_gemini">Gemini</string>
+
+    <string name="settings_appearance_title">外观</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+
+    <string name="settings_about_title">关于</string>
+    <string name="settings_about_tagline">本地优先的 Android AI 智能体 · 密钥不出设备</string>
 </resources>

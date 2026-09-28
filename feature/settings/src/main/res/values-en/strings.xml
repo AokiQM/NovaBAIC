@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_settings_title">Settings</string>
-    <string name="feature_settings_description">Agents, the permission center and appearance land in M2</string>
+
+    <string name="settings_agents_title">AI services</string>
+    <string name="settings_agents_add">Add service</string>
+    <string name="settings_agents_default">Default service</string>
+    <string name="settings_agents_delete">Delete</string>
+    <string name="settings_provider_openai">OpenAI-compatible</string>
+    <string name="settings_provider_claude">Claude</string>
+    <string name="settings_provider_gemini">Gemini</string>
+
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <string name="settings_about_title">About</string>
+    <string name="settings_about_tagline">Local-first Android AI agent · keys stay on device</string>
 </resources>

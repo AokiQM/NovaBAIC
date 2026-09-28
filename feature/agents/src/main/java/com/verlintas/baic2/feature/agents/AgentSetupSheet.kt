@@ -1,4 +1,4 @@
-package com.verlintas.baic2.feature.conversations
+package com.verlintas.baic2.feature.agents
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

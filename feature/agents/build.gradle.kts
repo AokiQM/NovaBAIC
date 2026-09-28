@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.verlintas.baic2.feature.conversations"
+    namespace = "com.verlintas.baic2.feature.agents"
     compileSdk = 37
 
     defaultConfig {
@@ -28,7 +28,6 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
-    implementation(project(":feature:agents"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

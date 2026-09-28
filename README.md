@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M1（垂直切片）完成** — 16 模块工程、Hilt、暗色优先设计系统、悬浮 Dock 导航、Room 持久化、OpenAI 兼容流式聊天、AgentLoop 引擎（模式门/预算/工具契约）、评测 harness（4 场景）、CI 全绿。
+**状态：M2（完整聊天）完成** — 三家 Provider（OpenAI 兼容 / Claude / Gemini）、流式聊天与 Markdown、思考过程、附件（图片视觉 + 文本文件）、语音输入与朗读、长期记忆、上下文压缩、AI 自动标题、消息操作（复制/收藏/编辑重发/删除）、对话搜索、收藏夹、Markdown 导出、Agents 管理与明暗主题；86 个单元测试 + 模拟器端到端验证。
 
 ## 核心目标
 
@@ -71,8 +71,8 @@ adb reverse tcp:8765 tcp:8765            # 模拟器/真机访问宿主机
 | M0 工程骨架 | ✅ 完成 |
 | M0.5 导航壳重做 | ✅ 完成 |
 | M1 垂直切片（Agents + 流式聊天 + Runtime 骨架 + eval 骨架） | ✅ 完成 |
-| M2 完整聊天（三家 Provider/附件/语音/记忆） | 下一步 |
-| M3 Runtime v1（计划-验证 + Tasks 控制台 + 后台运行） | 计划中 |
+| M2 完整聊天（三家 Provider/附件/语音/记忆/压缩/搜索/收藏/导出/设置） | ✅ 完成（语音助手免提模式与 PDF/Office 解析留待后续） |
+| M3 Runtime v1（计划-验证 + Tasks 控制台 + 后台运行） | 下一步 |
 | M4 子代理 + 工具 + 自动化 + Skills v2 | 计划中 |
 | M5 MCP + 评测扩充 + CI 指标门禁 | 计划中 |
 | M6 打磨与 v0.1.0 发布 | 计划中 |

@@ -69,6 +69,7 @@ import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
 import com.verlintas.baic2.designsystem.component.Baic2Skeleton
+import com.verlintas.baic2.feature.agents.AgentSetupSheet
 import com.verlintas.baic2.designsystem.component.shimmerBackground
 
 @Composable

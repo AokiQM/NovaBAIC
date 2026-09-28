@@ -16,29 +16,4 @@
     <string name="agent_banner_action">立即配置</string>
     <string name="agent_setup_action">配置 AI 服务</string>
 
-    <string name="agent_setup_title">配置 AI 服务</string>
-    <string name="agent_setup_subtitle">支持 OpenAI 兼容接口（DeepSeek / Kimi / Qwen / Ollama / 网关…）</string>
-    <string name="agent_setup_base_url">Base URL</string>
-    <string name="agent_setup_api_key">API Key</string>
-    <string name="agent_setup_model">模型</string>
-    <string name="agent_setup_fetch_models">拉取</string>
-    <string name="agent_setup_save">保存</string>
-    <string name="agent_setup_hint">Key 使用 Android Keystore 加密存储，只会发送给你配置的服务商</string>
-    <string name="agent_setup_error_key">请填写 API Key</string>
-    <string name="agent_setup_error_url">请填写 Base URL</string>
-    <string name="agent_setup_error_model">请填写模型名</string>
-    <string name="agent_setup_error_keystore">Key 加密失败，请重试</string>
-    <string name="agent_setup_error_auth">认证失败：请检查 API Key</string>
-    <string name="agent_setup_error_network">网络请求失败：请检查网络与 Base URL</string>
-    <string name="agent_setup_error_rate_limit">请求过于频繁，请稍后再试</string>
-    <string name="agent_setup_error_generic">请求失败：%1$s</string>
-
-    <string name="preset_deepseek" translatable="false">DeepSeek</string>
-    <string name="preset_openai" translatable="false">OpenAI</string>
-    <string name="preset_siliconflow" translatable="false">SiliconFlow</string>
-    <string name="preset_moonshot" translatable="false">Kimi</string>
-    <string name="preset_qwen" translatable="false">Qwen</string>
-    <string name="preset_claude" translatable="false">Claude</string>
-    <string name="preset_gemini" translatable="false">Gemini</string>
-    <string name="preset_custom">自定义</string>
 </resources>

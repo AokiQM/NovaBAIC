@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agent_setup_action">Configure AI service</string>
+
+    <string name="agent_setup_title">Configure AI service</string>
+    <string name="agent_setup_subtitle">OpenAI-compatible endpoints (DeepSeek / Kimi / Qwen / Ollama / gateways…), Claude and Gemini</string>
+    <string name="agent_setup_base_url">Base URL</string>
+    <string name="agent_setup_api_key">API key</string>
+    <string name="agent_setup_model">Model</string>
+    <string name="agent_setup_fetch_models">Fetch</string>
+    <string name="agent_setup_save">Save</string>
+    <string name="agent_setup_hint">The key is encrypted with the Android Keystore and only sent to the provider you configure</string>
+    <string name="agent_setup_error_key">API key is required</string>
+    <string name="agent_setup_error_url">Base URL is required</string>
+    <string name="agent_setup_error_model">Model is required</string>
+    <string name="agent_setup_error_keystore">Key encryption failed, please retry</string>
+    <string name="agent_setup_error_auth">Authentication failed: check the API key</string>
+    <string name="agent_setup_error_network">Request failed: check the network and Base URL</string>
+    <string name="agent_setup_error_rate_limit">Rate limited, try again later</string>
+    <string name="agent_setup_error_generic">Request failed: %1$s</string>
+
+    <string name="preset_custom">Custom</string>
+</resources>

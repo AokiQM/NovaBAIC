@@ -144,7 +144,7 @@ fun Baic2App() {
                 Baic2Destination.Chats -> ChatsZone(navController)
                 Baic2Destination.Tasks -> TasksScreen()
                 Baic2Destination.Library -> LibraryPlaceholder()
-                Baic2Destination.Settings -> SettingsScreen()
+                Baic2Destination.Settings -> SettingsScreen(appVersion = BuildConfig.VERSION_NAME)
             }
         }
 

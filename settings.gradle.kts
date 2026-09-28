@@ -29,6 +29,7 @@ include(":feature:chat")
 include(":feature:conversations")
 include(":feature:tasks")
 include(":feature:settings")
+include(":feature:agents")
 
 include(":device:api")
 include(":device:impl")
