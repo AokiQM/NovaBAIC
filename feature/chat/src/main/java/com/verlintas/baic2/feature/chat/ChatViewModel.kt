@@ -54,7 +54,6 @@ import kotlinx.serialization.json.JsonPrimitive
 data class StreamingState(
     val text: String = "",
     val thinking: String = "",
-    val toolCalls: List<ToolCall> = emptyList(),
 )
 
 data class ChatUiState(
@@ -63,7 +62,6 @@ data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val streamingText: String = "",
     val streamingThinking: String = "",
-    val liveToolCalls: List<ToolCall> = emptyList(),
     val isRunning: Boolean = false,
     val error: ChatError? = null,
     val usagePromptTokens: Long? = null,
@@ -163,7 +161,6 @@ class ChatViewModel @Inject constructor(
             messages = messages,
             streamingText = stream.text,
             streamingThinking = stream.thinking,
-            liveToolCalls = stream.toolCalls,
             isRunning = isRunning,
             error = currentError,
             usagePromptTokens = usageTokens,
@@ -494,7 +491,6 @@ class ChatViewModel @Inject constructor(
                         assistantMessageId?.let { id ->
                             conversationRepository.updateToolCalls(id, pendingCalls)
                         }
-                        streaming.update { it.copy(toolCalls = pendingCalls) }
                     }
 
                     is AgentEvent.ToolCallFinished -> {
@@ -504,7 +500,6 @@ class ChatViewModel @Inject constructor(
                         assistantMessageId?.let { id ->
                             conversationRepository.updateToolCalls(id, pendingCalls)
                         }
-                        streaming.update { it.copy(toolCalls = pendingCalls) }
                     }
 
                     is AgentEvent.Usage -> usage.value = event.promptTokens ?: usage.value

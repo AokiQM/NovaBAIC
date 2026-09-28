@@ -30,6 +30,15 @@ TOOL_ARGS = {
     "take_screenshot": {},
     "screen_ocr": {},
     "ui_find": {"text": "Back"},
+    "web_search": {"query": "BAIC2 Android AI agent", "limit": 3},
+    "web_read": {"url": "https://example.com", "max_chars": 500},
+    "get_weather": {"city": "Beijing"},
+    "get_screen_state": {},
+    "generate_qr": {"text": "https://github.com/Verlintas"},
+    "write_document": {"content": "hello from BAIC2", "file_name": "baic2-test.md"},
+    "list_files": {"scope": "downloads"},
+    "read_text_file": {"file_name": "baic2-test.md"},
+    "get_foreground_app": {},
     "plan_update": {
         "steps": [
             {"title": "打开设置页", "status": "doing"},

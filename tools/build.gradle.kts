@@ -23,6 +23,10 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:engine"))
     implementation(project(":core:data"))
+    implementation(project(":core:network"))
+
+    implementation(libs.jsoup)
+    implementation(libs.zxing.core)
     api(project(":device:api"))
 
     api(libs.kotlinx.serialization.json)

@@ -241,7 +241,6 @@ fun ChatScreen(
         state.messages.size,
         state.streamingText.length,
         state.streamingThinking.length,
-        state.liveToolCalls.size,
     ) {
         if (searchOpen) return@LaunchedEffect
         val target = listState.layoutInfo.totalItemsCount - 1
@@ -333,8 +332,7 @@ fun ChatScreen(
 
             val streaming = state.isRunning && (
                 state.streamingText.isNotBlank() ||
-                    state.streamingThinking.isNotBlank() ||
-                    state.liveToolCalls.isNotEmpty()
+                    state.streamingThinking.isNotBlank()
                 )
             if (streaming) {
                 item(key = "streaming") {
@@ -345,10 +343,6 @@ fun ChatScreen(
                         }
                         if (state.streamingText.isNotBlank()) {
                             MarkdownMessage(text = state.streamingText, streaming = true)
-                        }
-                        state.liveToolCalls.forEach { call ->
-                            Spacer(Modifier.size(Baic2Spacing.sm))
-                            ToolCard(call = call)
                         }
                     }
                 }

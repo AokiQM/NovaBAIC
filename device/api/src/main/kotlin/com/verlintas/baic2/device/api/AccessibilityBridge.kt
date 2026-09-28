@@ -34,4 +34,7 @@ interface AccessibilityBridge {
     fun findText(query: String): List<TextNode>
 
     fun screenText(maxNodes: Int = 200): String
+
+    /** Package name of the app currently in the foreground, when known. */
+    fun foregroundPackage(): String?
 }

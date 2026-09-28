@@ -125,6 +125,9 @@ class AndroidAccessibilityBridge @Inject constructor() : AccessibilityBridge {
         return lines.joinToString("\n")
     }
 
+    override fun foregroundPackage(): String? =
+        runCatching { service?.rootInActiveWindow?.packageName?.toString() }.getOrNull()
+
     private suspend fun dispatch(path: Path, durationMs: Int): Result<Unit> {
         val active = service ?: return notEnabled()
         return suspendCancellableCoroutine { continuation ->

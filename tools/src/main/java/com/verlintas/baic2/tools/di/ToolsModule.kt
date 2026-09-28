@@ -57,6 +57,77 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun webSearchTool(
+        fetcher: com.verlintas.baic2.tools.web.WebFetcher,
+    ): DeviceTool = com.verlintas.baic2.tools.web.WebSearchTool(fetcher)
+
+    @Provides
+    @IntoSet
+    fun webReadTool(
+        fetcher: com.verlintas.baic2.tools.web.WebFetcher,
+    ): DeviceTool = com.verlintas.baic2.tools.web.WebReadTool(fetcher)
+
+    @Provides
+    @IntoSet
+    fun getWeatherTool(
+        fetcher: com.verlintas.baic2.tools.web.WebFetcher,
+        json: kotlinx.serialization.json.Json,
+    ): DeviceTool = com.verlintas.baic2.tools.web.GetWeatherTool(fetcher, json)
+
+    @Provides
+    @IntoSet
+    fun fetchRssTool(
+        fetcher: com.verlintas.baic2.tools.web.WebFetcher,
+    ): DeviceTool = com.verlintas.baic2.tools.web.FetchRssTool(fetcher)
+
+    @Provides
+    @IntoSet
+    fun downloadFileTool(
+        fetcher: com.verlintas.baic2.tools.web.WebFetcher,
+    ): DeviceTool = com.verlintas.baic2.tools.files.DownloadFileTool(fetcher)
+
+    @Provides
+    @IntoSet
+    fun writeDocumentTool(): DeviceTool = com.verlintas.baic2.tools.files.WriteDocumentTool()
+
+    @Provides
+    @IntoSet
+    fun listFilesTool(): DeviceTool = com.verlintas.baic2.tools.files.ListFilesTool()
+
+    @Provides
+    @IntoSet
+    fun readTextFileTool(): DeviceTool = com.verlintas.baic2.tools.files.ReadTextFileTool()
+
+    @Provides
+    @IntoSet
+    fun ocrFileTool(): DeviceTool = com.verlintas.baic2.tools.media.OcrFileTool()
+
+    @Provides
+    @IntoSet
+    fun generateQrTool(): DeviceTool = com.verlintas.baic2.tools.media.GenerateQrTool()
+
+    @Provides
+    @IntoSet
+    fun decodeQrTool(): DeviceTool = com.verlintas.baic2.tools.media.DecodeQrTool()
+
+    @Provides
+    @IntoSet
+    fun getScreenStateTool(): DeviceTool = com.verlintas.baic2.tools.state.GetScreenStateTool()
+
+    @Provides
+    @IntoSet
+    fun getForegroundAppTool(): DeviceTool = com.verlintas.baic2.tools.state.GetForegroundAppTool()
+
+    @Provides
+    @IntoSet
+    fun getLocationTool(): DeviceTool = com.verlintas.baic2.tools.state.GetLocationTool()
+
+    @Provides
+    @IntoSet
+    fun getAppUsageTool(): DeviceTool = com.verlintas.baic2.tools.state.GetAppUsageTool()
+
+    @Provides
+    @IntoSet
     fun planUpdateTool(
         planRepository: com.verlintas.baic2.core.data.repository.PlanRepository,
     ): DeviceTool = com.verlintas.baic2.tools.PlanUpdateTool(planRepository)
