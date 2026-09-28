@@ -2,4 +2,5 @@
 <resources>
     <string name="a11y_label">BAIC2 界面自动化</string>
     <string name="a11y_description">允许 AI 读取屏幕内容并执行点击、滑动、输入等操作（仅在你授权与下达指令后使用）。</string>
+    <string name="notifications_label">BAIC2 通知读取</string>
 </resources>

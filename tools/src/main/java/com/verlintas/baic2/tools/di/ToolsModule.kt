@@ -57,6 +57,28 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun readNotificationsTool(): DeviceTool = com.verlintas.baic2.tools.personal.ReadNotificationsTool()
+
+    @Provides
+    @IntoSet
+    fun searchContactsTool(): DeviceTool = com.verlintas.baic2.tools.personal.SearchContactsTool()
+
+    @Provides
+    @IntoSet
+    fun sendEmailTool(): DeviceTool = com.verlintas.baic2.tools.personal.SendEmailTool()
+
+    @Provides
+    @IntoSet
+    fun createCalendarEventTool(): DeviceTool = com.verlintas.baic2.tools.personal.CreateCalendarEventTool()
+
+    @Provides
+    @IntoSet
+    fun reminderTool(
+        scheduler: com.verlintas.baic2.device.api.ReminderScheduler,
+    ): DeviceTool = com.verlintas.baic2.tools.personal.ReminderTool(scheduler)
+
+    @Provides
+    @IntoSet
     fun webSearchTool(
         fetcher: com.verlintas.baic2.tools.web.WebFetcher,
     ): DeviceTool = com.verlintas.baic2.tools.web.WebSearchTool(fetcher)

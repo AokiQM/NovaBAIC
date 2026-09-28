@@ -23,6 +23,20 @@
             android:foregroundServiceType="mediaProjection" />
 
         <service
+            android:name=".notifications.BaicNotificationListener"
+            android:exported="false"
+            android:label="@string/notifications_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".reminder.ReminderReceiver"
+            android:exported="false" />
+
+        <service
             android:name=".run.RunService"
             android:exported="false"
             android:foregroundServiceType="specialUse">

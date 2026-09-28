@@ -2,4 +2,5 @@
 <resources>
     <string name="a11y_label">BAIC2 UI automation</string>
     <string name="a11y_description">Lets the AI read the screen and perform taps, swipes and typing — only when you grant access and ask for it.</string>
+    <string name="notifications_label">BAIC2 notification reader</string>
 </resources>
