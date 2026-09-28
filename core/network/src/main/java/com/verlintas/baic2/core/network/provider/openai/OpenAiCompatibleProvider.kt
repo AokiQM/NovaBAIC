@@ -7,7 +7,11 @@ import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderError
 import com.verlintas.baic2.core.model.StreamEvent
 import com.verlintas.baic2.core.model.ToolCall
+import com.verlintas.baic2.core.network.provider.BODY_LIMIT
 import com.verlintas.baic2.core.network.provider.ProviderException
+import com.verlintas.baic2.core.network.provider.executeWithRetry
+import com.verlintas.baic2.core.network.provider.mapHttpError
+import com.verlintas.baic2.core.network.provider.mapIOException
 import com.verlintas.baic2.core.network.sse.SseParser
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -52,13 +56,21 @@ class OpenAiCompatibleProvider(
         val cancelCall = job?.invokeOnCompletion { currentCall?.cancel() }
 
         try {
-            val (call, response) = executeWithRetry { buildHttpRequest(request) }
+            val (call, response) = client.executeWithRetry { buildHttpRequest(request) }
             currentCall = call
 
             val body = response.body
             if (!response.isSuccessful || body == null) {
                 val errorBody = runCatching { body?.string() }.getOrNull().orEmpty().take(BODY_LIMIT)
-                emit(StreamEvent.Failed(mapHttpError(response.code, response.header("Retry-After"), errorBody)))
+                emit(
+                    StreamEvent.Failed(
+                        mapHttpError(
+                            code = response.code,
+                            retryAfterHeader = response.header("Retry-After"),
+                            message = extractErrorMessage(errorBody),
+                        ),
+                    ),
+                )
                 return@flow
             }
 
@@ -107,7 +119,13 @@ class OpenAiCompatibleProvider(
             val response = call.execute()
             if (!response.isSuccessful) {
                 val body = runCatching { response.body?.string() }.getOrNull().orEmpty().take(BODY_LIMIT)
-                throw ProviderException(mapHttpError(response.code, response.header("Retry-After"), body))
+                throw ProviderException(
+                    mapHttpError(
+                        code = response.code,
+                        retryAfterHeader = response.header("Retry-After"),
+                        message = extractErrorMessage(body),
+                    ),
+                )
             }
             val text = response.body?.string() ?: return emptyList()
             val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
@@ -214,55 +232,11 @@ class OpenAiCompatibleProvider(
     private fun parseParameters(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
 
-    private suspend fun executeWithRetry(requestBuilder: () -> Request): Pair<Call, Response> {
-        var attempt = 0
-        while (true) {
-            try {
-                val call = client.newCall(requestBuilder())
-                val response = call.execute()
-                if (response.isSuccessful || attempt >= 1 || !isRetryable(response.code)) {
-                    return call to response
-                }
-                val retryAfter = response.header("Retry-After")?.toLongOrNull()?.coerceIn(0, 10) ?: 1
-                response.close()
-                delay(retryAfter * 1_000)
-                attempt++
-            } catch (e: IOException) {
-                if (attempt >= 1) throw e
-                delay(RETRY_DELAY_MS)
-                attempt++
-            }
-        }
-    }
-
-    private fun isRetryable(code: Int): Boolean = code == 408 || code == 429 || code in 500..599
-
-    private fun mapHttpError(code: Int, retryAfterHeader: String?, body: String): ProviderError {
-        val kind = when {
-            code == 401 || code == 403 -> ProviderError.Kind.AUTH
-            code == 429 -> ProviderError.Kind.RATE_LIMIT
-            code in 400..499 -> ProviderError.Kind.INVALID_REQUEST
-            code >= 500 -> ProviderError.Kind.SERVER
-            else -> ProviderError.Kind.UNKNOWN
-        }
-        return ProviderError(
-            kind = kind,
-            message = extractErrorMessage(body) ?: "HTTP $code",
-            httpStatus = code,
-            retryAfterSeconds = retryAfterHeader?.toIntOrNull(),
-        )
-    }
-
     private fun extractErrorMessage(body: String): String? = runCatching {
         val root = json.parseToJsonElement(body) as? JsonObject ?: return null
         val error = root["error"] as? JsonObject ?: return null
         (error["message"] as? JsonPrimitive)?.content
     }.getOrNull()
-
-    private fun mapIOException(e: IOException): ProviderError {
-        val kind = if (e is SocketTimeoutException) ProviderError.Kind.TIMEOUT else ProviderError.Kind.NETWORK
-        return ProviderError(kind = kind, message = e.message ?: e.javaClass.simpleName)
-    }
 
     private fun joinUrl(baseUrl: String, path: String): String =
         baseUrl.trimEnd('/') + "/" + path.trimStart('/')
@@ -281,8 +255,6 @@ class OpenAiCompatibleProvider(
 
     private companion object {
         const val DONE_MARKER = "[DONE]"
-        const val BODY_LIMIT = 2_000
-        const val RETRY_DELAY_MS = 500L
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

@@ -33,7 +33,7 @@ data class ConversationEntity(
 
 @Entity(
     tableName = "messages",
-    indices = [Index(value = ["conversationId"])],
+    indices = [Index(value = ["conversationId"]), Index(value = ["starred"])],
 )
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -45,6 +45,19 @@ data class MessageEntity(
     val toolCallId: String?,
     val toolName: String?,
     val model: String?,
+    val createdAt: Long,
+    val starred: Boolean = false,
+)
+
+@Entity(
+    tableName = "memories",
+    indices = [Index(value = ["kind"])],
+)
+data class MemoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val kind: String,
+    val content: String,
+    val conversationId: Long?,
     val createdAt: Long,
 )
 

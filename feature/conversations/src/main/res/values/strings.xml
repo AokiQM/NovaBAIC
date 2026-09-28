@@ -38,5 +38,7 @@
     <string name="preset_siliconflow" translatable="false">SiliconFlow</string>
     <string name="preset_moonshot" translatable="false">Kimi</string>
     <string name="preset_qwen" translatable="false">Qwen</string>
+    <string name="preset_claude" translatable="false">Claude</string>
+    <string name="preset_gemini" translatable="false">Gemini</string>
     <string name="preset_custom">自定义</string>
 </resources>

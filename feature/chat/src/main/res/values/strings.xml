@@ -39,4 +39,38 @@
     <string name="chat_mode_act_description">每次工具调用都需要确认</string>
     <string name="chat_mode_max_title">自主</string>
     <string name="chat_mode_max_description">自主执行，受预算约束</string>
+
+    <string name="chat_menu">更多</string>
+    <string name="chat_menu_search">搜索对话</string>
+    <string name="chat_menu_starred">收藏夹</string>
+    <string name="chat_menu_export">导出对话</string>
+    <string name="chat_menu_compress">压缩上下文</string>
+    <string name="chat_menu_distill">提炼记忆</string>
+
+    <string name="chat_action_copy">复制</string>
+    <string name="chat_action_star">收藏</string>
+    <string name="chat_action_unstar">取消收藏</string>
+    <string name="chat_action_edit">编辑并重发</string>
+    <string name="chat_action_delete">删除</string>
+
+    <string name="chat_search_hint">搜索消息…</string>
+    <string name="chat_search_close">关闭搜索</string>
+    <string name="chat_search_prev">上一条</string>
+    <string name="chat_search_next">下一条</string>
+
+    <string name="chat_edit_title">编辑消息</string>
+    <string name="chat_edit_confirm">重发</string>
+
+    <string name="chat_export_you">你</string>
+    <string name="chat_export_assistant">助手</string>
+    <string name="chat_export_tool">工具调用</string>
+    <string name="chat_export_thinking">思考过程</string>
+    <string name="chat_export_empty">暂无消息</string>
+    <string name="chat_export_chooser">导出对话</string>
+
+    <string name="starred_title">收藏夹</string>
+    <string name="starred_empty_title">还没有收藏</string>
+    <string name="starred_empty_description">长按消息即可收藏</string>
+    <string name="starred_unstar">取消收藏</string>
+    <string name="starred_back">返回</string>
 </resources>

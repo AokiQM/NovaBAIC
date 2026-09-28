@@ -102,6 +102,37 @@ interface MessageDao {
     @Query("UPDATE messages SET toolCallsJson = :toolCallsJson WHERE id = :id")
     suspend fun updateToolCalls(id: Long, toolCallsJson: String)
 
+    @Query("UPDATE messages SET starred = :starred WHERE id = :id")
+    suspend fun updateStarred(id: Long, starred: Boolean)
+
+    @Query("UPDATE messages SET content = :content WHERE id = :id")
+    suspend fun updateMessageContent(id: Long, content: String)
+
+    @Query("DELETE FROM messages WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM messages WHERE toolCallId IN (:ids)")
+    suspend fun deleteByToolCallIds(ids: List<String>)
+
+    @Query("SELECT * FROM messages WHERE id = :id")
+    suspend fun getById(id: Long): MessageEntity?
+
+    @Query("UPDATE messages SET role = :role, content = :content WHERE id = :id")
+    suspend fun updateRoleAndContent(id: Long, role: String, content: String)
+
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId AND id > :afterId AND id < :beforeId")
+    suspend fun deleteRange(conversationId: Long, afterId: Long, beforeId: Long)
+
+    @Query(
+        """
+        SELECT m.* FROM messages m
+        INNER JOIN conversations c ON c.id = m.conversationId
+        WHERE m.starred = 1
+        ORDER BY m.id DESC
+        """,
+    )
+    fun observeStarred(): Flow<List<MessageEntity>>
+
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteAllForConversation(conversationId: Long)
 
@@ -120,4 +151,29 @@ interface RunDao {
 
     @Query("SELECT * FROM runs WHERE conversationId = :conversationId ORDER BY id DESC LIMIT 1")
     suspend fun latestForConversation(conversationId: Long): RunEntity?
+}
+
+@Dao
+interface MemoryDao {
+
+    @Insert
+    suspend fun insert(entity: MemoryEntity): Long
+
+    @Query("SELECT * FROM memories WHERE kind = :kind ORDER BY id ASC")
+    fun observeByKind(kind: String): Flow<List<MemoryEntity>>
+
+    @Query("SELECT * FROM memories WHERE kind = :kind ORDER BY id ASC")
+    suspend fun getByKind(kind: String): List<MemoryEntity>
+
+    @Query("SELECT COUNT(*) FROM memories WHERE kind = :kind")
+    suspend fun countByKind(kind: String): Int
+
+    @Query("SELECT EXISTS(SELECT 1 FROM memories WHERE kind = :kind AND content = :content)")
+    suspend fun exists(kind: String, content: String): Boolean
+
+    @Query("DELETE FROM memories WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM memories WHERE kind = :kind")
+    suspend fun deleteByKind(kind: String)
 }

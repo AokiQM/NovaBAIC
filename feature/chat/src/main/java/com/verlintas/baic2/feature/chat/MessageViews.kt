@@ -13,7 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +29,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +47,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,12 +64,99 @@ import com.verlintas.baic2.designsystem.component.Baic2TypingDots
 @Composable
 fun MessageRow(
     message: ChatMessage,
+    onCopy: (ChatMessage) -> Unit,
+    onToggleStar: (ChatMessage) -> Unit,
+    onEdit: (ChatMessage) -> Unit,
+    onDelete: (ChatMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (message.role) {
-        ChatRole.USER -> UserBubble(text = message.content, modifier = modifier)
-        ChatRole.ASSISTANT -> AssistantMessage(message = message, modifier = modifier)
+        ChatRole.USER, ChatRole.ASSISTANT -> MessageActionBox(
+            message = message,
+            onCopy = onCopy,
+            onToggleStar = onToggleStar,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            modifier = modifier,
+        ) { innerModifier ->
+            when (message.role) {
+                ChatRole.USER -> UserBubble(text = message.content, modifier = innerModifier)
+                else -> AssistantMessage(message = message, modifier = innerModifier)
+            }
+        }
+
         ChatRole.TOOL, ChatRole.SYSTEM -> Unit
+    }
+}
+
+@Composable
+private fun MessageActionBox(
+    message: ChatMessage,
+    onCopy: (ChatMessage) -> Unit,
+    onToggleStar: (ChatMessage) -> Unit,
+    onEdit: (ChatMessage) -> Unit,
+    onDelete: (ChatMessage) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = {},
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menuOpen = true
+                },
+            ),
+    ) {
+        content(Modifier)
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            if (message.content.isNotBlank()) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_action_copy)) },
+                    onClick = {
+                        menuOpen = false
+                        onCopy(message)
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (message.starred) R.string.chat_action_unstar else R.string.chat_action_star,
+                        ),
+                    )
+                },
+                onClick = {
+                    menuOpen = false
+                    onToggleStar(message)
+                },
+            )
+            if (message.role == ChatRole.USER) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_action_edit)) },
+                    onClick = {
+                        menuOpen = false
+                        onEdit(message)
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_action_delete)) },
+                onClick = {
+                    menuOpen = false
+                    onDelete(message)
+                },
+            )
+        }
     }
 }
 
@@ -106,6 +198,19 @@ private fun AssistantMessage(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
+        if (message.starred) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = Baic2Spacing.xs),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
         message.thinking?.takeIf { it.isNotBlank() }?.let { thinking ->
             ThinkingCard(text = thinking, streaming = false)
             Spacer(Modifier.size(Baic2Spacing.sm))
@@ -144,7 +249,11 @@ fun ThinkingCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { expanded = !expanded },
+                )
                 .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -212,7 +321,11 @@ fun ToolCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { expanded = !expanded },
+                )
                 .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {

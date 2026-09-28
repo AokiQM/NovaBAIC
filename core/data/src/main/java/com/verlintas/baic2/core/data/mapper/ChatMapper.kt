@@ -2,6 +2,7 @@ package com.verlintas.baic2.core.data.mapper
 
 import com.verlintas.baic2.core.data.db.AgentEntity
 import com.verlintas.baic2.core.data.db.ConversationEntity
+import com.verlintas.baic2.core.data.db.MemoryEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
 import com.verlintas.baic2.core.data.db.RunEntity
 import com.verlintas.baic2.core.model.Agent
@@ -9,6 +10,8 @@ import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
+import com.verlintas.baic2.core.model.Memory
+import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.Run
 import com.verlintas.baic2.core.model.RunState
@@ -78,6 +81,7 @@ class ChatMapper @Inject constructor(private val json: Json) {
         toolName = entity.toolName,
         model = entity.model,
         createdAt = entity.createdAt,
+        starred = entity.starred,
     )
 
     fun messageToEntity(message: ChatMessage): MessageEntity = MessageEntity(
@@ -91,6 +95,15 @@ class ChatMapper @Inject constructor(private val json: Json) {
         toolName = message.toolName,
         model = message.model,
         createdAt = message.createdAt,
+        starred = message.starred,
+    )
+
+    fun memoryToModel(entity: MemoryEntity): Memory = Memory(
+        id = entity.id,
+        kind = enumOf(entity.kind, MemoryKind.MEMORY),
+        content = entity.content,
+        conversationId = entity.conversationId,
+        createdAt = entity.createdAt,
     )
 
     fun encodeToolCalls(toolCalls: List<ToolCall>): String = json.encodeToString(toolCalls)

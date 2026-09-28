@@ -24,6 +24,7 @@ data class ChatMessage(
     val toolName: String? = null,
     val model: String? = null,
     val createdAt: Long = 0L,
+    val starred: Boolean = false,
 )
 
 @Serializable

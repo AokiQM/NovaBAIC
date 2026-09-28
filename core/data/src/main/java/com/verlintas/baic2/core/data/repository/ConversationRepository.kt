@@ -5,6 +5,7 @@ import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
+import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.ConversationPreview
 import javax.inject.Inject
@@ -86,5 +87,44 @@ class ConversationRepository @Inject constructor(
 
     suspend fun deleteMessagesAfter(conversationId: Long, afterMessageId: Long) {
         db.messageDao().deleteAfter(conversationId, afterMessageId)
+    }
+
+    fun observeStarredMessages(): Flow<List<ChatMessage>> =
+        db.messageDao().observeStarred().map { list -> list.map(mapper::messageToModel) }
+
+    suspend fun setStarred(messageId: Long, starred: Boolean) {
+        db.messageDao().updateStarred(messageId, starred)
+    }
+
+    suspend fun updateMessageContent(messageId: Long, content: String) {
+        db.messageDao().updateMessageContent(messageId, content)
+    }
+
+    /**
+     * Deletes a message; an assistant message also takes its orphaned tool
+     * results with it so the transcript stays protocol-valid.
+     */
+    suspend fun deleteMessage(messageId: Long) = db.withTransaction {
+        val entity = db.messageDao().getById(messageId) ?: return@withTransaction
+        val message = mapper.messageToModel(entity)
+        db.messageDao().deleteById(messageId)
+        if (message.toolCalls.isNotEmpty()) {
+            db.messageDao().deleteByToolCallIds(message.toolCalls.map { it.id })
+        }
+    }
+
+    /**
+     * Replaces the older history range with a single summary message: the
+     * oldest summarized message becomes the summary carrier so ordering and
+     * ids stay stable.
+     */
+    suspend fun applyCompression(
+        conversationId: Long,
+        summaryCarrierId: Long,
+        keepFromMessageId: Long,
+        summary: String,
+    ) = db.withTransaction {
+        db.messageDao().updateRoleAndContent(summaryCarrierId, ChatRole.ASSISTANT.name, summary)
+        db.messageDao().deleteRange(conversationId, summaryCarrierId, keepFromMessageId)
     }
 }

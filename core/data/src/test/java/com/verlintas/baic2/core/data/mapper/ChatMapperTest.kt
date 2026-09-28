@@ -31,12 +31,14 @@ class ChatMapperTest {
             ),
             model = "test-model",
             createdAt = 123L,
+            starred = true,
         )
 
         val entity = mapper.messageToEntity(message)
         val restored = mapper.messageToModel(entity)
 
         assertEquals(message, restored)
+        assertTrue(restored.starred)
     }
 
     @Test

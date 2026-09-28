@@ -274,6 +274,8 @@ private fun presetLabel(preset: AgentPreset): String = stringResource(
         AgentPreset.SILICONFLOW -> R.string.preset_siliconflow
         AgentPreset.MOONSHOT -> R.string.preset_moonshot
         AgentPreset.QWEN -> R.string.preset_qwen
+        AgentPreset.CLAUDE -> R.string.preset_claude
+        AgentPreset.GEMINI -> R.string.preset_gemini
         AgentPreset.CUSTOM -> R.string.preset_custom
     },
 )

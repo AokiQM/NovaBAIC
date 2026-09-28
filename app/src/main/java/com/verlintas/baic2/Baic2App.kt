@@ -87,6 +87,7 @@ import com.verlintas.baic2.designsystem.Baic2Motion
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
 import com.verlintas.baic2.feature.chat.ChatScreen
+import com.verlintas.baic2.feature.chat.StarredScreen
 import com.verlintas.baic2.feature.conversations.ConversationsScreen
 import com.verlintas.baic2.feature.settings.SettingsScreen
 import com.verlintas.baic2.feature.tasks.TasksScreen
@@ -114,10 +115,10 @@ fun Baic2App() {
     var dockOpen by rememberSaveable { mutableStateOf(false) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val onChatRoute = backStackEntry?.destination?.route == ROUTE_CHAT
+    val onInnerRoute = backStackEntry?.destination?.route in setOf(ROUTE_CHAT, ROUTE_STARRED)
 
-    LaunchedEffect(onChatRoute) {
-        if (onChatRoute) dockOpen = false
+    LaunchedEffect(onInnerRoute) {
+        if (onInnerRoute) dockOpen = false
     }
 
     BackHandler(enabled = dockOpen) { dockOpen = false }
@@ -147,12 +148,12 @@ fun Baic2App() {
             }
         }
 
-        DockScrim(visible = dockOpen && !onChatRoute, onDismiss = { dockOpen = false })
+        DockScrim(visible = dockOpen && !onInnerRoute, onDismiss = { dockOpen = false })
 
-        // The dock (and its label) would collide with the chat top bar, so it
-        // steps aside while a conversation is open.
+        // The dock (and its label) would collide with inner-screen top bars,
+        // so it steps aside while a conversation or the starred list is open.
         AnimatedVisibility(
-            visible = !onChatRoute,
+            visible = !onInnerRoute,
             enter = fadeIn(tween(durationMillis = 160)) +
                 scaleIn(initialScale = 0.9f, animationSpec = Baic2Motion.spatialFast()),
             exit = fadeOut(tween(durationMillis = 120)) +
@@ -189,13 +190,23 @@ private fun ChatsZone(navController: NavHostController) {
                 navArgument(ChatViewModelArgs.CONVERSATION_ID) { type = NavType.LongType },
             ),
         ) {
-            ChatScreen(onBack = { navController.popBackStack() })
+            ChatScreen(
+                onBack = { navController.popBackStack() },
+                onOpenStarred = { navController.navigate(ROUTE_STARRED) },
+            )
+        }
+        composable(ROUTE_STARRED) {
+            StarredScreen(
+                onBack = { navController.popBackStack() },
+                onOpenConversation = { id -> navController.navigate("chat/$id") },
+            )
         }
     }
 }
 
 private const val ROUTE_CONVERSATIONS = "conversations"
 private const val ROUTE_CHAT = "chat/{conversationId}"
+private const val ROUTE_STARRED = "starred"
 
 private object ChatViewModelArgs {
     const val CONVERSATION_ID = "conversationId"

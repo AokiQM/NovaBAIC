@@ -8,6 +8,7 @@ import androidx.room.Room
 import com.verlintas.baic2.core.data.db.AgentDao
 import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.ConversationDao
+import com.verlintas.baic2.core.data.db.MemoryDao
 import com.verlintas.baic2.core.data.db.MessageDao
 import com.verlintas.baic2.core.data.db.RunDao
 import dagger.Module
@@ -26,7 +27,9 @@ object DataModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): Baic2Database =
-        Room.databaseBuilder(context, Baic2Database::class.java, "baic2.db").build()
+        Room.databaseBuilder(context, Baic2Database::class.java, "baic2.db")
+            .addMigrations(Baic2Database.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideAgentDao(db: Baic2Database): AgentDao = db.agentDao()
@@ -39,6 +42,9 @@ object DataModule {
 
     @Provides
     fun provideRunDao(db: Baic2Database): RunDao = db.runDao()
+
+    @Provides
+    fun provideMemoryDao(db: Baic2Database): MemoryDao = db.memoryDao()
 
     @Provides
     @Singleton

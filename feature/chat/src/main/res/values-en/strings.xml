@@ -39,4 +39,38 @@
     <string name="chat_mode_act_description">Every tool call needs confirmation</string>
     <string name="chat_mode_max_title">Max</string>
     <string name="chat_mode_max_description">Autonomous, budget-bound</string>
+
+    <string name="chat_menu">More</string>
+    <string name="chat_menu_search">Search in chat</string>
+    <string name="chat_menu_starred">Starred</string>
+    <string name="chat_menu_export">Export chat</string>
+    <string name="chat_menu_compress">Compress context</string>
+    <string name="chat_menu_distill">Distill memory</string>
+
+    <string name="chat_action_copy">Copy</string>
+    <string name="chat_action_star">Star</string>
+    <string name="chat_action_unstar">Unstar</string>
+    <string name="chat_action_edit">Edit &amp; resend</string>
+    <string name="chat_action_delete">Delete</string>
+
+    <string name="chat_search_hint">Search messages…</string>
+    <string name="chat_search_close">Close search</string>
+    <string name="chat_search_prev">Previous match</string>
+    <string name="chat_search_next">Next match</string>
+
+    <string name="chat_edit_title">Edit message</string>
+    <string name="chat_edit_confirm">Resend</string>
+
+    <string name="chat_export_you">You</string>
+    <string name="chat_export_assistant">Assistant</string>
+    <string name="chat_export_tool">Tool call</string>
+    <string name="chat_export_thinking">Reasoning</string>
+    <string name="chat_export_empty">No messages</string>
+    <string name="chat_export_chooser">Export chat</string>
+
+    <string name="starred_title">Starred</string>
+    <string name="starred_empty_title">Nothing starred yet</string>
+    <string name="starred_empty_description">Long-press a message to star it</string>
+    <string name="starred_unstar">Unstar</string>
+    <string name="starred_back">Back</string>
 </resources>

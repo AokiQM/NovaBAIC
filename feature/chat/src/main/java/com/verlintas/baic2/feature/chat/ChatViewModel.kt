@@ -6,17 +6,25 @@ import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.core.data.repository.AgentRepository
 import com.verlintas.baic2.core.data.repository.ApiKeyUnavailableException
 import com.verlintas.baic2.core.data.repository.ConversationRepository
+import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.core.engine.AgentEvent
 import com.verlintas.baic2.core.engine.AgentFailure
 import com.verlintas.baic2.core.engine.AgentLoop
+import com.verlintas.baic2.core.engine.AuxiliaryTasks
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
+import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.ModelContextWindows
+import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -29,6 +37,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 
 data class StreamingState(
     val text: String = "",
@@ -45,6 +56,9 @@ data class ChatUiState(
     val liveToolCalls: List<ToolCall> = emptyList(),
     val isRunning: Boolean = false,
     val error: ChatError? = null,
+    val usagePromptTokens: Long? = null,
+    val contextWindow: Long? = null,
+    val auxBusy: Boolean = false,
 )
 
 data class ChatError(
@@ -61,12 +75,23 @@ data class ChatError(
     }
 }
 
+data class ExportLabels(
+    val you: String,
+    val assistant: String,
+    val toolCall: String,
+    val thinking: String,
+    val emptyConversation: String,
+)
+
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val agentRepository: AgentRepository,
     private val runRepository: RunRepository,
+    private val memoryRepository: MemoryRepository,
     private val agentLoop: AgentLoop,
+    private val auxiliaryTasks: AuxiliaryTasks,
+    private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -75,14 +100,18 @@ class ChatViewModel @Inject constructor(
     private val streaming = MutableStateFlow(StreamingState())
     private val running = MutableStateFlow(false)
     private val error = MutableStateFlow<ChatError?>(null)
+    private val usage = MutableStateFlow<Long?>(null)
+    private val auxBusy = MutableStateFlow(false)
 
     val uiState: StateFlow<ChatUiState> = combine(
         conversationRepository.observeConversation(conversationId),
         conversationRepository.observeMessages(conversationId),
         streaming,
-        running,
-        error,
-    ) { conversation, messages, stream, isRunning, currentError ->
+        combine(running, error, usage) { isRunning, currentError, usageTokens ->
+            Triple(isRunning, currentError, usageTokens)
+        },
+        auxBusy,
+    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), busy ->
         ChatUiState(
             title = conversation?.title.orEmpty(),
             mode = conversation?.mode ?: AppMode.CHAT,
@@ -92,6 +121,9 @@ class ChatViewModel @Inject constructor(
             liveToolCalls = stream.toolCalls,
             isRunning = isRunning,
             error = currentError,
+            usagePromptTokens = usageTokens,
+            contextWindow = ModelContextWindows.forModel(conversationModel(messages)),
+            auxBusy = busy,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -100,6 +132,11 @@ class ChatViewModel @Inject constructor(
     )
 
     private var runJob: Job? = null
+    private var titleGenerated = false
+    private var autoCompressAttempted = false
+
+    private fun conversationModel(messages: List<ChatMessage>): String =
+        messages.lastOrNull { it.model != null }?.model.orEmpty()
 
     fun send(text: String) {
         val trimmed = text.trim()
@@ -133,6 +170,86 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun toggleStar(messageId: Long) {
+        viewModelScope.launch {
+            val message = uiState.value.messages.firstOrNull { it.id == messageId } ?: return@launch
+            conversationRepository.setStarred(messageId, !message.starred)
+        }
+    }
+
+    fun deleteMessage(messageId: Long) {
+        viewModelScope.launch { conversationRepository.deleteMessage(messageId) }
+    }
+
+    fun editAndResend(messageId: Long, newText: String) {
+        if (running.value) return
+        val trimmed = newText.trim()
+        if (trimmed.isEmpty()) return
+        runJob = viewModelScope.launch {
+            conversationRepository.updateMessageContent(messageId, trimmed)
+            conversationRepository.deleteMessagesAfter(conversationId, messageId)
+            executeTurn(trimmed, appendUserMessage = false)
+        }
+    }
+
+    /** Summarizes older history, keeping recent turns verbatim. */
+    fun compressContext() {
+        if (running.value || auxBusy.value) return
+        viewModelScope.launch { runCompression() }
+    }
+
+    /** Extracts durable user facts from the recent conversation. */
+    fun distillMemory() {
+        if (running.value || auxBusy.value) return
+        viewModelScope.launch {
+            val config = resolveConfig() ?: return@launch
+            auxBusy.value = true
+            try {
+                runDistillation(config)
+            } finally {
+                auxBusy.value = false
+            }
+        }
+    }
+
+    fun buildExportText(labels: ExportLabels): String {
+        val state = uiState.value
+        if (state.messages.isEmpty()) return labels.emptyConversation
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        return buildString {
+            append("# ").append(state.title.ifBlank { labels.emptyConversation }).append("\n\n")
+            append("> ").append(timestamp).append("\n\n")
+            state.messages.forEach { message ->
+                when (message.role) {
+                    ChatRole.USER -> {
+                        append("## ").append(labels.you).append("\n\n")
+                        append(message.content).append("\n\n")
+                    }
+
+                    ChatRole.ASSISTANT -> {
+                        if (message.content.isNotBlank()) {
+                            append("## ").append(labels.assistant).append("\n\n")
+                            append(message.content).append("\n\n")
+                        }
+                        message.thinking?.takeIf { it.isNotBlank() }?.let { thinking ->
+                            append("<details><summary>").append(labels.thinking).append("</summary>\n\n")
+                            append(thinking).append("\n\n</details>\n\n")
+                        }
+                        message.toolCalls.forEach { call ->
+                            append("### ").append(labels.toolCall).append(": `").append(call.name).append("`\n\n")
+                            append("```json\n").append(call.argumentsJson).append("\n```\n\n")
+                            call.result?.takeIf { it.isNotBlank() }?.let { result ->
+                                append("```\n").append(result).append("\n```\n\n")
+                            }
+                        }
+                    }
+
+                    else -> Unit
+                }
+            }
+        }.trim() + "\n"
+    }
+
     private suspend fun executeTurn(text: String, appendUserMessage: Boolean = true) {
         val conversation = conversationRepository.get(conversationId) ?: return
         val agent = conversation.agentId?.let { agentRepository.getAgent(it) }
@@ -149,14 +266,16 @@ class ChatViewModel @Inject constructor(
             return
         }
 
+        val isFirstTurn = conversationRepository.getMessages(conversationId)
+            .count { it.role == ChatRole.USER } == 0
+
         if (appendUserMessage) {
-            val now = System.currentTimeMillis()
             conversationRepository.append(
                 ChatMessage(
                     conversationId = conversationId,
                     role = ChatRole.USER,
                     content = text,
-                    createdAt = now,
+                    createdAt = System.currentTimeMillis(),
                 ),
             )
             if (conversation.title.isBlank()) {
@@ -164,13 +283,15 @@ class ChatViewModel @Inject constructor(
             }
         }
 
-        val history = conversationRepository.getMessages(conversationId)
+        val history = withMemories(conversationRepository.getMessages(conversationId))
         val runId = runRepository.start(conversationId, conversation.mode)
 
         running.value = true
         error.value = null
+        auxBusy.value = false
         var assistantMessageId: Long? = null
         var pendingCalls: List<ToolCall> = emptyList()
+        var failed = false
 
         try {
             agentLoop.run(
@@ -227,11 +348,12 @@ class ChatViewModel @Inject constructor(
                         streaming.update { it.copy(toolCalls = pendingCalls) }
                     }
 
-                    is AgentEvent.Usage -> Unit
+                    is AgentEvent.Usage -> usage.value = event.promptTokens ?: usage.value
 
                     AgentEvent.Completed -> runRepository.finish(runId, RunState.COMPLETED)
 
                     is AgentEvent.Failed -> {
+                        failed = true
                         error.value = event.error.toChatError()
                         runRepository.finish(runId, RunState.FAILED)
                     }
@@ -256,11 +378,156 @@ class ChatViewModel @Inject constructor(
             }
             throw e
         } catch (e: Exception) {
+            failed = true
             error.value = ChatError(ChatError.Kind.INTERNAL, e.message)
             runRepository.finish(runId, RunState.FAILED)
         } finally {
             running.value = false
             streaming.value = StreamingState()
+        }
+
+        if (!failed) {
+            if (isFirstTurn && !titleGenerated) {
+                maybeGenerateTitle(config)
+            }
+            maybeDistillAutomatically(config)
+            maybeAutoCompress(config)
+        }
+    }
+
+    private suspend fun withMemories(history: List<ChatMessage>): List<ChatMessage> {
+        val memories = memoryRepository.list(MemoryKind.MEMORY)
+        if (memories.isEmpty()) return history
+        val system = ChatMessage(
+            role = ChatRole.SYSTEM,
+            content = "Facts you already know about the user:\n" +
+                memories.joinToString("\n") { "- ${it.content}" },
+        )
+        return listOf(system) + history
+    }
+
+    private suspend fun maybeGenerateTitle(config: ProviderConfig) {
+        val messages = conversationRepository.getMessages(conversationId)
+        val firstUser = messages.firstOrNull { it.role == ChatRole.USER } ?: return
+        val firstAssistant = messages.firstOrNull { it.role == ChatRole.ASSISTANT && it.content.isNotBlank() }
+        titleGenerated = true
+        runCatching {
+            val title = auxiliaryTasks.complete(
+                config = config,
+                systemPrompt = AuxiliaryTasks.TITLE_SYSTEM,
+                userPrompt = buildString {
+                    append(firstUser.content.take(400))
+                    firstAssistant?.content?.takeIf { it.isNotBlank() }?.let {
+                        append("\n\nAssistant replied: ").append(it.take(200))
+                    }
+                },
+                maxTokens = 32,
+                temperature = 0.3,
+            ).lineSequence()
+                .firstOrNull { it.isNotBlank() }
+                ?.trim()
+                ?.trim('"', '\'', '。', '.', '：', ':')
+                ?.take(40)
+            if (!title.isNullOrBlank()) {
+                conversationRepository.updateTitle(conversationId, title)
+            }
+        }
+    }
+
+    private suspend fun maybeDistillAutomatically(config: ProviderConfig) {
+        val messages = conversationRepository.getMessages(conversationId)
+        val assistantCount = messages.count { it.role == ChatRole.ASSISTANT }
+        if (assistantCount == 0 || assistantCount % DISTILL_EVERY_MESSAGES != 0) return
+        runDistillation(config)
+    }
+
+    private suspend fun runDistillation(config: ProviderConfig) {
+        val messages = conversationRepository.getMessages(conversationId)
+            .filter { it.role == ChatRole.USER || (it.role == ChatRole.ASSISTANT && it.content.isNotBlank()) }
+            .takeLast(30)
+        if (messages.isEmpty()) return
+        val raw = runCatching {
+            auxiliaryTasks.complete(
+                config = config,
+                systemPrompt = AuxiliaryTasks.MEMORY_SYSTEM,
+                userPrompt = AuxiliaryTasks.renderTranscript(messages),
+                maxTokens = 300,
+                temperature = 0.2,
+            )
+        }.getOrNull() ?: return
+        parseMemoryList(raw).forEach { fact ->
+            memoryRepository.add(MemoryKind.MEMORY, fact, conversationId)
+        }
+    }
+
+    private fun parseMemoryList(raw: String): List<String> {
+        val trimmed = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val fromJson = runCatching {
+            (json.parseToJsonElement(trimmed) as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.content }
+        }.getOrNull()
+        return (fromJson ?: trimmed.lineSequence()
+            .map { it.trim().trimStart('-', '*', '•').trim() }
+            .filter { it.isNotBlank() && it != "[]" }
+            .toList())
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(5)
+    }
+
+    private suspend fun maybeAutoCompress(config: ProviderConfig) {
+        if (autoCompressAttempted) return
+        val window = ModelContextWindows.forModel(config.model) ?: return
+        val used = usage.value ?: return
+        if (used < window * AUTO_COMPRESS_THRESHOLD) return
+        autoCompressAttempted = true
+        runCompression(config)
+    }
+
+    private suspend fun runCompression(config: ProviderConfig? = null) {
+        val resolved = config ?: resolveConfig() ?: return
+        val messages = conversationRepository.getMessages(conversationId)
+        if (messages.size <= KEEP_RECENT_MESSAGES) return
+
+        val boundary = messages.takeLast(KEEP_RECENT_MESSAGES).firstOrNull { it.role == ChatRole.USER }
+            ?: return
+        val older = messages.takeWhile { it.id < boundary.id }
+        if (older.none { it.role == ChatRole.USER }) return
+
+        auxBusy.value = true
+        try {
+            val summary = auxiliaryTasks.complete(
+                config = resolved,
+                systemPrompt = AuxiliaryTasks.COMPRESS_SYSTEM,
+                userPrompt = AuxiliaryTasks.renderTranscript(older),
+                maxTokens = 600,
+                temperature = 0.2,
+            )
+            if (summary.isBlank()) return
+            val carrier = older.first()
+            conversationRepository.applyCompression(
+                conversationId = conversationId,
+                summaryCarrierId = carrier.id,
+                keepFromMessageId = boundary.id,
+                summary = summary,
+            )
+            memoryRepository.add(MemoryKind.SNAPSHOT, summary, conversationId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error.value = ChatError(ChatError.Kind.INTERNAL, e.message)
+        } finally {
+            auxBusy.value = false
+        }
+    }
+
+    private suspend fun resolveConfig(): ProviderConfig? {
+        val conversation = conversationRepository.get(conversationId) ?: return null
+        return try {
+            agentRepository.resolveConfig(conversation.agentId)
+        } catch (e: ApiKeyUnavailableException) {
+            error.value = ChatError(ChatError.Kind.API_KEY)
+            null
         }
     }
 
@@ -315,5 +582,8 @@ class ChatViewModel @Inject constructor(
     companion object {
         const val ARG_CONVERSATION_ID = "conversationId"
         private const val TITLE_MAX_CHARS = 24
+        private const val KEEP_RECENT_MESSAGES = 6
+        private const val DISTILL_EVERY_MESSAGES = 10
+        private const val AUTO_COMPRESS_THRESHOLD = 0.85
     }
 }

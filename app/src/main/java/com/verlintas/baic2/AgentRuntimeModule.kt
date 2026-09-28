@@ -1,6 +1,7 @@
 package com.verlintas.baic2
 
 import com.verlintas.baic2.core.engine.AgentLoop
+import com.verlintas.baic2.core.engine.AuxiliaryTasks
 import com.verlintas.baic2.core.engine.ConfirmationGate
 import com.verlintas.baic2.core.engine.ToolCatalog
 import com.verlintas.baic2.core.engine.ToolRunner
@@ -49,6 +50,11 @@ object AgentRuntimeModule {
         toolRunner = toolRunner,
         confirmationGate = confirmationGate,
     )
+
+    @Provides
+    @Singleton
+    fun provideAuxiliaryTasks(providerFactory: ProviderFactory): AuxiliaryTasks =
+        AuxiliaryTasks(providerFactory = { providerFactory.create(it) })
 }
 
 private object EmptyToolCatalog : ToolCatalog {

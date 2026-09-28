@@ -2,6 +2,8 @@ package com.verlintas.baic2.core.network.provider
 
 import com.verlintas.baic2.core.model.ChatProvider
 import com.verlintas.baic2.core.model.ProviderId
+import com.verlintas.baic2.core.network.provider.anthropic.AnthropicProvider
+import com.verlintas.baic2.core.network.provider.gemini.GeminiProvider
 import com.verlintas.baic2.core.network.provider.openai.OpenAiCompatibleProvider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,7 +18,7 @@ class ProviderFactory @Inject constructor(
 
     fun create(id: ProviderId): ChatProvider = when (id) {
         ProviderId.OPENAI_COMPATIBLE -> OpenAiCompatibleProvider(client, json)
-        ProviderId.ANTHROPIC, ProviderId.GEMINI ->
-            throw UnsupportedOperationException("Provider $id is not supported yet")
+        ProviderId.ANTHROPIC -> AnthropicProvider(client, json)
+        ProviderId.GEMINI -> GeminiProvider(client, json)
     }
 }

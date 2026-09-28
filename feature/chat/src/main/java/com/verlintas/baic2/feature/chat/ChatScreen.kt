@@ -1,10 +1,12 @@
 package com.verlintas.baic2.feature.chat
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -42,19 +44,29 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Send
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -63,10 +75,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Motion
@@ -85,13 +101,48 @@ import com.verlintas.baic2.designsystem.component.Baic2TypingDots
 @Composable
 fun ChatScreen(
     onBack: () -> Unit,
+    onOpenStarred: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var input by rememberSaveable { mutableStateOf("") }
     var modePickerOpen by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var matchIndex by remember { mutableIntStateOf(0) }
+    var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
+
+    val matches = remember(searchQuery, state.messages) {
+        if (searchQuery.isBlank()) {
+            emptyList()
+        } else {
+            state.messages.filter { it.content.contains(searchQuery, ignoreCase = true) }
+        }
+    }
+
+    val exportLabels = ExportLabels(
+        you = stringResource(R.string.chat_export_you),
+        assistant = stringResource(R.string.chat_export_assistant),
+        toolCall = stringResource(R.string.chat_export_tool),
+        thinking = stringResource(R.string.chat_export_thinking),
+        emptyConversation = stringResource(R.string.chat_export_empty),
+    )
+    val exportChooserTitle = stringResource(R.string.chat_export_chooser)
+
+    LaunchedEffect(searchQuery, matches.size) {
+        matchIndex = 0
+    }
+    LaunchedEffect(matchIndex, matches) {
+        val target = matches.getOrNull(matchIndex) ?: return@LaunchedEffect
+        val index = state.messages.indexOfFirst { it.id == target.id }
+        if (index >= 0) {
+            runCatching { listState.animateScrollToItem(index) }
+        }
+    }
 
     LaunchedEffect(
         state.messages.size,
@@ -99,6 +150,7 @@ fun ChatScreen(
         state.streamingThinking.length,
         state.liveToolCalls.size,
     ) {
+        if (searchOpen) return@LaunchedEffect
         val target = listState.layoutInfo.totalItemsCount - 1
         if (target >= 0 && !listState.isScrollInProgress) {
             runCatching { listState.animateScrollToItem(target) }
@@ -114,10 +166,37 @@ fun ChatScreen(
             title = state.title.ifBlank { stringResource(R.string.chat_untitled) },
             mode = state.mode,
             running = state.isRunning,
+            usageLabel = usageLabel(state),
+            searchOpen = searchOpen,
+            searchQuery = searchQuery,
+            matchPosition = if (matches.isEmpty()) 0 else matchIndex + 1,
+            matchCount = matches.size,
             onBack = onBack,
             onModeClick = { modePickerOpen = true },
             onStop = viewModel::stop,
+            onMenuClick = { menuOpen = true },
+            onSearchQueryChange = { searchQuery = it },
+            onSearchClose = {
+                searchOpen = false
+                searchQuery = ""
+            },
+            onSearchPrev = {
+                if (matches.isNotEmpty()) matchIndex = (matchIndex - 1 + matches.size) % matches.size
+            },
+            onSearchNext = {
+                if (matches.isNotEmpty()) matchIndex = (matchIndex + 1) % matches.size
+            },
         )
+
+        AnimatedVisibility(visible = state.auxBusy) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = Color.Transparent,
+            )
+        }
 
         LazyColumn(
             state = listState,
@@ -139,7 +218,17 @@ fun ChatScreen(
             }
 
             items(state.messages, key = { it.id }) { message ->
-                MessageRow(message = message, modifier = Modifier.animateItem())
+                MessageRow(
+                    message = message,
+                    onCopy = { copied ->
+                        context.getSystemService(ClipboardManager::class.java)
+                            ?.setPrimaryClip(ClipData.newPlainText("baic2", copied.content))
+                    },
+                    onToggleStar = { viewModel.toggleStar(it.id) },
+                    onEdit = { editTarget = it },
+                    onDelete = { viewModel.deleteMessage(it.id) },
+                    modifier = Modifier.animateItem(),
+                )
             }
 
             val streaming = state.isRunning && (
@@ -204,6 +293,50 @@ fun ChatScreen(
         )
     }
 
+    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_search)) },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            onClick = {
+                menuOpen = false
+                searchOpen = true
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_starred)) },
+            onClick = {
+                menuOpen = false
+                onOpenStarred()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_export)) },
+            onClick = {
+                menuOpen = false
+                val text = viewModel.buildExportText(exportLabels)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/markdown"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                context.startActivity(Intent.createChooser(intent, exportChooserTitle))
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_compress)) },
+            onClick = {
+                menuOpen = false
+                viewModel.compressContext()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_distill)) },
+            onClick = {
+                menuOpen = false
+                viewModel.distillMemory()
+            },
+        )
+    }
+
     if (modePickerOpen) {
         ModePickerSheet(
             current = state.mode,
@@ -214,6 +347,53 @@ fun ChatScreen(
             onDismiss = { modePickerOpen = false },
         )
     }
+
+    editTarget?.let { target ->
+        var text by remember(target.id) { mutableStateOf(target.content) }
+        AlertDialog(
+            onDismissRequest = { editTarget = null },
+            title = { Text(stringResource(R.string.chat_edit_title)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.editAndResend(target.id, text)
+                        editTarget = null
+                    },
+                ) {
+                    Text(stringResource(R.string.chat_edit_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editTarget = null }) {
+                    Text(stringResource(R.string.chat_dismiss))
+                }
+            },
+        )
+    }
+}
+
+private fun usageLabel(state: ChatUiState): String? {
+    val used = state.usagePromptTokens ?: return null
+    val window = state.contextWindow
+    return if (window != null) {
+        "${formatTokens(used)}/${formatTokens(window)}"
+    } else {
+        "${formatTokens(used)}"
+    }
+}
+
+private fun formatTokens(tokens: Long): String = when {
+    tokens >= 1_000_000 -> String.format(java.util.Locale.ROOT, "%.1fM", tokens / 1_000_000.0)
+    tokens >= 1_000 -> String.format(java.util.Locale.ROOT, "%.1fK", tokens / 1_000.0)
+    else -> tokens.toString()
 }
 
 @Composable
@@ -221,10 +401,25 @@ private fun ChatTopBar(
     title: String,
     mode: AppMode,
     running: Boolean,
+    usageLabel: String?,
+    searchOpen: Boolean,
+    searchQuery: String,
+    matchPosition: Int,
+    matchCount: Int,
     onBack: () -> Unit,
     onModeClick: () -> Unit,
     onStop: () -> Unit,
+    onMenuClick: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchClose: () -> Unit,
+    onSearchPrev: () -> Unit,
+    onSearchNext: () -> Unit,
 ) {
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(searchOpen) {
+        if (searchOpen) runCatching { searchFocus.requestFocus() }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -235,40 +430,107 @@ private fun ChatTopBar(
                 .padding(horizontal = Baic2Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Outlined.ArrowBack,
-                    contentDescription = stringResource(R.string.chat_back),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier = Modifier.clickable(onClick = onModeClick),
-            ) {
-                Baic2ModeChip(
-                    mode = mode,
-                    modifier = Modifier.padding(horizontal = Baic2Spacing.xs),
-                )
-            }
-            AnimatedVisibility(
-                visible = running,
-                enter = scaleIn(animationSpec = Baic2Motion.spatialFast()) + fadeIn(),
-                exit = scaleOut(animationSpec = Baic2Motion.effectsFast()) + fadeOut(),
-            ) {
-                IconButton(onClick = onStop) {
+            if (searchOpen) {
+                IconButton(onClick = onSearchClose) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = stringResource(R.string.chat_stop),
-                        tint = MaterialTheme.colorScheme.error,
+                        contentDescription = stringResource(R.string.chat_search_close),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(searchFocus),
+                    decorationBox = { inner ->
+                        Box {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.chat_search_hint),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                Text(
+                    text = "$matchPosition/$matchCount",
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Baic2Spacing.sm),
+                )
+                IconButton(onClick = onSearchPrev) {
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.chat_search_prev),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onSearchNext) {
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.chat_search_next),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowBack,
+                        contentDescription = stringResource(R.string.chat_back),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                usageLabel?.let { label ->
+                    Text(
+                        text = label,
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(end = Baic2Spacing.sm),
+                    )
+                }
+                Box(modifier = Modifier.clickable(onClick = onModeClick)) {
+                    Baic2ModeChip(
+                        mode = mode,
+                        modifier = Modifier.padding(horizontal = Baic2Spacing.xs),
+                    )
+                }
+                AnimatedVisibility(
+                    visible = running,
+                    enter = scaleIn(animationSpec = Baic2Motion.spatialFast()) + fadeIn(),
+                    exit = scaleOut(animationSpec = Baic2Motion.effectsFast()) + fadeOut(),
+                ) {
+                    IconButton(onClick = onStop) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.chat_stop),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                IconButton(onClick = onMenuClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = stringResource(R.string.chat_menu),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
