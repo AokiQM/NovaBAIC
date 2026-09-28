@@ -76,3 +76,9 @@ adb reverse tcp:8765 tcp:8765            # 模拟器/真机访问宿主机
 | M4 子代理 + 工具 + 自动化 + Skills v2 | 计划中 |
 | M5 MCP + 评测扩充 + CI 指标门禁 | 计划中 |
 | M6 打磨与 v0.1.0 发布 | 计划中 |
+
+---
+
+## License
+
+[GPL-3.0-or-later](LICENSE) © 2026 Verlintas. BetterAIChat2 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License.
