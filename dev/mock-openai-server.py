@@ -1,3 +1,8 @@
+# Copyright (C) 2026 Verlintas
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of BetterAIChat2.
+
 #!/usr/bin/env python3
 """Local OpenAI-compatible mock server for BAIC2 development.
 
