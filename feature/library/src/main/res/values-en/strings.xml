@@ -7,4 +7,8 @@
     <string name="library_memory_title">Memory</string>
     <string name="library_memory_empty">No long-term memories yet. The AI distills them automatically, or trigger it from the chat menu</string>
     <string name="library_delete">Delete</string>
+    <string name="library_skills_title">Skills</string>
+    <string name="library_skills_import">Import skill (skill.yaml)</string>
+    <string name="library_skills_empty">No skills yet. Import a skill.yaml, or finish a run and use Save as skill in the chat menu</string>
+    <string name="library_skill_tools">%1$d tools</string>
 </resources>

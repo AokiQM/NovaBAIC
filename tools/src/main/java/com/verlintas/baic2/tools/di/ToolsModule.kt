@@ -76,6 +76,13 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun loadSkillTool(
+        repository: com.verlintas.baic2.tools.skills.SkillRepository,
+        registry: dagger.Lazy<ToolRegistry>,
+    ): DeviceTool = com.verlintas.baic2.tools.skills.LoadSkillTool(repository, registry)
+
+    @Provides
+    @IntoSet
     fun automationTool(
         automationRepository: com.verlintas.baic2.core.data.repository.AutomationRepository,
         scheduler: com.verlintas.baic2.tools.automation.AutomationScheduler,

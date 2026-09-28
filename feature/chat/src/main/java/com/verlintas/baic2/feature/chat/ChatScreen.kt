@@ -149,6 +149,7 @@ fun ChatScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var matchIndex by remember { mutableIntStateOf(0) }
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var skillDialogOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val matches = remember(searchQuery, state.messages) {
@@ -168,6 +169,14 @@ fun ChatScreen(
     )
     val exportChooserTitle = stringResource(R.string.chat_export_chooser)
     val attachmentError by viewModel.attachmentErrors.collectAsStateWithLifecycle()
+    val notice by viewModel.notices.collectAsStateWithLifecycle()
+
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            kotlinx.coroutines.delay(3_000)
+            viewModel.dismissNotice()
+        }
+    }
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(4),
     ) { uris ->
@@ -399,7 +408,7 @@ fun ChatScreen(
             isRunning = state.isRunning,
             pendingAttachments = state.pendingAttachments,
             attachmentError = attachmentError,
-            voiceHint = voiceHint,
+            voiceHint = voiceHint ?: notice,
             onVoiceInput = ::startVoiceInput,
             onAttachImages = {
                 imagePicker.launch(
@@ -458,6 +467,13 @@ fun ChatScreen(
             },
         )
         DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_save_skill)) },
+            onClick = {
+                menuOpen = false
+                skillDialogOpen = true
+            },
+        )
+        DropdownMenuItem(
             text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
             onClick = {
                 menuOpen = false
@@ -492,6 +508,40 @@ fun ChatScreen(
                 modePickerOpen = false
             },
             onDismiss = { modePickerOpen = false },
+        )
+    }
+
+    if (skillDialogOpen) {
+        var skillName by remember { mutableStateOf("") }
+        val savedTemplate = stringResource(R.string.chat_skill_saved)
+        val emptyLabel = stringResource(R.string.chat_skill_none)
+        AlertDialog(
+            onDismissRequest = { skillDialogOpen = false },
+            title = { Text(stringResource(R.string.chat_skill_name_title)) },
+            text = {
+                OutlinedTextField(
+                    value = skillName,
+                    onValueChange = { skillName = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.saveLastRunAsSkill(skillName, savedTemplate, emptyLabel)
+                        skillDialogOpen = false
+                    },
+                    enabled = skillName.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.chat_skill_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { skillDialogOpen = false }) {
+                    Text(stringResource(R.string.chat_dismiss))
+                }
+            },
         )
     }
 

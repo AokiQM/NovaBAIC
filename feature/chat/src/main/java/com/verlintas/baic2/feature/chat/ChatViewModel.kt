@@ -49,6 +49,7 @@ import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
 import com.verlintas.baic2.device.api.SpeechOutput
+import com.verlintas.baic2.tools.skills.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -134,6 +135,7 @@ class ChatViewModel @Inject constructor(
     private val runNotifier: RunNotifier,
     private val confirmationQueue: ConfirmationQueue,
     private val planRepository: PlanRepository,
+    private val skillRepository: SkillRepository,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -148,6 +150,9 @@ class ChatViewModel @Inject constructor(
     private val pendingAttachments = MutableStateFlow<List<Attachment>>(emptyList())
     private val attachmentError = MutableStateFlow<AttachmentError?>(null)
     private val confirmation = MutableStateFlow<ToolCall?>(null)
+    private val notice = MutableStateFlow<String?>(null)
+
+    val notices: StateFlow<String?> = notice.asStateFlow()
 
     private data class ViewExtras(
         val auxBusy: Boolean,
@@ -204,6 +209,29 @@ class ChatViewModel @Inject constructor(
             confirmationQueue.requests.collect { call -> confirmation.value = call }
         }
         runNotifier.setStopHandler { runJob?.cancel() }
+    }
+
+    fun dismissNotice() {
+        notice.value = null
+    }
+
+    /** Records the newest completed tool sequence as a replayable skill. */
+    fun saveLastRunAsSkill(name: String, savedTemplate: String, emptyLabel: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val calls = conversationRepository.getMessages(conversationId)
+                .lastOrNull { it.role == ChatRole.ASSISTANT && it.toolCalls.isNotEmpty() }
+                ?.toolCalls
+                ?.filter { it.status == ToolCallStatus.DONE }
+            if (calls.isNullOrEmpty()) {
+                notice.value = emptyLabel
+                return@launch
+            }
+            runCatching { skillRepository.saveFromToolCalls(trimmed, calls) }
+                .onSuccess { skill -> notice.value = savedTemplate.format(skill.name) }
+                .onFailure { failure -> notice.value = failure.message }
+        }
     }
 
     fun respondConfirmation(allow: Boolean) {

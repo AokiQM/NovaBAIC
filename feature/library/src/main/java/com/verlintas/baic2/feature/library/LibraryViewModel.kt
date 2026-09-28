@@ -6,7 +6,9 @@ import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.tools.automation.AutomationManager
+import com.verlintas.baic2.tools.skills.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 data class LibraryUiState(
     val automations: List<Automation> = emptyList(),
     val memories: List<Memory> = emptyList(),
+    val skills: List<Skill> = emptyList(),
     val loading: Boolean = true,
 )
 
@@ -25,13 +28,43 @@ data class LibraryUiState(
 class LibraryViewModel @Inject constructor(
     private val automationManager: AutomationManager,
     private val memoryRepository: MemoryRepository,
+    private val skillRepository: SkillRepository,
 ) : ViewModel() {
+
+    private val skills = kotlinx.coroutines.flow.MutableStateFlow<List<Skill>>(emptyList())
+
+    init {
+        refreshSkills()
+    }
+
+    private fun refreshSkills() {
+        viewModelScope.launch { skills.value = skillRepository.list() }
+    }
+
+    fun importSkill(uri: android.net.Uri, displayName: String?) {
+        viewModelScope.launch {
+            skillRepository.import(uri, displayName).onSuccess { refreshSkills() }
+        }
+    }
+
+    fun deleteSkill(id: String) {
+        viewModelScope.launch {
+            skillRepository.delete(id)
+            refreshSkills()
+        }
+    }
 
     val uiState: StateFlow<LibraryUiState> = combine(
         automationManager.observeAll(),
         memoryRepository.observe(MemoryKind.MEMORY),
-    ) { automations, memories ->
-        LibraryUiState(automations = automations, memories = memories, loading = false)
+        skills,
+    ) { automations, memories, skillList ->
+        LibraryUiState(
+            automations = automations,
+            memories = memories,
+            skills = skillList,
+            loading = false,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

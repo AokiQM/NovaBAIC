@@ -7,4 +7,8 @@
     <string name="library_memory_title">记忆</string>
     <string name="library_memory_empty">还没有长期记忆。AI 会在对话中自动提炼，也可以在聊天菜单手动触发</string>
     <string name="library_delete">删除</string>
+    <string name="library_skills_title">技能</string>
+    <string name="library_skills_import">导入技能（skill.yaml）</string>
+    <string name="library_skills_empty">还没有技能。导入 skill.yaml，或让 AI 完成一次操作后在聊天菜单里「保存为技能」</string>
+    <string name="library_skill_tools">%1$d 个工具</string>
 </resources>

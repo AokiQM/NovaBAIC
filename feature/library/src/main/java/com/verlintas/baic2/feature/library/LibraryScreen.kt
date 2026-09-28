@@ -38,8 +38,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.OutlinedButton
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.Memory
+import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 
@@ -49,6 +53,13 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val skillPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let {
+            viewModel.importSkill(it, it.lastPathSegment?.substringAfterLast('/'))
+        }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -94,6 +105,34 @@ fun LibraryScreen(
                     automation = automation,
                     onToggle = { enabled -> viewModel.setAutomationEnabled(automation.id, enabled) },
                     onDelete = { viewModel.deleteAutomation(automation.id) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+
+        item(key = "skills-title") {
+            SectionLabel(stringResource(R.string.library_skills_title))
+        }
+        item(key = "skills-import") {
+            OutlinedButton(
+                onClick = {
+                    skillPicker.launch(arrayOf("application/yaml", "application/x-yaml", "text/yaml", "text/plain"))
+                },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.library_skills_import))
+            }
+        }
+        if (state.skills.isEmpty()) {
+            item(key = "skills-empty") {
+                HintCard(stringResource(R.string.library_skills_empty))
+            }
+        } else {
+            items(state.skills, key = { "skill-${it.id}" }) { skill ->
+                SkillRow(
+                    skill = skill,
+                    onDelete = { viewModel.deleteSkill(skill.id) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -191,6 +230,52 @@ private fun AutomationRow(
             checked = automation.enabled,
             onCheckedChange = onToggle,
         )
+        IconButton(onClick = onDelete) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = stringResource(R.string.library_delete),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SkillRow(
+    skill: Skill,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            .padding(start = Baic2Spacing.lg, end = Baic2Spacing.sm, top = Baic2Spacing.md, bottom = Baic2Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = skill.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = skill.description.ifBlank { skill.id } +
+                    " · " + stringResource(R.string.library_skill_tools, skill.tools.size),
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         IconButton(onClick = onDelete) {
             Icon(
                 imageVector = Icons.Outlined.Delete,

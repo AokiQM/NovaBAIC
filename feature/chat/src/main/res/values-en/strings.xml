@@ -94,4 +94,9 @@
     <string name="chat_confirm_body">Allow the %1$s tool to run?</string>
     <string name="chat_confirm_allow">Allow</string>
     <string name="chat_confirm_reject">Reject</string>
+    <string name="chat_menu_save_skill">Save as skill</string>
+    <string name="chat_skill_name_title">Skill name</string>
+    <string name="chat_skill_save">Save</string>
+    <string name="chat_skill_saved">Skill saved: %1$s (see Library → Skills)</string>
+    <string name="chat_skill_none">No completed tool sequence to record</string>
 </resources>

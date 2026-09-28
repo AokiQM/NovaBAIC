@@ -38,18 +38,29 @@ class ToolRegistry @Inject constructor(
 ) : ToolCatalog {
 
     private val byName: Map<String, DeviceTool> = tools.associateBy { it.spec.name }
+    private val dynamic = java.util.concurrent.ConcurrentHashMap<String, DeviceTool>()
+
+    private fun allTools(): Map<String, DeviceTool> = byName + dynamic
 
     override fun specs(mode: AppMode): List<ToolSpec> = when (mode) {
         AppMode.CHAT -> emptyList()
-        AppMode.CHAT_PLUS -> byName.values.filter { it.spec.readOnly }.map { it.spec }
-        AppMode.ACT, AppMode.MAX -> byName.values.map { it.spec }
+        AppMode.CHAT_PLUS -> allTools().values.filter { it.spec.readOnly }.map { it.spec }
+        AppMode.ACT, AppMode.MAX -> allTools().values.map { it.spec }
     }
 
-    override fun find(name: String): ToolSpec? = byName[name]?.spec
+    override fun find(name: String): ToolSpec? = allTools()[name]?.spec
 
-    fun tool(name: String): DeviceTool? = byName[name]
+    fun tool(name: String): DeviceTool? = allTools()[name]
 
-    val toolNames: List<String> get() = byName.keys.sorted()
+    fun registerDynamic(tools: List<DeviceTool>) {
+        tools.forEach { tool -> dynamic[tool.spec.name] = tool }
+    }
+
+    fun unregisterDynamic(names: Collection<String>) {
+        names.forEach { dynamic.remove(it) }
+    }
+
+    val toolNames: List<String> get() = allTools().keys.sorted()
 }
 
 @Singleton

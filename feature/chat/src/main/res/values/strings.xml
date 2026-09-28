@@ -94,4 +94,9 @@
     <string name="chat_confirm_body">允许执行工具 %1$s 吗？</string>
     <string name="chat_confirm_allow">允许</string>
     <string name="chat_confirm_reject">拒绝</string>
+    <string name="chat_menu_save_skill">保存为技能</string>
+    <string name="chat_skill_name_title">技能名称</string>
+    <string name="chat_skill_save">保存</string>
+    <string name="chat_skill_saved">技能已保存：%1$s（可在库 → 技能中查看）</string>
+    <string name="chat_skill_none">没有可记录的操作序列</string>
 </resources>

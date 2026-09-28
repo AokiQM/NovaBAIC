@@ -27,6 +27,7 @@ dependencies {
 
     implementation(libs.jsoup)
     implementation(libs.zxing.core)
+    implementation(libs.snakeyaml)
     api(project(":device:api"))
 
     api(libs.kotlinx.serialization.json)
