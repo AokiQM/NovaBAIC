@@ -67,7 +67,16 @@ class AttachmentProcessor @Inject constructor(
     suspend fun importTextFile(uri: Uri): Result<Attachment> = withContext(Dispatchers.IO) {
         runCatching {
             val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
-                stream.readNBytes(MAX_TEXT_BYTES + 1)
+                val buffer = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(8 * 1024)
+                var total = 0
+                while (total <= MAX_TEXT_BYTES) {
+                    val read = stream.read(chunk)
+                    if (read == -1) break
+                    total += read
+                    buffer.write(chunk, 0, read)
+                }
+                buffer.toByteArray()
             } ?: error("unreadable_file")
             require(bytes.size <= MAX_TEXT_BYTES) { "file_too_large" }
             val mime = context.contentResolver.getType(uri) ?: "text/plain"
