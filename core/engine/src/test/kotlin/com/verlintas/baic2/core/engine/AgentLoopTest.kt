@@ -59,7 +59,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { ScriptedProvider(listOf(textRound("Hello", " world"))) },
             toolCatalog = FakeCatalog(emptyList()),
-            toolRunner = { error("must not run") },
+            toolRunner = { _, _ -> error("must not run") },
         )
 
         val events = loop.run(config, AppMode.CHAT, history = history).toList()
@@ -87,7 +87,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = FakeCatalog(listOf(ToolSpec(name = "read_thing", description = "r", readOnly = true))),
-            toolRunner = {
+            toolRunner = { _, _ ->
                 runnerCalls++
                 ToolResult.Success("42")
             },
@@ -111,7 +111,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = FakeCatalog(listOf(ToolSpec(name = "write_thing", description = "w", readOnly = false))),
-            toolRunner = { runnerCalls++; ToolResult.Success("nope") },
+            toolRunner = { _, _ -> runnerCalls++; ToolResult.Success("nope") },
         )
 
         val events = loop.run(config, AppMode.CHAT_PLUS, history = history).toList()
@@ -130,7 +130,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = FakeCatalog(listOf(ToolSpec(name = "do_thing", description = "d"))),
-            toolRunner = { runnerCalls++; ToolResult.Success("done") },
+            toolRunner = { _, _ -> runnerCalls++; ToolResult.Success("done") },
             confirmationGate = ConfirmationGate { false },
         )
 
@@ -148,7 +148,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { ScriptedProvider(List(64) { toolRound(call) }) },
             toolCatalog = FakeCatalog(listOf(ToolSpec(name = "loop_thing", description = "l"))),
-            toolRunner = { ToolResult.Success("again") },
+            toolRunner = { _, _ -> ToolResult.Success("again") },
             confirmationGate = ConfirmationGate { true },
         )
 
@@ -176,7 +176,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = FakeCatalog(emptyList()),
-            toolRunner = { error("must not run") },
+            toolRunner = { _, _ -> error("must not run") },
         )
 
         val events = loop.run(config, AppMode.CHAT, history = history).toList()
@@ -192,7 +192,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { throw UnsupportedOperationException("not yet") },
             toolCatalog = FakeCatalog(emptyList()),
-            toolRunner = { error("must not run") },
+            toolRunner = { _, _ -> error("must not run") },
         )
 
         val events = loop.run(config, AppMode.CHAT, history = history).toList()
@@ -208,7 +208,7 @@ class AgentLoopTest {
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = FakeCatalog(listOf(ToolSpec(name = "crash_thing", description = "c"))),
-            toolRunner = { throw IllegalStateException("boom") },
+            toolRunner = { _, _ -> throw IllegalStateException("boom") },
         )
 
         val events = loop.run(config, AppMode.MAX, history = history).toList()

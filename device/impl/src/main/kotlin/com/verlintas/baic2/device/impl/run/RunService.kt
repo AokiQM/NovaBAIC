@@ -1,0 +1,114 @@
+package com.verlintas.baic2.device.impl.run
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
+
+/** Holds the stop callback registered by the active run. */
+object RunControl {
+    @Volatile
+    var stopHandler: (() -> Unit)? = null
+}
+
+class RunService : Service() {
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> {
+                RunControl.stopHandler?.invoke()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            else -> {
+                ensureChannel()
+                val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty()
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildNotification(title),
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    } else {
+                        0
+                    },
+                )
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+    }
+
+    private fun buildNotification(title: String): android.app.Notification {
+        val stopIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, RunService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val openIntent = packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
+            PendingIntent.getActivity(
+                this,
+                2,
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        }
+        return android.app.Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(title.ifBlank { "BAIC2" })
+            .setContentText("Agent 正在运行…")
+            .setOngoing(true)
+            .setContentIntent(openIntent)
+            .addAction(
+                android.app.Notification.Action.Builder(
+                    null,
+                    "停止",
+                    stopIntent,
+                ).build(),
+            )
+            .build()
+    }
+
+    private fun ensureChannel() {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Agent runs", NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+    }
+
+    companion object {
+        const val ACTION_STOP = "com.verlintas.baic2.run.STOP"
+        const val EXTRA_TITLE = "title"
+        private const val CHANNEL_ID = "baic2_runs"
+        private const val NOTIFICATION_ID = 43
+
+        fun start(context: Context, title: String) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, RunService::class.java)
+                    .putExtra(EXTRA_TITLE, title)
+                    .setAction("com.verlintas.baic2.run.START"),
+            )
+        }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, RunService::class.java))
+        }
+    }
+}

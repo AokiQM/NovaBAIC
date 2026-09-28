@@ -8,11 +8,13 @@ import com.verlintas.baic2.core.data.repository.AgentRepository
 import com.verlintas.baic2.core.data.repository.ApiKeyUnavailableException
 import com.verlintas.baic2.core.data.repository.ConversationRepository
 import com.verlintas.baic2.core.data.repository.MemoryRepository
+import com.verlintas.baic2.core.data.repository.PlanRepository
 import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.core.engine.AgentEvent
 import com.verlintas.baic2.core.engine.AgentFailure
 import com.verlintas.baic2.core.engine.AgentLoop
 import com.verlintas.baic2.core.engine.AuxiliaryTasks
+import com.verlintas.baic2.core.engine.ConfirmationQueue
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
@@ -20,10 +22,12 @@ import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.ModelContextWindows
+import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
 import com.verlintas.baic2.device.api.SpeechOutput
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +70,8 @@ data class ChatUiState(
     val contextWindow: Long? = null,
     val auxBusy: Boolean = false,
     val pendingAttachments: List<Attachment> = emptyList(),
+    val plan: Plan? = null,
+    val confirmRequest: ToolCall? = null,
 )
 
 enum class AttachmentError {
@@ -108,6 +114,9 @@ class ChatViewModel @Inject constructor(
     private val attachmentProcessor: AttachmentProcessor,
     private val speechOutput: SpeechOutput,
     private val screenshotProvider: ScreenshotProvider,
+    private val runNotifier: RunNotifier,
+    private val confirmationQueue: ConfirmationQueue,
+    private val planRepository: PlanRepository,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -121,6 +130,14 @@ class ChatViewModel @Inject constructor(
     private val auxBusy = MutableStateFlow(false)
     private val pendingAttachments = MutableStateFlow<List<Attachment>>(emptyList())
     private val attachmentError = MutableStateFlow<AttachmentError?>(null)
+    private val confirmation = MutableStateFlow<ToolCall?>(null)
+
+    private data class ViewExtras(
+        val auxBusy: Boolean,
+        val pendingAttachments: List<Attachment>,
+        val confirmRequest: ToolCall?,
+        val plan: Plan?,
+    )
 
     val attachmentErrors: StateFlow<AttachmentError?> = attachmentError.asStateFlow()
 
@@ -131,10 +148,15 @@ class ChatViewModel @Inject constructor(
         combine(running, error, usage) { isRunning, currentError, usageTokens ->
             Triple(isRunning, currentError, usageTokens)
         },
-        combine(auxBusy, pendingAttachments) { busy, attachments ->
-            busy to attachments
+        combine(
+            auxBusy,
+            pendingAttachments,
+            confirmation,
+            planRepository.observePlan(conversationId),
+        ) { busy, attachments, confirmRequest, plan ->
+            ViewExtras(busy, attachments, confirmRequest, plan)
         },
-    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), (busy, attachments) ->
+    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), extras ->
         ChatUiState(
             title = conversation?.title.orEmpty(),
             mode = conversation?.mode ?: AppMode.CHAT,
@@ -146,8 +168,10 @@ class ChatViewModel @Inject constructor(
             error = currentError,
             usagePromptTokens = usageTokens,
             contextWindow = ModelContextWindows.forModel(conversationModel(messages)),
-            auxBusy = busy,
-            pendingAttachments = attachments,
+            auxBusy = extras.auxBusy,
+            pendingAttachments = extras.pendingAttachments,
+            plan = extras.plan,
+            confirmRequest = extras.confirmRequest,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -158,6 +182,19 @@ class ChatViewModel @Inject constructor(
     private var runJob: Job? = null
     private var titleGenerated = false
     private var autoCompressAttempted = false
+
+    init {
+        viewModelScope.launch {
+            confirmationQueue.requests.collect { call -> confirmation.value = call }
+        }
+        runNotifier.setStopHandler { runJob?.cancel() }
+    }
+
+    fun respondConfirmation(allow: Boolean) {
+        val call = confirmation.value ?: return
+        confirmationQueue.respond(call.id, allow)
+        confirmation.value = null
+    }
 
     private fun conversationModel(messages: List<ChatMessage>): String =
         messages.lastOrNull { it.model != null }?.model.orEmpty()
@@ -246,6 +283,8 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         speechOutput.stop()
+        runNotifier.setStopHandler(null)
+        runNotifier.stopRunning()
         super.onCleared()
     }
 
@@ -402,6 +441,7 @@ class ChatViewModel @Inject constructor(
         val rawHistory = conversationRepository.getMessages(conversationId)
         val history = withMemories(prepareHistory(rawHistory))
         val runId = runRepository.start(conversationId, conversation.mode)
+        runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" })
 
         running.value = true
         error.value = null
@@ -416,6 +456,8 @@ class ChatViewModel @Inject constructor(
                 mode = conversation.mode,
                 customSystemPrompt = agent?.systemPrompt.orEmpty(),
                 history = history,
+                conversationId = conversationId,
+                planContext = planRepository.getPlan(conversationId)?.render(),
             ).collect { event ->
                 when (event) {
                     is AgentEvent.RoundStarted -> {
@@ -501,6 +543,8 @@ class ChatViewModel @Inject constructor(
         } finally {
             running.value = false
             streaming.value = StreamingState()
+            confirmation.value = null
+            runNotifier.stopRunning()
         }
 
         if (!failed) {

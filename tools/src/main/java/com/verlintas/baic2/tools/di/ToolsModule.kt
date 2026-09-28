@@ -57,6 +57,12 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun planUpdateTool(
+        planRepository: com.verlintas.baic2.core.data.repository.PlanRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.PlanUpdateTool(planRepository)
+
+    @Provides
+    @IntoSet
     fun takeScreenshotTool(): DeviceTool = com.verlintas.baic2.tools.TakeScreenshotTool()
 
     @Provides

@@ -89,4 +89,9 @@
     <string name="starred_empty_description">长按消息即可收藏</string>
     <string name="starred_unstar">取消收藏</string>
     <string name="starred_back">返回</string>
+    <string name="chat_plan_title">任务计划</string>
+    <string name="chat_confirm_title">需要确认</string>
+    <string name="chat_confirm_body">允许执行工具 %1$s 吗？</string>
+    <string name="chat_confirm_allow">允许</string>
+    <string name="chat_confirm_reject">拒绝</string>
 </resources>

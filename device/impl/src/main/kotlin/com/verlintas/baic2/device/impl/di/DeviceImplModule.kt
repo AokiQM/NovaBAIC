@@ -2,12 +2,14 @@ package com.verlintas.baic2.device.impl.di
 
 import com.verlintas.baic2.device.api.AccessibilityBridge
 import com.verlintas.baic2.device.api.OcrProvider
+import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
 import com.verlintas.baic2.device.api.SpeechOutput
 import com.verlintas.baic2.device.impl.AndroidSpeechOutput
 import com.verlintas.baic2.device.impl.a11y.AndroidAccessibilityBridge
 import com.verlintas.baic2.device.impl.ocr.MlKitOcrProvider
 import com.verlintas.baic2.device.impl.projection.AndroidScreenshotProvider
+import com.verlintas.baic2.device.impl.run.AndroidRunNotifier
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -33,4 +35,8 @@ abstract class DeviceImplModule {
     @Binds
     @Singleton
     abstract fun bindAccessibilityBridge(impl: AndroidAccessibilityBridge): AccessibilityBridge
+
+    @Binds
+    @Singleton
+    abstract fun bindRunNotifier(impl: AndroidRunNotifier): RunNotifier
 }

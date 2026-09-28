@@ -151,6 +151,41 @@ interface RunDao {
 
     @Query("SELECT * FROM runs WHERE conversationId = :conversationId ORDER BY id DESC LIMIT 1")
     suspend fun latestForConversation(conversationId: Long): RunEntity?
+
+    @Query(
+        """
+        SELECT r.id AS id, r.conversationId AS conversationId, c.title AS conversationTitle,
+               r.mode AS mode, r.state AS state, r.startedAt AS startedAt, r.updatedAt AS updatedAt
+        FROM runs r
+        INNER JOIN conversations c ON c.id = r.conversationId
+        ORDER BY r.id DESC
+        LIMIT :limit
+        """,
+    )
+    fun observeSummaries(limit: Int = 100): Flow<List<RunSummaryRow>>
+}
+
+data class RunSummaryRow(
+    val id: Long,
+    val conversationId: Long,
+    val conversationTitle: String,
+    val mode: String,
+    val state: String,
+    val startedAt: Long,
+    val updatedAt: Long,
+)
+
+@Dao
+interface PlanDao {
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: PlanEntity)
+
+    @Query("SELECT * FROM plans WHERE conversationId = :conversationId")
+    suspend fun get(conversationId: Long): PlanEntity?
+
+    @Query("SELECT * FROM plans WHERE conversationId = :conversationId")
+    fun observe(conversationId: Long): Flow<PlanEntity?>
 }
 
 @Dao

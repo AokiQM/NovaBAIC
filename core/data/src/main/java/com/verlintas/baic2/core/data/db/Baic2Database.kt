@@ -12,8 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MessageEntity::class,
         RunEntity::class,
         MemoryEntity::class,
+        PlanEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -27,6 +28,8 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun runDao(): RunDao
 
     abstract fun memoryDao(): MemoryDao
+
+    abstract fun planDao(): PlanDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -52,6 +55,21 @@ abstract class Baic2Database : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS plans (
+                        conversationId INTEGER NOT NULL,
+                        stepsJson TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(conversationId)
+                    )
+                    """.trimIndent(),
                 )
             }
         }

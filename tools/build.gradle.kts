@@ -22,6 +22,7 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":core:engine"))
+    implementation(project(":core:data"))
     api(project(":device:api"))
 
     api(libs.kotlinx.serialization.json)

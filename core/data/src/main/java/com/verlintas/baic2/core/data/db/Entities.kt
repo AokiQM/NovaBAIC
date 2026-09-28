@@ -79,3 +79,10 @@ data class ConversationSummary(
     @Embedded val conversation: ConversationEntity,
     val lastMessage: String?,
 )
+
+@Entity(tableName = "plans")
+data class PlanEntity(
+    @PrimaryKey val conversationId: Long,
+    val stepsJson: String,
+    val updatedAt: Long,
+)

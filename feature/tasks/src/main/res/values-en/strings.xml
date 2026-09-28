@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_tasks_title">Tasks</string>
-    <string name="feature_tasks_description">Agent run center: plans, steps, audit and takeover land in M3</string>
+    <string name="tasks_subtitle">%1$d runs</string>
+    <string name="tasks_empty_title">No runs yet</string>
+    <string name="tasks_empty_description">Send a message in Act or Max mode and the run will show up here</string>
+    <string name="tasks_untitled">Untitled</string>
+    <string name="tasks_state_running">running</string>
+    <string name="tasks_state_completed">completed</string>
+    <string name="tasks_state_failed">failed</string>
+    <string name="tasks_state_cancelled">cancelled</string>
 </resources>

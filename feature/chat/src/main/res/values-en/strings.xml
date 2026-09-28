@@ -89,4 +89,9 @@
     <string name="starred_empty_description">Long-press a message to star it</string>
     <string name="starred_unstar">Unstar</string>
     <string name="starred_back">Back</string>
+    <string name="chat_plan_title">Plan</string>
+    <string name="chat_confirm_title">Confirm</string>
+    <string name="chat_confirm_body">Allow the %1$s tool to run?</string>
+    <string name="chat_confirm_allow">Allow</string>
+    <string name="chat_confirm_reject">Reject</string>
 </resources>

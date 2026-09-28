@@ -30,6 +30,13 @@ TOOL_ARGS = {
     "take_screenshot": {},
     "screen_ocr": {},
     "ui_find": {"text": "Back"},
+    "plan_update": {
+        "steps": [
+            {"title": "打开设置页", "status": "doing"},
+            {"title": "确认设置页已打开", "status": "pending"},
+            {"title": "汇报结果", "status": "pending"},
+        ]
+    },
 }
 
 

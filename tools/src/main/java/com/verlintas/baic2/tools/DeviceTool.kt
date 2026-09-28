@@ -1,6 +1,8 @@
 package com.verlintas.baic2.tools
 
 import android.content.Context
+import com.verlintas.baic2.core.engine.ToolRunContext
+import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import com.verlintas.baic2.device.api.AccessibilityBridge
@@ -13,12 +15,13 @@ fun interface PermissionChecker {
     fun isGranted(permission: String): Boolean
 }
 
-class ToolContext(
+data class ToolContext(
     val appContext: Context,
     val permissions: PermissionChecker,
     val screenshot: ScreenshotProvider,
     val ocr: OcrProvider,
     val accessibility: AccessibilityBridge,
+    val run: ToolRunContext = ToolRunContext(null, AppMode.CHAT),
 ) {
     fun isGranted(permission: String): Boolean = permissions.isGranted(permission)
 }

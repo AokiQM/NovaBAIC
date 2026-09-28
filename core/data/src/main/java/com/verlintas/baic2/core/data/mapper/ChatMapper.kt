@@ -4,7 +4,9 @@ import com.verlintas.baic2.core.data.db.AgentEntity
 import com.verlintas.baic2.core.data.db.ConversationEntity
 import com.verlintas.baic2.core.data.db.MemoryEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
+import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
+import com.verlintas.baic2.core.data.db.RunSummaryRow
 import com.verlintas.baic2.core.model.Agent
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
@@ -12,9 +14,12 @@ import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.Plan
+import com.verlintas.baic2.core.model.PlanStep
 import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.Run
 import com.verlintas.baic2.core.model.RunState
+import com.verlintas.baic2.core.model.RunSummary
 import com.verlintas.baic2.core.model.ToolCall
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -127,6 +132,24 @@ class ChatMapper @Inject constructor(private val json: Json) {
         mode = enumOf(entity.mode, AppMode.CHAT),
         state = enumOf(entity.state, RunState.RUNNING),
         startedAt = entity.startedAt,
+        updatedAt = entity.updatedAt,
+    )
+
+    fun runSummaryToModel(row: RunSummaryRow): RunSummary = RunSummary(
+        id = row.id,
+        conversationId = row.conversationId,
+        conversationTitle = row.conversationTitle,
+        mode = enumOf(row.mode, AppMode.CHAT),
+        state = enumOf(row.state, RunState.RUNNING),
+        startedAt = row.startedAt,
+        updatedAt = row.updatedAt,
+    )
+
+    fun planToModel(entity: PlanEntity): Plan = Plan(
+        conversationId = entity.conversationId,
+        steps = runCatching {
+            json.decodeFromString<List<PlanStep>>(entity.stepsJson)
+        }.getOrDefault(emptyList()),
         updatedAt = entity.updatedAt,
     )
 

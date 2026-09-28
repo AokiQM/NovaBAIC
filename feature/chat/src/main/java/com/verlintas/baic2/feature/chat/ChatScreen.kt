@@ -310,6 +310,12 @@ fun ChatScreen(
                 }
             }
 
+            state.plan?.takeIf { it.steps.isNotEmpty() }?.let { plan ->
+                item(key = "plan") {
+                    PlanCard(plan = plan, modifier = Modifier.animateItem())
+                }
+            }
+
             items(state.messages, key = { it.id }) { message ->
                 MessageRow(
                     message = message,
@@ -473,6 +479,36 @@ fun ChatScreen(
                 modePickerOpen = false
             },
             onDismiss = { modePickerOpen = false },
+        )
+    }
+
+    state.confirmRequest?.let { call ->
+        AlertDialog(
+            onDismissRequest = { viewModel.respondConfirmation(false) },
+            title = { Text(stringResource(R.string.chat_confirm_title)) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.chat_confirm_body, call.name),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (call.argumentsJson.isNotBlank() && call.argumentsJson != "{}") {
+                        Spacer(Modifier.size(Baic2Spacing.sm))
+                        CodeBlock(language = "args", code = call.argumentsJson)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.respondConfirmation(true) }) {
+                    Text(stringResource(R.string.chat_confirm_allow))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.respondConfirmation(false) }) {
+                    Text(stringResource(R.string.chat_confirm_reject))
+                }
+            },
         )
     }
 

@@ -113,6 +113,7 @@ private enum class Baic2Destination(
 fun Baic2App() {
     var destination by rememberSaveable { mutableStateOf(Baic2Destination.Chats) }
     var dockOpen by rememberSaveable { mutableStateOf(false) }
+    var pendingConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val onInnerRoute = backStackEntry?.destination?.route in setOf(ROUTE_CHAT, ROUTE_STARRED)
@@ -141,8 +142,18 @@ fun Baic2App() {
             label = "zone-content",
         ) { dest ->
             when (dest) {
-                Baic2Destination.Chats -> ChatsZone(navController)
-                Baic2Destination.Tasks -> TasksScreen()
+                Baic2Destination.Chats -> ChatsZone(
+                    navController = navController,
+                    pendingConversationId = pendingConversationId,
+                    onPendingConsumed = { pendingConversationId = null },
+                )
+
+                Baic2Destination.Tasks -> TasksScreen(
+                    onOpenConversation = { id ->
+                        pendingConversationId = id
+                        destination = Baic2Destination.Chats
+                    },
+                )
                 Baic2Destination.Library -> LibraryPlaceholder()
                 Baic2Destination.Settings -> SettingsScreen(appVersion = BuildConfig.VERSION_NAME)
             }
@@ -174,7 +185,17 @@ fun Baic2App() {
 }
 
 @Composable
-private fun ChatsZone(navController: NavHostController) {
+private fun ChatsZone(
+    navController: NavHostController,
+    pendingConversationId: Long?,
+    onPendingConsumed: () -> Unit,
+) {
+    LaunchedEffect(pendingConversationId) {
+        val id = pendingConversationId ?: return@LaunchedEffect
+        navController.navigate("chat/$id")
+        onPendingConsumed()
+    }
+
     NavHost(
         navController = navController,
         startDestination = ROUTE_CONVERSATIONS,

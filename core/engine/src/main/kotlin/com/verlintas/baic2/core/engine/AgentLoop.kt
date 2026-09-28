@@ -26,9 +26,15 @@ interface ToolCatalog {
     fun find(name: String): ToolSpec?
 }
 
+/** Per-run information a tool may need (plan updates, auditing). */
+data class ToolRunContext(
+    val conversationId: Long? = null,
+    val mode: AppMode = AppMode.CHAT,
+)
+
 /** Executes a single tool call. */
 fun interface ToolRunner {
-    suspend fun run(call: ToolCall): ToolResult
+    suspend fun run(call: ToolCall, run: ToolRunContext): ToolResult
 }
 
 /** Asks the user to approve a tool call (Act mode). */
@@ -62,8 +68,11 @@ class AgentLoop(
         mode: AppMode,
         customSystemPrompt: String = "",
         history: List<ChatMessage>,
+        conversationId: Long? = null,
+        planContext: String? = null,
     ): Flow<AgentEvent> = flow {
         val budget = RunBudget.forMode(mode)
+        val runContext = ToolRunContext(conversationId = conversationId, mode = mode)
         val startedAt = clock()
         var messages = history
         var round = 0
@@ -100,7 +109,7 @@ class AgentLoop(
                 provider.stream(
                     ChatRequest(
                         config = config,
-                        systemPrompt = systemPromptFor(mode, customSystemPrompt),
+                        systemPrompt = systemPromptFor(mode, customSystemPrompt, planContext),
                         messages = messages,
                         tools = toolCatalog.specs(mode),
                     ),
@@ -163,7 +172,7 @@ class AgentLoop(
                     decision is GateResult.NeedsConfirm -> {
                         val approved = confirmationGate.confirm(call)
                         if (approved) {
-                            execute(call)
+                            execute(call, runContext)
                         } else {
                             ToolCallStatus.REJECTED to ToolResult.Denied("User rejected the call")
                         }
@@ -174,7 +183,7 @@ class AgentLoop(
                             "Tool call budget exhausted (${budget.maxToolCalls}); answer with what you have",
                         )
 
-                    else -> execute(call)
+                    else -> execute(call, runContext)
                 }
 
                 if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
@@ -193,8 +202,11 @@ class AgentLoop(
         }
     }.flowOn(Dispatchers.IO)
 
-    private suspend fun execute(call: ToolCall): Pair<ToolCallStatus, ToolResult> = try {
-        when (val result = toolRunner.run(call)) {
+    private suspend fun execute(
+        call: ToolCall,
+        run: ToolRunContext,
+    ): Pair<ToolCallStatus, ToolResult> = try {
+        when (val result = toolRunner.run(call, run)) {
             is ToolResult.Success -> ToolCallStatus.DONE to result
             is ToolResult.Failure -> ToolCallStatus.FAILED to result
             is ToolResult.Denied -> ToolCallStatus.DENIED to result
@@ -219,7 +231,7 @@ class AgentLoop(
         return GateResult.Allow
     }
 
-    private fun systemPromptFor(mode: AppMode, custom: String): String {
+    private fun systemPromptFor(mode: AppMode, custom: String, planContext: String?): String {
         val base = when (mode) {
             AppMode.CHAT ->
                 "You are a helpful assistant. Answer clearly and concisely. You have no tools."
@@ -233,11 +245,18 @@ class AgentLoop(
                     "so explain what you are about to do and why. Prefer the smallest safe step."
 
             AppMode.MAX ->
-                "You are in autonomous mode. Plan the shortest path to the goal, execute tools without asking, " +
-                    "verify the result after each action, and summarize what you did at the end. " +
-                    "Never repeat a failed call with identical arguments."
+                "You are in autonomous mode. Maintain a task plan with the plan_update tool: create it " +
+                    "before the first action, keep exactly one step marked DOING, verify each step with an " +
+                    "observation tool (screen_ocr / ui_find / device_info) and update its status immediately, " +
+                    "then mark it DONE or FAILED. Execute tools without asking, never repeat a failed call " +
+                    "with identical arguments, and summarize the outcome at the end."
         }
-        return if (custom.isBlank()) base else "$custom\n\n$base"
+        val withPlan = if (!planContext.isNullOrBlank() && mode == AppMode.MAX) {
+            base + "\n\nCurrent plan (keep it updated via plan_update):\n" + planContext
+        } else {
+            base
+        }
+        return if (custom.isBlank()) withPlan else "$custom\n\n$withPlan"
     }
 
     private sealed interface GateResult {

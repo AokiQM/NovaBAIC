@@ -10,6 +10,7 @@ import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.ConversationDao
 import com.verlintas.baic2.core.data.db.MemoryDao
 import com.verlintas.baic2.core.data.db.MessageDao
+import com.verlintas.baic2.core.data.db.PlanDao
 import com.verlintas.baic2.core.data.db.RunDao
 import dagger.Module
 import dagger.Provides
@@ -28,7 +29,11 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): Baic2Database =
         Room.databaseBuilder(context, Baic2Database::class.java, "baic2.db")
-            .addMigrations(Baic2Database.MIGRATION_1_2, Baic2Database.MIGRATION_2_3)
+            .addMigrations(
+                Baic2Database.MIGRATION_1_2,
+                Baic2Database.MIGRATION_2_3,
+                Baic2Database.MIGRATION_3_4,
+            )
             .build()
 
     @Provides
@@ -45,6 +50,9 @@ object DataModule {
 
     @Provides
     fun provideMemoryDao(db: Baic2Database): MemoryDao = db.memoryDao()
+
+    @Provides
+    fun providePlanDao(db: Baic2Database): PlanDao = db.planDao()
 
     @Provides
     @Singleton

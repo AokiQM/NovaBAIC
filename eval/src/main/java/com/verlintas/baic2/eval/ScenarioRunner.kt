@@ -43,7 +43,7 @@ class ScenarioRunner(
         val loop = AgentLoop(
             providerFactory = { provider },
             toolCatalog = catalog,
-            toolRunner = { call: ToolCall ->
+            toolRunner = { call: ToolCall, _ ->
                 callLog += call.name
                 val queue = resultByTool[call.name]
                 when {
