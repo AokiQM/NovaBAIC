@@ -108,7 +108,7 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { mcpDialogOpen = false }) {
-                    Text(stringResource(R.string.library_delete))
+                    Text(stringResource(R.string.library_cancel))
                 }
             },
         )

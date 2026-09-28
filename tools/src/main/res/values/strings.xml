@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automation_channel">自动化</string>
+    <string name="automation_done">自动化完成：%1$s</string>
+    <string name="automation_partial">自动化部分失败：%1$s</string>
+</resources>

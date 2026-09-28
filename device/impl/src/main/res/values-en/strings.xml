@@ -3,4 +3,11 @@
     <string name="a11y_label">BAIC2 UI automation</string>
     <string name="a11y_description">Lets the AI read the screen and perform taps, swipes and typing — only when you grant access and ask for it.</string>
     <string name="notifications_label">BAIC2 notification reader</string>
+    <string name="run_stop">Stop</string>
+    <string name="run_running">Agent is running…</string>
+    <string name="run_channel">Agent runs</string>
+    <string name="projection_title">BAIC2 screen capture</string>
+    <string name="projection_text">In use for screen analysis and OCR</string>
+    <string name="projection_channel">Screen capture</string>
+    <string name="reminder_title">Reminder</string>
 </resources>

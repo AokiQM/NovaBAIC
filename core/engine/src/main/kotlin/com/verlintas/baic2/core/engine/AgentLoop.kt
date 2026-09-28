@@ -103,6 +103,7 @@ class AgentLoop(
         var messages = history
         var round = 0
         var toolCallsUsed = 0
+        val toolFailures = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
         while (true) {
             if (round >= budget.maxRounds) {
@@ -197,6 +198,7 @@ class AgentLoop(
                 toolCalls.forEach { emit(AgentEvent.ToolCallStarted(it)) }
                 val executed = executeParallel(toolCalls, runContext)
                 executed.forEach { (call, status, result) ->
+                    recordFailure(toolFailures, call.name, status, result)
                     if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
                         toolCallsUsed++
                     }
@@ -219,6 +221,13 @@ class AgentLoop(
                         decision is GateResult.Denied ->
                             ToolCallStatus.DENIED to ToolResult.Denied(decision.reason)
 
+                        (toolFailures[call.name] ?: 0) >= MAX_TOOL_FAILURES ->
+                            ToolCallStatus.DENIED to ToolResult.Denied(
+                                "${call.name} failed $MAX_TOOL_FAILURES times in this run. " +
+                                    "Re-read its parameter documentation, change the arguments, " +
+                                    "or use another tool — do not retry unchanged.",
+                            )
+
                         decision is GateResult.NeedsConfirm -> {
                             val approved = confirmationGate.confirm(call)
                             if (approved) {
@@ -236,6 +245,7 @@ class AgentLoop(
                         else -> execute(call, runContext)
                     }
 
+                    recordFailure(toolFailures, call.name, status, result)
                     if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
                         toolCallsUsed++
                     }
@@ -252,6 +262,26 @@ class AgentLoop(
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Tool-name level circuit breaker: three failures in a run and further
+     * identical attempts are denied with guidance instead of burning rounds.
+     */
+    private fun recordFailure(
+        failures: MutableMap<String, Int>,
+        toolName: String,
+        status: ToolCallStatus,
+        result: ToolResult,
+    ) {
+        when {
+            status == ToolCallStatus.DONE && result is ToolResult.Success ->
+                failures.remove(toolName)
+
+            status == ToolCallStatus.FAILED ||
+                (status == ToolCallStatus.DONE && result is ToolResult.Failure) ->
+                failures[toolName] = (failures[toolName] ?: 0) + 1
+        }
+    }
 
     private suspend fun executeParallel(
         toolCalls: List<ToolCall>,
@@ -321,6 +351,10 @@ class AgentLoop(
             base
         }
         return if (custom.isBlank()) withPlan else "$custom\n\n$withPlan"
+    }
+
+    private companion object {
+        const val MAX_TOOL_FAILURES = 3
     }
 
     private sealed interface GateResult {

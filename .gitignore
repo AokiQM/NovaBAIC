@@ -31,3 +31,4 @@ captures/
 *.jks
 keystore_pass.txt
 secrets.properties
+keystore.properties

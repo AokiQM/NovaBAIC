@@ -30,6 +30,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.verlintas.baic2.device.impl.R
 
 /** Holds the stop callback registered by the active run. */
 object RunControl {
@@ -89,13 +90,13 @@ class RunService : Service() {
         return android.app.Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle(title.ifBlank { "BAIC2" })
-            .setContentText("Agent 正在运行…")
+            .setContentText(getString(R.string.run_running))
             .setOngoing(true)
             .setContentIntent(openIntent)
             .addAction(
                 android.app.Notification.Action.Builder(
                     null,
-                    "停止",
+                    getString(R.string.run_stop),
                     stopIntent,
                 ).build(),
             )
@@ -106,7 +107,7 @@ class RunService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Agent runs", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(CHANNEL_ID, getString(R.string.run_channel), NotificationManager.IMPORTANCE_LOW),
             )
         }
     }

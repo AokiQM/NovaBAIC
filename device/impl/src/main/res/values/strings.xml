@@ -3,4 +3,11 @@
     <string name="a11y_label">BAIC2 界面自动化</string>
     <string name="a11y_description">允许 AI 读取屏幕内容并执行点击、滑动、输入等操作（仅在你授权与下达指令后使用）。</string>
     <string name="notifications_label">BAIC2 通知读取</string>
+    <string name="run_stop">停止</string>
+    <string name="run_running">Agent 正在运行…</string>
+    <string name="run_channel">Agent 任务</string>
+    <string name="projection_title">BAIC2 屏幕捕获</string>
+    <string name="projection_text">正在用于屏幕分析与 OCR</string>
+    <string name="projection_channel">屏幕捕获</string>
+    <string name="reminder_title">提醒</string>
 </resources>

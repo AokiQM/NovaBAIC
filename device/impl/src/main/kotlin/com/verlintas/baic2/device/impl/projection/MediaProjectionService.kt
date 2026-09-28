@@ -36,6 +36,7 @@ import android.os.Build
 import android.os.IBinder
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
+import com.verlintas.baic2.device.impl.R
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -60,8 +61,8 @@ class MediaProjectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = android.app.Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setContentTitle("BAIC2 屏幕捕获")
-            .setContentText("正在用于屏幕分析与 OCR")
+            .setContentTitle(getString(R.string.projection_title))
+            .setContentText(getString(R.string.projection_text))
             .setOngoing(true)
             .build()
         ServiceCompat.startForeground(
@@ -105,7 +106,7 @@ class MediaProjectionService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Screen capture", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(CHANNEL_ID, getString(R.string.projection_channel), NotificationManager.IMPORTANCE_LOW),
             )
         }
     }

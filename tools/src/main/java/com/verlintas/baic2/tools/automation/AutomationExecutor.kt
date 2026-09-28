@@ -9,6 +9,7 @@ import com.verlintas.baic2.core.engine.ToolRunner
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolResult
+import com.verlintas.baic2.tools.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,10 +59,14 @@ class AutomationExecutor @Inject constructor(
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Automations", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.automation_channel), NotificationManager.IMPORTANCE_DEFAULT),
             )
         }
-        val title = if (failures == 0) "自动化完成：${automation.name}" else "自动化部分失败：${automation.name}"
+        val title = if (failures == 0) {
+            context.getString(R.string.automation_done, automation.name)
+        } else {
+            context.getString(R.string.automation_partial, automation.name)
+        }
         val notification = android.app.Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_sync)
             .setContentTitle(title)

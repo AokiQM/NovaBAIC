@@ -72,6 +72,12 @@ class WebFetcher @Inject constructor(
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} for $url"))
                 }
+                val finalUrl = response.request.url.toString()
+                if (!isPublicHttpUrl(finalUrl)) {
+                    return Result.failure(
+                        IllegalArgumentException("blocked_redirect: '$url' redirected to a private address"),
+                    )
+                }
                 val source = response.body?.source() ?: return Result.failure(IOException("empty body"))
                 source.request(maxBytes)
                 Result.success(source.buffer.clone().readUtf8())
@@ -90,6 +96,12 @@ class WebFetcher @Inject constructor(
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} for $url"))
+                }
+                val finalUrl = response.request.url.toString()
+                if (!isPublicHttpUrl(finalUrl)) {
+                    return Result.failure(
+                        IllegalArgumentException("blocked_redirect: '$url' redirected to a private address"),
+                    )
                 }
                 val source = response.body?.source() ?: return Result.failure(IOException("empty body"))
                 source.request(maxBytes)

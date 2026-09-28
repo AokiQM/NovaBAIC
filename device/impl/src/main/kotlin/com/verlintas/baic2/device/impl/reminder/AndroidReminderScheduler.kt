@@ -28,6 +28,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.verlintas.baic2.device.api.ReminderScheduler
+import com.verlintas.baic2.device.impl.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Calendar
 import javax.inject.Inject
@@ -91,7 +92,7 @@ class ReminderReceiver : BroadcastReceiver() {
         }
         val notification = android.app.Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("提醒")
+            .setContentTitle(context.getString(R.string.reminder_title))
             .setContentText(text)
             .setStyle(android.app.Notification.BigTextStyle().bigText(text))
             .setAutoCancel(true)
