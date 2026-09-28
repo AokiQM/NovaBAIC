@@ -37,6 +37,13 @@ TOOL_ARGS = {
     "ui_find": {"text": "Back"},
     "web_search": {"query": "BAIC2 Android AI agent", "limit": 3},
     "web_read": {"url": "https://example.com", "max_chars": 500},
+    "automation": {
+        "action": "create",
+        "name": "夜间静音",
+        "trigger": "time",
+        "time": "22:00",
+        "actions": [{"tool": "set_volume", "args": {"level": 0}}],
+    },
     "get_weather": {"city": "Beijing"},
     "get_screen_state": {},
     "generate_qr": {"text": "https://github.com/Verlintas"},

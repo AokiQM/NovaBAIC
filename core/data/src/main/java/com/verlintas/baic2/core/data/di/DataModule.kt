@@ -25,6 +25,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.verlintas.baic2.core.data.db.AgentDao
+import com.verlintas.baic2.core.data.db.AutomationDao
 import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.ConversationDao
 import com.verlintas.baic2.core.data.db.MemoryDao
@@ -52,6 +53,7 @@ object DataModule {
                 Baic2Database.MIGRATION_1_2,
                 Baic2Database.MIGRATION_2_3,
                 Baic2Database.MIGRATION_3_4,
+                Baic2Database.MIGRATION_4_5,
             )
             .build()
 
@@ -72,6 +74,9 @@ object DataModule {
 
     @Provides
     fun providePlanDao(db: Baic2Database): PlanDao = db.planDao()
+
+    @Provides
+    fun provideAutomationDao(db: Baic2Database): AutomationDao = db.automationDao()
 
     @Provides
     @Singleton

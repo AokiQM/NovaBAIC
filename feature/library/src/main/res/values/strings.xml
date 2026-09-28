@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_library_title">库</string>
+    <string name="library_subtitle">%1$d 个自动化 · %2$d 条记忆</string>
+    <string name="library_automations_title">自动化</string>
+    <string name="library_automations_empty">还没有自动化。让 AI 创建，例如：「每天 22:00 开启勿扰并静音」</string>
+    <string name="library_memory_title">记忆</string>
+    <string name="library_memory_empty">还没有长期记忆。AI 会在对话中自动提炼，也可以在聊天菜单手动触发</string>
+    <string name="library_delete">删除</string>
+</resources>

@@ -52,6 +52,7 @@ dependencies {
     implementation(project(":feature:conversations"))
     implementation(project(":feature:tasks"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:library"))
     implementation(project(":device:api"))
     implementation(project(":device:impl"))
     implementation(project(":tools"))

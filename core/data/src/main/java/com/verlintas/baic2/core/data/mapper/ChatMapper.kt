@@ -20,6 +20,7 @@
 package com.verlintas.baic2.core.data.mapper
 
 import com.verlintas.baic2.core.data.db.AgentEntity
+import com.verlintas.baic2.core.data.db.AutomationEntity
 import com.verlintas.baic2.core.data.db.ConversationEntity
 import com.verlintas.baic2.core.data.db.MemoryEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
@@ -27,6 +28,9 @@ import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
 import com.verlintas.baic2.core.data.db.RunSummaryRow
 import com.verlintas.baic2.core.model.Agent
+import com.verlintas.baic2.core.model.Automation
+import com.verlintas.baic2.core.model.AutomationAction
+import com.verlintas.baic2.core.model.AutomationTrigger
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
@@ -162,6 +166,34 @@ class ChatMapper @Inject constructor(private val json: Json) {
         state = enumOf(row.state, RunState.RUNNING),
         startedAt = row.startedAt,
         updatedAt = row.updatedAt,
+    )
+
+    fun automationToModel(entity: AutomationEntity): Automation = Automation(
+        id = entity.id,
+        name = entity.name,
+        trigger = enumOf(entity.trigger, AutomationTrigger.TIME),
+        timeOfDay = entity.timeOfDay,
+        daysOfWeek = runCatching {
+            json.decodeFromString<List<Int>>(entity.daysOfWeekJson)
+        }.getOrDefault(emptyList()).takeIf { it.isNotEmpty() },
+        batteryBelow = entity.batteryBelow,
+        actions = runCatching {
+            json.decodeFromString<List<AutomationAction>>(entity.actionsJson)
+        }.getOrDefault(emptyList()),
+        enabled = entity.enabled,
+        createdAt = entity.createdAt,
+    )
+
+    fun automationToEntity(automation: Automation): AutomationEntity = AutomationEntity(
+        id = automation.id,
+        name = automation.name,
+        trigger = automation.trigger.name,
+        timeOfDay = automation.timeOfDay,
+        daysOfWeekJson = json.encodeToString(automation.daysOfWeek ?: emptyList<Int>()),
+        batteryBelow = automation.batteryBelow,
+        actionsJson = json.encodeToString(automation.actions),
+        enabled = automation.enabled,
+        createdAt = automation.createdAt,
     )
 
     fun planToModel(entity: PlanEntity): Plan = Plan(

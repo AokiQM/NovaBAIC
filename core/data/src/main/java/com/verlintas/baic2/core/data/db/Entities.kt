@@ -99,6 +99,19 @@ data class ConversationSummary(
     val lastMessage: String?,
 )
 
+@Entity(tableName = "automations")
+data class AutomationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val name: String,
+    val trigger: String,
+    val timeOfDay: String?,
+    val daysOfWeekJson: String,
+    val batteryBelow: Int?,
+    val actionsJson: String,
+    val enabled: Boolean,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "plans")
 data class PlanEntity(
     @PrimaryKey val conversationId: Long,

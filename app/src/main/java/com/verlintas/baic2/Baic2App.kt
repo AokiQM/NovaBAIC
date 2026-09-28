@@ -108,6 +108,7 @@ import com.verlintas.baic2.designsystem.component.Baic2EmptyState
 import com.verlintas.baic2.feature.chat.ChatScreen
 import com.verlintas.baic2.feature.chat.StarredScreen
 import com.verlintas.baic2.feature.conversations.ConversationsScreen
+import com.verlintas.baic2.feature.library.LibraryScreen
 import com.verlintas.baic2.feature.settings.SettingsScreen
 import com.verlintas.baic2.feature.tasks.TasksScreen
 
@@ -173,7 +174,7 @@ fun Baic2App() {
                         destination = Baic2Destination.Chats
                     },
                 )
-                Baic2Destination.Library -> LibraryPlaceholder()
+                Baic2Destination.Library -> LibraryScreen()
                 Baic2Destination.Settings -> SettingsScreen(appVersion = BuildConfig.VERSION_NAME)
             }
         }
@@ -250,18 +251,6 @@ private const val ROUTE_STARRED = "starred"
 
 private object ChatViewModelArgs {
     const val CONVERSATION_ID = "conversationId"
-}
-
-// Temporary M0 placeholder: the Library surface (skills / automations /
-// memory) gets its own feature module when those screens are built.
-@Composable
-private fun LibraryPlaceholder() {
-    Baic2EmptyState(
-        title = stringResource(R.string.nav_library),
-        description = stringResource(R.string.library_placeholder),
-        icon = Icons.Outlined.Star,
-        badge = stringResource(R.string.library_milestone),
-    )
 }
 
 @Composable

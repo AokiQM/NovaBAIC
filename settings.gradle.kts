@@ -30,6 +30,7 @@ include(":feature:conversations")
 include(":feature:tasks")
 include(":feature:settings")
 include(":feature:agents")
+include(":feature:library")
 
 include(":device:api")
 include(":device:impl")

@@ -195,6 +195,28 @@ data class RunSummaryRow(
 )
 
 @Dao
+interface AutomationDao {
+
+    @Insert
+    suspend fun insert(entity: AutomationEntity): Long
+
+    @Query("SELECT * FROM automations ORDER BY id DESC")
+    fun observeAll(): Flow<List<AutomationEntity>>
+
+    @Query("SELECT * FROM automations ORDER BY id DESC")
+    suspend fun getAll(): List<AutomationEntity>
+
+    @Query("SELECT * FROM automations WHERE id = :id")
+    suspend fun getById(id: Long): AutomationEntity?
+
+    @Query("UPDATE automations SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query("DELETE FROM automations WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface PlanDao {
 
     @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)

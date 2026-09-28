@@ -76,6 +76,18 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun automationTool(
+        automationRepository: com.verlintas.baic2.core.data.repository.AutomationRepository,
+        scheduler: com.verlintas.baic2.tools.automation.AutomationScheduler,
+        registry: dagger.Lazy<ToolRegistry>,
+    ): DeviceTool = com.verlintas.baic2.tools.automation.AutomationTool(
+        automationRepository,
+        scheduler,
+        registry,
+    )
+
+    @Provides
+    @IntoSet
     fun readNotificationsTool(): DeviceTool = com.verlintas.baic2.tools.personal.ReadNotificationsTool()
 
     @Provides

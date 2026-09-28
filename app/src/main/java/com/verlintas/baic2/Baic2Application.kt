@@ -20,7 +20,18 @@
 package com.verlintas.baic2
 
 import android.app.Application
+import com.verlintas.baic2.tools.automation.AutomationBootstrap
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 @HiltAndroidApp
-class Baic2Application : Application()
+class Baic2Application : Application() {
+
+    @Inject
+    lateinit var automationBootstrap: AutomationBootstrap
+
+    override fun onCreate() {
+        super.onCreate()
+        runCatching { automationBootstrap.start() }
+    }
+}

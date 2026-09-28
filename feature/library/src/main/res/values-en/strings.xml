@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_library_title">Library</string>
+    <string name="library_subtitle">%1$d automations · %2$d memories</string>
+    <string name="library_automations_title">Automations</string>
+    <string name="library_automations_empty">No automations yet. Ask the AI, e.g. \"every day at 22:00 enable DND and mute\"</string>
+    <string name="library_memory_title">Memory</string>
+    <string name="library_memory_empty">No long-term memories yet. The AI distills them automatically, or trigger it from the chat menu</string>
+    <string name="library_delete">Delete</string>
+</resources>
