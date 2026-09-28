@@ -3,6 +3,7 @@ package com.verlintas.baic2.tools
 import android.content.Context
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
+import com.verlintas.baic2.device.api.AccessibilityBridge
 import com.verlintas.baic2.device.api.OcrProvider
 import com.verlintas.baic2.device.api.ScreenshotProvider
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,7 @@ class ToolContext(
     val permissions: PermissionChecker,
     val screenshot: ScreenshotProvider,
     val ocr: OcrProvider,
+    val accessibility: AccessibilityBridge,
 ) {
     fun isGranted(permission: String): Boolean = permissions.isGranted(permission)
 }

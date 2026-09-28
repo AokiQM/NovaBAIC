@@ -10,6 +10,13 @@
     <string name="settings_provider_claude">Claude</string>
     <string name="settings_provider_gemini">Gemini</string>
 
+    <string name="settings_permissions_title">权限</string>
+    <string name="settings_a11y_title">界面自动化</string>
+    <string name="settings_a11y_description">允许 AI 看屏并执行点击、滑动与输入</string>
+    <string name="settings_a11y_on">已开启</string>
+    <string name="settings_a11y_off">未开启</string>
+    <string name="settings_a11y_open">去开启</string>
+
     <string name="settings_appearance_title">外观</string>
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>

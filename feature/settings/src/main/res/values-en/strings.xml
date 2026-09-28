@@ -10,6 +10,13 @@
     <string name="settings_provider_claude">Claude</string>
     <string name="settings_provider_gemini">Gemini</string>
 
+    <string name="settings_permissions_title">Permissions</string>
+    <string name="settings_a11y_title">UI automation</string>
+    <string name="settings_a11y_description">Let the AI read the screen and tap, swipe and type</string>
+    <string name="settings_a11y_on">On</string>
+    <string name="settings_a11y_off">Off</string>
+    <string name="settings_a11y_open">Enable</string>
+
     <string name="settings_appearance_title">Appearance</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>

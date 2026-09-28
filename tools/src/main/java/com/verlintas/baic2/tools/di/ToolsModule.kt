@@ -44,6 +44,7 @@ object ToolsModule {
         @ApplicationContext context: Context,
         screenshotProvider: com.verlintas.baic2.device.api.ScreenshotProvider,
         ocrProvider: com.verlintas.baic2.device.api.OcrProvider,
+        accessibilityBridge: com.verlintas.baic2.device.api.AccessibilityBridge,
     ): ToolContext = ToolContext(
         appContext = context,
         permissions = PermissionChecker { permission ->
@@ -51,6 +52,7 @@ object ToolsModule {
         },
         screenshot = screenshotProvider,
         ocr = ocrProvider,
+        accessibility = accessibilityBridge,
     )
 
     @Provides
@@ -64,6 +66,22 @@ object ToolsModule {
     @Provides
     @IntoSet
     fun uiFindTool(): DeviceTool = com.verlintas.baic2.tools.UiFindTool()
+
+    @Provides
+    @IntoSet
+    fun uiTapTool(): DeviceTool = com.verlintas.baic2.tools.UiTapTool()
+
+    @Provides
+    @IntoSet
+    fun uiSwipeTool(): DeviceTool = com.verlintas.baic2.tools.UiSwipeTool()
+
+    @Provides
+    @IntoSet
+    fun uiTypeTool(): DeviceTool = com.verlintas.baic2.tools.UiTypeTool()
+
+    @Provides
+    @IntoSet
+    fun uiPressTool(): DeviceTool = com.verlintas.baic2.tools.UiPressTool()
 
     @Provides
     @IntoSet

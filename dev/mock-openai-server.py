@@ -29,7 +29,7 @@ TOOL_ARGS = {
     "open_app": {"name": "Settings"},
     "take_screenshot": {},
     "screen_ocr": {},
-    "ui_find": {"text": "Settings"},
+    "ui_find": {"text": "Back"},
 }
 
 
@@ -92,6 +92,70 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(delay)
 
         trigger = re.search(r"tooltest:([a-z_]+)", user_text)
+        if trigger and trigger.group(1) == "auto":
+            if not tool_results:
+                send(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": "call_mock_1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "ui_find",
+                                                "arguments": json.dumps({"text": "Back"}),
+                                            },
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                )
+                send({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+            elif len(tool_results) == 1:
+                match = re.search(r"@ \((\d+), (\d+)\)", tool_results[0])
+                if match:
+                    coords = {"x": int(match.group(1)), "y": int(match.group(2))}
+                    send(
+                        {
+                            "choices": [
+                                {
+                                    "delta": {
+                                        "tool_calls": [
+                                            {
+                                                "index": 0,
+                                                "id": "call_mock_2",
+                                                "type": "function",
+                                                "function": {
+                                                    "name": "ui_tap",
+                                                    "arguments": json.dumps(coords),
+                                                },
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    )
+                    send({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+                else:
+                    for piece in _chunks(f"无法从查找结果解析坐标：{tool_results[0]}", 8):
+                        send({"choices": [{"delta": {"content": piece}}]})
+            else:
+                text = (
+                    "自动操作完成：我找到了目标元素并点击了它。\n\n"
+                    f"最后一次工具返回：{tool_results[-1]}"
+                )
+                for piece in _chunks(text, 6):
+                    send({"choices": [{"delta": {"content": piece}}]})
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
+
         if trigger and not tool_results:
             name = trigger.group(1)
             args = TOOL_ARGS.get(name)

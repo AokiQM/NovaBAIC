@@ -60,6 +60,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var setupOpen by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
@@ -125,6 +126,58 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.width(Baic2Spacing.sm))
                     Text(stringResource(R.string.settings_agents_add))
+                }
+            }
+        }
+
+        item(key = "permissions-title") {
+            SectionLabel(stringResource(R.string.settings_permissions_title))
+        }
+        item(key = "permissions") {
+            val shape = RoundedCornerShape(14.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+                    .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_a11y_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_a11y_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = stringResource(
+                        if (state.accessibilityEnabled) R.string.settings_a11y_on
+                        else R.string.settings_a11y_off,
+                    ),
+                    style = Baic2Mono.label,
+                    color = if (state.accessibilityEnabled) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                Spacer(Modifier.width(Baic2Spacing.sm))
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        context.startActivity(
+                            android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                        )
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_a11y_open))
                 }
             }
         }

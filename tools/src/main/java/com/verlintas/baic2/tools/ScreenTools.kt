@@ -8,7 +8,7 @@ import java.io.File
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private fun screenshotFailure(cause: Throwable?): ToolResult.Failure {
+internal fun screenshotFailure(cause: Throwable?): ToolResult.Failure {
     val message = cause?.message.orEmpty()
     return if (message.contains("not_authorized")) {
         ToolResult.Failure(
@@ -77,35 +77,3 @@ class ScreenOcrTool : DeviceTool {
     }
 }
 
-class UiFindTool : DeviceTool {
-    override val spec = ToolSpec(
-        name = "ui_find",
-        description = "Find on-screen elements whose text matches the query and return their tap coordinates.",
-        parametersJson = """{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}""",
-        readOnly = true,
-        danger = DangerLevel.LOW,
-        parallelSafe = false,
-    )
-
-    override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
-        val query = (arguments["text"] as? JsonPrimitive)?.content?.trim()
-            ?: return ToolResult.Failure("Missing 'text' argument")
-        val bytes = context.screenshot.capture().getOrElse { return screenshotFailure(it) }
-        val lines = context.ocr.recognize(bytes).getOrElse { error ->
-            return ToolResult.Failure("OCR failed: ${error.message ?: "unknown error"}")
-        }
-        val matches = lines.filter { it.text.contains(query, ignoreCase = true) }
-        if (matches.isEmpty()) {
-            return ToolResult.Failure("No on-screen element matches '$query'. Use screen_ocr to list visible text.")
-        }
-        return ToolResult.Success(
-            buildString {
-                append("Found ${matches.size} match(es) for '$query':\n")
-                matches.take(10).forEach { line ->
-                    append("\"${line.text}\" @ (${line.centerX}, ${line.centerY})\n")
-                }
-                append("Tap with ui_tap(text=...) once accessibility is enabled.")
-            },
-        )
-    }
-}
