@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M2（完整聊天）完成** — 三家 Provider（OpenAI 兼容 / Claude / Gemini）、流式聊天与 Markdown、思考过程、附件（图片视觉 + 文本文件）、语音输入与朗读、长期记忆、上下文压缩、AI 自动标题、消息操作（复制/收藏/编辑重发/删除）、对话搜索、收藏夹、Markdown 导出、Agents 管理与明暗主题；86 个单元测试 + 模拟器端到端验证。
+**状态：M2（完整聊天）完成** — 三家 Provider（OpenAI 兼容 / Claude / Gemini）、流式聊天与 Markdown、思考过程、附件（图片视觉 + 文本文件）、语音输入与朗读、长期记忆、上下文压缩、AI 自动标题、消息操作（复制/收藏/编辑重发/删除）、对话搜索、收藏夹、Markdown 导出、Agents 管理与明暗主题；78 个单元测试 + 模拟器端到端验证。
 
 ## 核心目标
 
