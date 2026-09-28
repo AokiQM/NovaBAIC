@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_tasks_title">Tasks</string>
+    <string name="feature_tasks_description">M0 placeholder: the agent run center (plans, steps, audit) will be built here</string>
+</resources>

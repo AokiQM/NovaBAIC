@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_settings_title">设置</string>
+    <string name="feature_settings_description">M0 占位：Agents、权限中心、外观将在此构建</string>
+</resources>

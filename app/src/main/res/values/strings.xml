@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BetterAIChat2</string>
+
+    <string name="nav_chats">对话</string>
+    <string name="nav_tasks">任务</string>
+    <string name="nav_library">库</string>
+    <string name="nav_settings">设置</string>
+
+    <string name="library_placeholder">M0 占位：Skills、自动化与记忆将在此构建</string>
+</resources>

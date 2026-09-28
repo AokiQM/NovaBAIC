@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_tasks_title">任务</string>
+    <string name="feature_tasks_description">M0 占位：Agent 运行中心（计划、步骤、审计）将在此构建</string>
+</resources>
