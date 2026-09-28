@@ -51,6 +51,7 @@ class NetworkStatusTool : DeviceTool {
         parallelSafe = true,
     )
 
+    @android.annotation.SuppressLint("MissingPermission")
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
         val cm = context.appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork

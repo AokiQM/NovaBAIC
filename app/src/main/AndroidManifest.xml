@@ -13,6 +13,10 @@
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
