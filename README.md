@@ -3,7 +3,7 @@
 > 一个本地优先的 Android AI 智能体：流式聊天 + AI 真正操作你的设备。
 > Nova 重制版：全新架构、全新 UI、Agent Runtime v2。原 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 仅作参考，不继承其代码与数据。
 
-**状态：M0（工程骨架）完成** — 16 模块工程、Hilt、暗色优先设计系统、四区导航壳、CI 全绿。
+**状态：M0.5（导航壳重做）** — 16 模块工程、Hilt、暗色优先设计系统、左上角悬浮 Dock 导航、CI 全绿。
 
 ## 核心目标
 

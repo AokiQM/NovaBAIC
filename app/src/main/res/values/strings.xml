@@ -7,5 +7,10 @@
     <string name="nav_library">库</string>
     <string name="nav_settings">设置</string>
 
-    <string name="library_placeholder">M0 占位：Skills、自动化与记忆将在此构建</string>
+    <string name="dock_content_description">打开导航</string>
+    <string name="dock_footer">本地优先 · 无遥测</string>
+    <string name="dock_channel" translatable="false">dev</string>
+
+    <string name="library_placeholder">Skills、自动化与记忆将在此构建</string>
+    <string name="library_milestone" translatable="false">M0.5</string>
 </resources>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_conversations_title">对话</string>
-    <string name="feature_conversations_description">M0 占位：会话列表将在此构建</string>
+    <string name="feature_conversations_description">会话列表、搜索、置顶与归档将在 M1 落地</string>
+    <string name="feature_conversations_milestone" translatable="false">M1</string>
 </resources>

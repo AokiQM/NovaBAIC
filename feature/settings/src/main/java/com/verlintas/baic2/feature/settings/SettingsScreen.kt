@@ -1,5 +1,7 @@
 package com.verlintas.baic2.feature.settings
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -10,6 +12,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     Baic2EmptyState(
         title = stringResource(R.string.feature_settings_title),
         description = stringResource(R.string.feature_settings_description),
+        icon = Icons.Outlined.Settings,
+        badge = stringResource(R.string.feature_settings_milestone),
         modifier = modifier,
     )
 }

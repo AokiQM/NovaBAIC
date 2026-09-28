@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_settings_title">Settings</string>
-    <string name="feature_settings_description">M0 placeholder: agents, the permission center and appearance will be built here</string>
+    <string name="feature_settings_description">Agents, the permission center and appearance land in M2</string>
 </resources>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_chat_title">聊天</string>
-    <string name="feature_chat_description">M0 占位：流式聊天界面将在此构建</string>
+    <string name="feature_chat_description">流式聊天、工具卡与 Markdown 渲染将在 M1 落地</string>
+    <string name="feature_chat_milestone" translatable="false">M1</string>
 </resources>

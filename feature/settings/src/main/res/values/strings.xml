@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_settings_title">设置</string>
-    <string name="feature_settings_description">M0 占位：Agents、权限中心、外观将在此构建</string>
+    <string name="feature_settings_description">Agents、权限中心与外观设置将在 M2 落地</string>
+    <string name="feature_settings_milestone" translatable="false">M2</string>
 </resources>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_tasks_title">任务</string>
-    <string name="feature_tasks_description">M0 占位：Agent 运行中心（计划、步骤、审计）将在此构建</string>
+    <string name="feature_tasks_description">Agent 运行中心：计划、步骤、审计与接管将在 M3 落地</string>
+    <string name="feature_tasks_milestone" translatable="false">M3</string>
 </resources>
