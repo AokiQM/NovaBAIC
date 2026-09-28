@@ -76,6 +76,20 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun spawnAgentTool(
+        providerFactory: com.verlintas.baic2.core.network.provider.ProviderFactory,
+        toolCatalog: dagger.Lazy<com.verlintas.baic2.core.engine.ToolCatalog>,
+        toolRunner: dagger.Lazy<com.verlintas.baic2.core.engine.ToolRunner>,
+        confirmationGate: com.verlintas.baic2.core.engine.ConfirmationGate,
+    ): DeviceTool = com.verlintas.baic2.tools.subagent.SpawnAgentTool(
+        providerFactory,
+        toolCatalog,
+        toolRunner,
+        confirmationGate,
+    )
+
+    @Provides
+    @IntoSet
     fun loadSkillTool(
         repository: com.verlintas.baic2.tools.skills.SkillRepository,
         registry: dagger.Lazy<ToolRegistry>,

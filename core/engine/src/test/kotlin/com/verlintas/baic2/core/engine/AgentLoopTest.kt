@@ -221,6 +221,65 @@ class AgentLoopTest {
     }
 
     @Test
+    fun parallelSafeCallsRunConcurrentlyInMaxMode() = runTest {
+        val first = ToolCall(id = "c1", name = "read_a", argumentsJson = "{}")
+        val second = ToolCall(id = "c2", name = "read_b", argumentsJson = "{}")
+        val provider = ScriptedProvider(
+            listOf(toolRound(first, second), textRound("done")),
+        )
+        val running = java.util.concurrent.atomic.AtomicInteger(0)
+        val maxConcurrent = java.util.concurrent.atomic.AtomicInteger(0)
+        val loop = AgentLoop(
+            providerFactory = { provider },
+            toolCatalog = FakeCatalog(
+                listOf(
+                    ToolSpec(name = "read_a", description = "a", readOnly = true, parallelSafe = true),
+                    ToolSpec(name = "read_b", description = "b", readOnly = true, parallelSafe = true),
+                ),
+            ),
+            toolRunner = { _, _ ->
+                val now = running.incrementAndGet()
+                maxConcurrent.updateAndGet { maxOf(it, now) }
+                kotlinx.coroutines.delay(120)
+                running.decrementAndGet()
+                ToolResult.Success("ok")
+            },
+        )
+
+        val events = loop.run(config, AppMode.MAX, history = history).toList()
+
+        assertEquals(2, maxConcurrent.get(), "parallel-safe calls should overlap")
+        assertEquals(2, events.filterIsInstance<AgentEvent.ToolCallFinished>().size)
+        assertEquals(AgentEvent.Completed, events.last())
+    }
+
+    @Test
+    fun budgetOverrideCapsRounds() = runTest {
+        val call = ToolCall(id = "c1", name = "loop_thing", argumentsJson = "{}")
+        val loop = AgentLoop(
+            providerFactory = { ScriptedProvider(List(32) { toolRound(call) }) },
+            toolCatalog = FakeCatalog(listOf(ToolSpec(name = "loop_thing", description = "l"))),
+            toolRunner = { _, _ -> ToolResult.Success("again") },
+            confirmationGate = ConfirmationGate { true },
+        )
+
+        val events = loop.run(
+            config,
+            AppMode.MAX,
+            history = history,
+            budgetOverride = com.verlintas.baic2.core.model.RunBudget(
+                maxRounds = 3,
+                maxToolCalls = 10,
+                maxWallClockMs = 60_000,
+            ),
+        ).toList()
+
+        val failure = events.filterIsInstance<AgentEvent.Failed>().single()
+        assertEquals(AgentFailure.Kind.BUDGET, failure.error.kind)
+        assertEquals(3, events.filterIsInstance<AgentEvent.AssistantMessage>().size)
+    }
+
+    @Test
     fun toolCrashBecomesFailedStatus() = runTest {
         val call = ToolCall(id = "c1", name = "crash_thing", argumentsJson = "{}")
         val provider = ScriptedProvider(listOf(toolRound(call), textRound("recovered")))

@@ -33,6 +33,7 @@ import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -45,10 +46,11 @@ interface ToolCatalog {
     fun find(name: String): ToolSpec?
 }
 
-/** Per-run information a tool may need (plan updates, auditing). */
+/** Per-run information a tool may need (plan updates, sub-agents, auditing). */
 data class ToolRunContext(
     val conversationId: Long? = null,
     val mode: AppMode = AppMode.CHAT,
+    val config: ProviderConfig? = null,
 )
 
 /** Executes a single tool call. */
@@ -89,9 +91,14 @@ class AgentLoop(
         history: List<ChatMessage>,
         conversationId: Long? = null,
         planContext: String? = null,
+        budgetOverride: RunBudget? = null,
     ): Flow<AgentEvent> = flow {
-        val budget = RunBudget.forMode(mode)
-        val runContext = ToolRunContext(conversationId = conversationId, mode = mode)
+        val budget = budgetOverride ?: RunBudget.forMode(mode)
+        val runContext = ToolRunContext(
+            conversationId = conversationId,
+            mode = mode,
+            config = config,
+        )
         val startedAt = clock()
         var messages = history
         var round = 0
@@ -179,47 +186,85 @@ class AgentLoop(
 
             messages = messages + assistant
 
-            for (call in toolCalls) {
-                val spec = toolCatalog.find(call.name)
-                val decision = gate(mode, spec)
-                emit(AgentEvent.ToolCallStarted(call))
+            val specs = toolCalls.associateWith { call -> toolCatalog.find(call.name) }
+            val canParallelize = mode == AppMode.MAX && toolCalls.size > 1 &&
+                toolCalls.all { call ->
+                    val spec = specs[call]
+                    spec?.parallelSafe == true && gate(mode, spec) is GateResult.Allow
+                }
 
-                val (status, result) = when {
-                    decision is GateResult.Denied ->
-                        ToolCallStatus.DENIED to ToolResult.Denied(decision.reason)
+            if (canParallelize) {
+                toolCalls.forEach { emit(AgentEvent.ToolCallStarted(it)) }
+                val executed = executeParallel(toolCalls, runContext)
+                executed.forEach { (call, status, result) ->
+                    if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
+                        toolCallsUsed++
+                    }
+                    val finished = call.copy(result = render(result), status = status)
+                    emit(AgentEvent.ToolCallFinished(finished))
+                    messages = messages + ChatMessage(
+                        role = ChatRole.TOOL,
+                        content = render(result),
+                        toolCallId = call.id,
+                        toolName = call.name,
+                    )
+                }
+            } else {
+                for (call in toolCalls) {
+                    val spec = specs[call]
+                    val decision = gate(mode, spec)
+                    emit(AgentEvent.ToolCallStarted(call))
 
-                    decision is GateResult.NeedsConfirm -> {
-                        val approved = confirmationGate.confirm(call)
-                        if (approved) {
-                            execute(call, runContext)
-                        } else {
-                            ToolCallStatus.REJECTED to ToolResult.Denied("User rejected the call")
+                    val (status, result) = when {
+                        decision is GateResult.Denied ->
+                            ToolCallStatus.DENIED to ToolResult.Denied(decision.reason)
+
+                        decision is GateResult.NeedsConfirm -> {
+                            val approved = confirmationGate.confirm(call)
+                            if (approved) {
+                                execute(call, runContext)
+                            } else {
+                                ToolCallStatus.REJECTED to ToolResult.Denied("User rejected the call")
+                            }
                         }
+
+                        toolCallsUsed >= budget.maxToolCalls ->
+                            ToolCallStatus.DENIED to ToolResult.Denied(
+                                "Tool call budget exhausted (${budget.maxToolCalls}); answer with what you have",
+                            )
+
+                        else -> execute(call, runContext)
                     }
 
-                    toolCallsUsed >= budget.maxToolCalls ->
-                        ToolCallStatus.DENIED to ToolResult.Denied(
-                            "Tool call budget exhausted (${budget.maxToolCalls}); answer with what you have",
-                        )
+                    if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
+                        toolCallsUsed++
+                    }
 
-                    else -> execute(call, runContext)
+                    val finished = call.copy(result = render(result), status = status)
+                    emit(AgentEvent.ToolCallFinished(finished))
+                    messages = messages + ChatMessage(
+                        role = ChatRole.TOOL,
+                        content = render(result),
+                        toolCallId = call.id,
+                        toolName = call.name,
+                    )
                 }
-
-                if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
-                    toolCallsUsed++
-                }
-
-                val finished = call.copy(result = render(result), status = status)
-                emit(AgentEvent.ToolCallFinished(finished))
-                messages = messages + ChatMessage(
-                    role = ChatRole.TOOL,
-                    content = render(result),
-                    toolCallId = call.id,
-                    toolName = call.name,
-                )
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun executeParallel(
+        toolCalls: List<ToolCall>,
+        run: ToolRunContext,
+    ): List<Triple<ToolCall, ToolCallStatus, ToolResult>> =
+        kotlinx.coroutines.coroutineScope {
+            toolCalls.map { call ->
+                async {
+                    val (status, result) = execute(call, run)
+                    Triple(call, status, result)
+                }
+            }.map { it.await() }
+        }
 
     private suspend fun execute(
         call: ToolCall,
