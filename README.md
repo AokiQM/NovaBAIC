@@ -9,6 +9,13 @@
 </p>
 
 <p align="center">
+  <a href="README.md">简体中文</a> ·
+  <a href="docs/README.en.md">English</a> ·
+  <a href="docs/HOW_IT_WORKS.md">How it works</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Verlintas/NovaBAIC/releases"><img src="https://img.shields.io/github/v/release/Verlintas/NovaBAIC" alt="Latest release" /></a>
   <a href="https://github.com/Verlintas/NovaBAIC/releases"><img src="https://img.shields.io/github/downloads/Verlintas/NovaBAIC/total" alt="Downloads" /></a>
   <a href="https://github.com/Verlintas/NovaBAIC/actions/workflows/build.yml"><img src="https://github.com/Verlintas/NovaBAIC/actions/workflows/build.yml/badge.svg" alt="Build status" /></a>
@@ -36,6 +43,28 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 
 - 使用、引用或二次开发前，请自行评估代码的正确性与安全性
 - 如果你发现 AI 生成代码中的问题，欢迎提 [Issue](https://github.com/Verlintas/NovaBAIC/issues) 或 PR
+
+## 快速上手
+
+1. **安装**：从 [Releases](https://github.com/Verlintas/NovaBAIC/releases/latest) 下载 APK 侧载安装（Android 8.0+）
+2. **配置 AI 服务**：设置 → AI services → 粘贴 API Key（自动识别服务商）或手动选择服务商 → 拉取模型列表 → 选定模型（建议保留默认的深度思考）
+3. **开聊**：会话页新建会话，输入框上方切换模式：
+
+   | 模式 | 适合场景 |
+   | --- | --- |
+   | `Chat` | 纯对话，不碰设备 |
+   | `Chat+` | 只读检索：查通知、读文件、搜网页、问天气 |
+   | `Act` | 每个工具调用前逐项确认，第一次让 AI 操作设备时推荐 |
+   | `Max` | 自主连续执行，适合多步长任务与定时任务 |
+
+4. **按需授权**：设置 → Permissions 里开启无障碍 / 屏幕捕获 / 通知使用权等；工具缺权限时会返回明确的跳转指引，而不是静默失败
+
+试试这些（`Act` / `Max` 模式）：
+
+- 「帮我看看屏幕上写了什么」→ 截屏 + OCR
+- 「打开微信，给文件传输助手发一条消息」→ 无障碍自动化
+- 「每天早上 8 点给我一份天气和今天的安排」→ 定时任务
+- 「读一下这个链接的文章，整理成 Markdown 存到 Download」→ `web_read` + `file_write`
 
 ## 截图
 
@@ -172,7 +201,8 @@ app                装配、导航、DI 入口
 core:model         纯 Kotlin 领域模型          core:engine   AgentLoop / 确认队列 / 工具契约
 core:data          Room + DataStore + 仓库 + Keystore 加密
 core:network       OkHttp + SSE + 三家 Provider 适配
-core:runtime       运行调度与前台服务            core:designsystem  设计系统 token 与组件
+core:runtime       运行层预留（当前调度实现位于 device:impl / tools）
+core:designsystem  设计系统 token 与组件
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    截图 / OCR / 无障碍 / 语音 / 提醒 / 运行通知
 tools              48 个内置工具 + 自动化 + 技能 + 子代理
@@ -211,6 +241,33 @@ adb reverse tcp:8765 tcp:8765
 - **已完成 · v0.1.x 快速迭代**：隐式 CoT、任务中心与定时任务、持久截屏、Shizuku、录屏 / 转写 / 免手对话、全量模型目录
 - **进行中**：真机能力全量验收（Shizuku / 语音 / 录屏）、UI 细节持续打磨、评测场景扩充
 - **计划中**：更丰富的设备能力与技能生态、更多模型协议跟进
+
+## 常见问题
+
+**API Key 存在哪里？会被上传吗？**
+Key 由 Android Keystore 加密（AES-GCM）后存在本机数据库；只有你配置的模型服务端点会收到请求，应用本身没有服务器、没有遥测。
+
+**为什么不做成和旧版同一个应用？**
+新版是架构重写（新包名、新签名密钥），与旧版并存安装、数据不互通；后续升级共用新签名，可覆盖升级。
+
+**耗电吗？**
+空闲时不驻留任何服务；长任务（Act / Max、定时任务）运行期间用前台服务保持，通知栏可随时停止；屏幕捕获也只在授权后由前台服务持有。
+
+**没有 Shizuku 能用吗？**
+能。绝大多数工具（无障碍、截屏、文件、网络、个人助理）不依赖 Shizuku；它只解锁 `run_shell` 与深度应用管理。
+
+**支持本地模型吗？**
+支持。任何 OpenAI 兼容端点（Ollama、vLLM、LM Studio…）填好 Base URL 即可；明文 HTTP 只放行环回地址。
+
+**工具调用中途停止会把会话弄坏吗？**
+不会。停止时会为被中断的调用补齐「已取消」的工具结果并重写状态，历史始终满足模型协议的转录要求，可以继续对话或重试。
+
+## 文档
+
+- [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — 完整技术剖析：模块架构、请求管线、Agent 循环、工具系统、设备桥、数据层、评测与工程经验（英文）
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 架构原则、模块依赖与工具链决策；决策记录见 [docs/adr/](docs/adr/)
+- [docs/README.en.md](docs/README.en.md) — English README
+- [CHANGELOG.md](CHANGELOG.md) — 每个版本的详细变更
 
 ## 参与贡献
 

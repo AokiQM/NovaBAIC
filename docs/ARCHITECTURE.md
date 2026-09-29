@@ -29,6 +29,7 @@
 - `:core:data` 是唯一的数据入口（Room + DataStore + Keystore 加密）；UI 不得直连 DAO。
 - `:device:api` 定义能力接口（截图/OCR/无障碍/Shizuku/通知/语音），`:device:impl` 提供 Android 实现。
 - `:tools` 放内置工具实现；`:mcp` 把远程 MCP 工具适配进同一工具注册表。
+- `:core:runtime` 目前是预留模块（无源码）：交互运行的调度在 `device:impl`（RunService），定时任务的调度在 `tools/scheduling`；等出现第三个引擎宿主时再把公共运行层迁入。
 
 ## 3. 工具链决策
 
@@ -71,7 +72,7 @@
 ## 7. 测试与 CI
 
 - 单元测试：JVM 模块用 kotlin-test；Android 模块用 JUnit。M1 起引入 MockWebServer、Room 迁移测试、Roborazzi 截图测试。
-- CI：`test` + `lintDebug` + `:app:assembleDebug`（GitHub Actions，见 `.github/workflows/ci.yml`）。
+- CI：`test` + `lintDebug` + `:app:assembleDebug`（GitHub Actions，见 `.github/workflows/build.yml`）。
 
 ## 8. 里程碑
 
