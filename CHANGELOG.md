@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.4] - 2026-09-29
+
+### 修复 Fixed
+
+- **图标改为原样应用**：用户提供的 BAIC2.png 不做任何重绘/裁剪/加底——自适应图标直接以原图为背景层，关于页与文档图标与源文件逐字节一致（同 MD5），各密度 legacy 图标仅做等比缩放；颜色与构图零改动
+
 ## [0.1.3] - 2026-09-29
 
 新图标 + 一轮 UI 细节打磨。
