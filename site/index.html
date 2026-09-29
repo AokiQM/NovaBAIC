@@ -40,7 +40,7 @@
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         <span id="star-count">GitHub</span>
       </a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
+      <a class="btn btn-primary btn-sm js-download" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
     </div>
   </div>
 </header>
@@ -59,7 +59,7 @@
           No account, no cloud, no telemetry.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/Verlintas/NovaBAIC/releases/latest">
+          <a class="btn btn-primary js-download" href="https://github.com/Verlintas/NovaBAIC/releases/latest">
             <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.14-.53.38.38 0 0 0-.52.14l-1.87 3.23a11.4 11.4 0 0 0-9.83 0L5.2 5.91a.38.38 0 0 0-.52-.14.38.38 0 0 0-.14.53L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52ZM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Z"/></svg>
             Download for Android
           </a>
@@ -402,7 +402,7 @@ tools:
       <h2>Give your phone an agent.</h2>
       <p>Download the APK, paste a key, and watch it work. Android 8.0+, no account required.</p>
       <div class="cta-row center">
-        <a class="btn btn-primary" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
+        <a class="btn btn-primary js-download" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
         <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC">Star on GitHub</a>
         <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/README.en.md">Read the README</a>
       </div>
@@ -440,6 +440,33 @@ tools:
     <span>© 2026 Verlintas. Built with AI assistance (opencode); requirements, review and releases by the human maintainer.</span>
   </div>
 </footer>
+
+<div class="dl-modal" id="dl-modal" hidden>
+  <div class="dl-box" role="dialog" aria-modal="true" aria-labelledby="dl-title">
+    <button class="dl-close" aria-label="Close">×</button>
+    <h3 id="dl-title">Download BetterAIChat2</h3>
+    <p class="dl-sub" id="dl-version">Android 8.0+ · signed APK · free &amp; open source</p>
+    <div class="dl-options">
+      <a class="dl-option" id="dl-mirror" href="downloads/app-release.apk" download>
+        <b>In-site mirror <span class="dl-tag hot">fastest here</span></b>
+        <span>Hosted on this site and synced to the latest release automatically. Same signed APK.</span>
+      </a>
+      <a class="dl-option" href="https://github.com/Verlintas/NovaBAIC/releases/latest">
+        <b>GitHub Releases <span class="dl-tag">official</span></b>
+        <span>Latest signed APK plus full release notes and checksums.</span>
+      </a>
+      <a class="dl-option" href="https://gh-proxy.com/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk">
+        <b>gh-proxy.com <span class="dl-tag">mirror</span></b>
+        <span>Community accelerator for GitHub downloads, useful in some regions.</span>
+      </a>
+      <a class="dl-option" href="https://ghproxy.net/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk">
+        <b>ghproxy.net <span class="dl-tag">mirror</span></b>
+        <span>Alternative accelerator — if one is slow or down, try another.</span>
+      </a>
+    </div>
+    <p class="dl-note">Mirrors are third-party services and can go offline; the in-site copy always points at the newest release. Any GitHub proxy works too — just prepend its URL to the release download link. Verify that the signer is “Verlintas” after sideloading if you like.</p>
+  </div>
+</div>
 
 <div class="lightbox" id="lightbox" hidden>
   <button class="lb-close" aria-label="Close">×</button>

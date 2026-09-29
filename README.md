@@ -187,7 +187,18 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 
 ## 下载与安装
 
-- 下载：[GitHub Releases](https://github.com/Verlintas/NovaBAIC/releases/latest)
+- **官网**：[verlintas.github.io/NovaBAIC](https://verlintas.github.io/NovaBAIC/) —— 下载入口整合了以下所有通道
+- **官方**：[GitHub Releases](https://github.com/Verlintas/NovaBAIC/releases/latest)（附完整更新说明）
+- **站内镜像**：[verlintas.github.io/NovaBAIC/downloads/app-release.apk](https://verlintas.github.io/NovaBAIC/downloads/app-release.apk)（GitHub Pages 托管，发布新版本时自动同步，始终指向最新版）
+- **加速镜像**（第三方服务，国内网络可能更快；失效就换一个）：
+
+  ```text
+  https://gh-proxy.com/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk
+  https://ghproxy.net/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk
+  ```
+
+  任意 GitHub 代理都可用：把官方下载链接原样拼在代理域名后面即可。
+
 - 安装时系统会提示「未知来源」权限，属于侧载 APK 的正常流程
 - 与旧版 BetterAIChat 分属不同应用（包名不同、数据不互通），可并存安装；新版使用新的签名密钥
 - 后续版本共用同一密钥，可覆盖升级

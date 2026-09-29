@@ -163,6 +163,58 @@
     playDemo();
   }
 
+  /* ---------- download modal ---------- */
+  var dlModal = document.getElementById("dl-modal");
+  var dlTriggers = Array.prototype.slice.call(document.querySelectorAll(".js-download"));
+  if (dlModal && dlTriggers.length) {
+    var dlClose = dlModal.querySelector(".dl-close");
+    var lastDlFocus = null;
+
+    var openDownload = function (event) {
+      if (event) event.preventDefault();
+      lastDlFocus = document.activeElement;
+      dlModal.hidden = false;
+      document.body.classList.add("no-scroll");
+      dlClose.focus();
+    };
+    var closeDownload = function () {
+      dlModal.hidden = true;
+      document.body.classList.remove("no-scroll");
+      if (lastDlFocus && lastDlFocus.focus) lastDlFocus.focus();
+    };
+
+    dlTriggers.forEach(function (trigger) { trigger.addEventListener("click", openDownload); });
+    dlClose.addEventListener("click", closeDownload);
+    dlModal.addEventListener("click", function (event) {
+      if (event.target === dlModal) closeDownload();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (!dlModal.hidden && event.key === "Escape") closeDownload();
+    });
+
+    // Fill in the latest version and APK size from the GitHub API.
+    fetch("https://api.github.com/repos/Verlintas/NovaBAIC/releases/latest", {
+      headers: { Accept: "application/vnd.github+json" }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.tag_name) return;
+        var label = document.getElementById("dl-version");
+        var size = "";
+        if (Array.isArray(data.assets)) {
+          for (var i = 0; i < data.assets.length; i++) {
+            var asset = data.assets[i];
+            if (/\.apk$/i.test(asset.name) && asset.size) {
+              size = " · " + Math.round(asset.size / 1048576) + " MB";
+              break;
+            }
+          }
+        }
+        if (label) label.textContent = "Latest " + data.tag_name + size + " · Android 8.0+ · signed APK";
+      })
+      .catch(function () { /* static fallback stays */ });
+  }
+
   /* ---------- screenshot lightbox ---------- */
   var posters = Array.prototype.slice.call(document.querySelectorAll(".poster"));
   var lightbox = document.getElementById("lightbox");

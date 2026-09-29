@@ -187,7 +187,18 @@ Everything is granted on demand. When a tool lacks a permission it returns an ac
 
 ## Download & install
 
-- Download: [GitHub Releases](https://github.com/Verlintas/NovaBAIC/releases/latest)
+- **Website**: [verlintas.github.io/NovaBAIC](https://verlintas.github.io/NovaBAIC/) — the download dialog lists every option below
+- **Official**: [GitHub Releases](https://github.com/Verlintas/NovaBAIC/releases/latest) (with full release notes)
+- **In-site mirror**: [verlintas.github.io/NovaBAIC/downloads/app-release.apk](https://verlintas.github.io/NovaBAIC/downloads/app-release.apk) — hosted on GitHub Pages and synced to the latest release automatically
+- **Accelerator mirrors** (third-party services, often faster in some regions; if one is down, try another):
+
+  ```text
+  https://gh-proxy.com/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk
+  https://ghproxy.net/https://github.com/Verlintas/NovaBAIC/releases/latest/download/app-release.apk
+  ```
+
+  Any GitHub proxy works: prepend the proxy URL to the official download link.
+
 - Android will ask for "unknown sources" permission when sideloading — that is normal
 - The previous BetterAIChat is a separate app (different package, no shared data) and can stay installed; this app uses a new signing key
 - Later releases share the same key and can be installed as in-place upgrades

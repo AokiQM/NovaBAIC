@@ -436,6 +436,44 @@ h1 {
 .lb-prev { left: 22px; top: 50%; transform: translateY(-50%); }
 .lb-next { right: 22px; top: 50%; transform: translateY(-50%); }
 
+/* ---------- download modal ---------- */
+.dl-modal {
+  position: fixed; inset: 0; z-index: 110;
+  background: rgba(5,5,7,.86);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.dl-modal[hidden] { display: none; }
+.dl-box {
+  position: relative; width: min(580px, 100%);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+  padding: 30px; box-shadow: 0 40px 90px -30px rgba(0,0,0,.9);
+}
+.dl-box h3 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.02em; }
+.dl-sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; font-family: var(--mono); }
+.dl-close {
+  position: absolute; top: 16px; right: 16px;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 9px; font-size: 18px; line-height: 1; padding: 5px 11px; cursor: pointer;
+  transition: color .2s, border-color .2s;
+}
+.dl-close:hover { color: var(--text); border-color: #3d3d49; }
+.dl-options { display: flex; flex-direction: column; gap: 10px; }
+.dl-option {
+  display: block; border: 1px solid var(--border-soft); border-radius: 12px;
+  padding: 14px 16px; background: var(--panel-2);
+  transition: border-color .2s, transform .15s;
+}
+.dl-option:hover { border-color: rgba(122,162,247,.5); transform: translateY(-1px); text-decoration: none; }
+.dl-option b { display: flex; align-items: center; gap: 9px; font-size: 15px; color: var(--text); font-weight: 600; }
+.dl-option > span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.dl-tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--border-soft); border-radius: 6px; padding: 1px 7px;
+}
+.dl-tag.hot { color: var(--teal); border-color: rgba(61,220,196,.4); background: rgba(61,220,196,.08); }
+.dl-note { color: var(--faint); font-size: 12px; margin: 18px 0 0; }
+
 /* ---------- reveal ---------- */
 .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
 .reveal.in { opacity: 1; transform: none; }
