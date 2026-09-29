@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### 修复 Fixed
 
-- **图标恢复正常比例**：自适应图标改为"完整原图等比缩放放入安全区 + 原图底色背景"，启动器不再把全幅背景按 1.5× 放大裁切；leagcy 图标保持原图等比缩放
+- **图标恢复正常比例**：自适应图标改为"完整原图等比缩放放入安全区 + 原图底色背景"，启动器不再把全幅背景按 1.5× 放大裁切；legacy 图标保持原图等比缩放
 
 ### 完善 Changed
 
