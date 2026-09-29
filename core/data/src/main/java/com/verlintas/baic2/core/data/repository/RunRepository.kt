@@ -46,6 +46,12 @@ class RunRepository @Inject constructor(
 
     suspend fun delete(runId: Long) = db.runDao().deleteById(runId)
 
+    /**
+     * A run lives in the app process, so after a cold start nothing can still
+     * be running: mark leftover RUNNING rows as cancelled for Tasks.
+     */
+    suspend fun cancelStaleRuns() = db.runDao().cancelStale(System.currentTimeMillis())
+
     suspend fun start(conversationId: Long, mode: AppMode): Long {
         val now = System.currentTimeMillis()
         return db.runDao().insert(

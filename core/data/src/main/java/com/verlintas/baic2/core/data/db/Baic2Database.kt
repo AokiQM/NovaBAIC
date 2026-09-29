@@ -35,8 +35,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AutomationEntity::class,
         McpServerEntity::class,
         SnapshotEntity::class,
+        ScheduledTaskEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -58,6 +59,8 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun mcpServerDao(): McpServerDao
 
     abstract fun snapshotDao(): SnapshotDao
+
+    abstract fun scheduledTaskDao(): ScheduledTaskDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -83,6 +86,30 @@ abstract class Baic2Database : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
+                )
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        prompt TEXT NOT NULL,
+                        mode TEXT NOT NULL,
+                        agentId INTEGER,
+                        timeOfDay TEXT NOT NULL,
+                        daysOfWeekJson TEXT NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        conversationId INTEGER,
+                        lastRunAt INTEGER NOT NULL,
+                        nextRunAt INTEGER NOT NULL,
+                        lastResult TEXT,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
                 )
             }
         }

@@ -20,6 +20,7 @@
 package com.verlintas.baic2
 
 import android.app.Application
+import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.mcp.McpManager
 import com.verlintas.baic2.tools.automation.AutomationBootstrap
 import dagger.hilt.android.HiltAndroidApp
@@ -37,11 +38,17 @@ class Baic2Application : Application() {
     @Inject
     lateinit var mcpManager: McpManager
 
+    @Inject
+    lateinit var runRepository: RunRepository
+
     override fun onCreate() {
         super.onCreate()
         runCatching { automationBootstrap.start() }
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { mcpManager.refresh() }
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { runRepository.cancelStaleRuns() }
         }
     }
 }

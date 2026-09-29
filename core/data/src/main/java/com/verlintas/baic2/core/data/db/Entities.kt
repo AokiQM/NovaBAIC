@@ -103,6 +103,23 @@ data class ConversationSummary(
     val lastMessage: String?,
 )
 
+@Entity(tableName = "scheduled_tasks")
+data class ScheduledTaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val name: String,
+    val prompt: String,
+    val mode: String,
+    val agentId: Long?,
+    val timeOfDay: String,
+    val daysOfWeekJson: String,
+    val enabled: Boolean,
+    val conversationId: Long?,
+    val lastRunAt: Long,
+    val nextRunAt: Long,
+    val lastResult: String?,
+    val createdAt: Long,
+)
+
 @Entity(
     tableName = "message_snapshots",
     indices = [Index(value = ["conversationId"])],

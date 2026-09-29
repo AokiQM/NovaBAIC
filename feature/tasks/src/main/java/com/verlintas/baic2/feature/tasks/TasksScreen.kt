@@ -20,6 +20,7 @@
 package com.verlintas.baic2.feature.tasks
 
 import android.text.format.DateUtils
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -34,6 +35,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,6 +66,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,11 +110,18 @@ import com.verlintas.baic2.core.model.Run
 import com.verlintas.baic2.core.model.RunBudget
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.RunSummary
+import com.verlintas.baic2.core.model.ScheduledTask
+import com.verlintas.baic2.core.model.nextScheduledTrigger
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.mutableIntStateOf
 
 private object TasksRoute {
     const val ROOT = "tasks_root"
@@ -178,8 +189,24 @@ fun TasksScreen(
 private fun TasksListPage(
     onOpenRun: (Long) -> Unit,
     viewModel: TasksViewModel = hiltViewModel(),
+    scheduledViewModel: ScheduledTasksViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val scheduled by scheduledViewModel.tasks.collectAsStateWithLifecycle()
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    var editorOpen by rememberSaveable { mutableStateOf(false) }
+    var editorTask by remember { mutableStateOf<ScheduledTask?>(null) }
+
+    if (editorOpen) {
+        ScheduledTaskEditor(
+            initial = editorTask,
+            onDismiss = { editorOpen = false },
+            onSave = { task ->
+                scheduledViewModel.save(task)
+                editorOpen = false
+            },
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -202,11 +229,69 @@ private fun TasksListPage(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = stringResource(R.string.tasks_subtitle, state.totalCount),
+                        text = if (section == 0) {
+                            stringResource(R.string.tasks_subtitle, state.totalCount)
+                        } else {
+                            stringResource(R.string.tasks_schedule_subtitle, scheduled.size)
+                        },
                         style = Baic2Mono.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+
+            item(key = "sections") {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilterChip(
+                        selected = section == 0,
+                        onClick = { section = 0 },
+                        shape = RoundedCornerShape(10.dp),
+                        label = { Text(stringResource(R.string.tasks_tab_runs)) },
+                    )
+                    FilterChip(
+                        selected = section == 1,
+                        onClick = { section = 1 },
+                        shape = RoundedCornerShape(10.dp),
+                        label = { Text(stringResource(R.string.tasks_tab_scheduled)) },
+                    )
+                    if (section == 1) {
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { editorTask = null; editorOpen = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Add,
+                                contentDescription = stringResource(R.string.tasks_schedule_add),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (section == 1) {
+                if (scheduled.isEmpty()) {
+                    item(key = "scheduled-empty") {
+                        Baic2EmptyState(
+                            title = stringResource(R.string.tasks_schedule_empty),
+                            description = stringResource(R.string.tasks_schedule_empty_desc),
+                            icon = Icons.Outlined.List,
+                        )
+                    }
+                } else {
+                    items(scheduled, key = { "schedule-${it.id}" }) { task ->
+                        ScheduledTaskRow(
+                            task = task,
+                            onToggle = { enabled -> scheduledViewModel.setEnabled(task, enabled) },
+                            onRunNow = { scheduledViewModel.runNow(task) },
+                            onDelete = { scheduledViewModel.delete(task) },
+                            onEdit = { editorTask = task; editorOpen = true },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+                return@LazyColumn
             }
 
             item(key = "filters") {
@@ -882,4 +967,268 @@ private fun durationLabel(millis: Long): String {
         seconds < 3600 -> "${seconds / 60}m ${seconds % 60}s"
         else -> "${seconds / 3600}h ${(seconds % 3600) / 60}m"
     }
+}
+
+
+// ---------------------------------------------------------------- scheduled
+
+@Composable
+private fun ScheduledTaskRow(
+    task: ScheduledTask,
+    onToggle: (Boolean) -> Unit,
+    onRunNow: () -> Unit,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            .padding(start = Baic2Spacing.lg, end = Baic2Spacing.sm, top = Baic2Spacing.sm, bottom = Baic2Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onEdit),
+        ) {
+            Text(
+                text = task.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = scheduleLabel(task),
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (task.enabled && task.nextRunAt > 0) {
+                Text(
+                    text = stringResource(
+                        R.string.tasks_schedule_next,
+                        DateUtils.getRelativeTimeSpanString(
+                            task.nextRunAt,
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS,
+                            DateUtils.FORMAT_ABBREV_RELATIVE,
+                        ).toString(),
+                    ),
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+            }
+            task.lastResult?.takeIf { it.isNotBlank() }?.let { result ->
+                Text(
+                    text = stringResource(R.string.tasks_schedule_last, result),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(onClick = onRunNow) {
+            Icon(
+                imageVector = Icons.Outlined.PlayArrow,
+                contentDescription = stringResource(R.string.tasks_schedule_run_now),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        IconButton(onClick = onDelete) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = stringResource(R.string.tasks_delete),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Switch(checked = task.enabled, onCheckedChange = onToggle)
+    }
+}
+
+@Composable
+private fun scheduleLabel(task: ScheduledTask): String {
+    val dayLabels = task.daysOfWeek.sorted().map { day -> stringResource(weekdayLabelRes(day)) }
+    val days = if (dayLabels.isEmpty()) {
+        stringResource(R.string.tasks_schedule_every_day)
+    } else {
+        dayLabels.joinToString("、")
+    }
+    return "$days ${task.timeOfDay}"
+}
+
+@StringRes
+private fun weekdayLabelRes(day: Int): Int = when (day) {
+    1 -> R.string.tasks_weekday_1
+    2 -> R.string.tasks_weekday_2
+    3 -> R.string.tasks_weekday_3
+    4 -> R.string.tasks_weekday_4
+    5 -> R.string.tasks_weekday_5
+    6 -> R.string.tasks_weekday_6
+    else -> R.string.tasks_weekday_7
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScheduledTaskEditor(
+    initial: ScheduledTask?,
+    onDismiss: () -> Unit,
+    onSave: (ScheduledTask) -> Unit,
+) {
+    var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
+    var prompt by rememberSaveable { mutableStateOf(initial?.prompt.orEmpty()) }
+    var time by rememberSaveable { mutableStateOf(initial?.timeOfDay ?: "08:00") }
+    var modeName by rememberSaveable { mutableStateOf((initial?.mode ?: AppMode.MAX).name) }
+    var daysCsv by rememberSaveable { mutableStateOf(initial?.daysOfWeek?.sorted()?.joinToString(",") ?: "") }
+    var invalid by rememberSaveable { mutableStateOf(false) }
+
+    val selectedDays = daysCsv.split(',').mapNotNull { it.toIntOrNull() }.toSet()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(
+                    if (initial == null) R.string.tasks_schedule_add else R.string.tasks_schedule_edit,
+                ),
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    label = { Text(stringResource(R.string.tasks_schedule_name)) },
+                )
+                OutlinedTextField(
+                    value = prompt,
+                    onValueChange = { prompt = it },
+                    minLines = 3,
+                    maxLines = 6,
+                    shape = RoundedCornerShape(12.dp),
+                    label = { Text(stringResource(R.string.tasks_schedule_prompt)) },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.tasks_schedule_mode),
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilterChip(
+                        selected = modeName == AppMode.CHAT_PLUS.name,
+                        onClick = { modeName = AppMode.CHAT_PLUS.name },
+                        shape = RoundedCornerShape(10.dp),
+                        label = { Text("CHAT+") },
+                    )
+                    Spacer(Modifier.width(Baic2Spacing.sm))
+                    FilterChip(
+                        selected = modeName == AppMode.MAX.name,
+                        onClick = { modeName = AppMode.MAX.name },
+                        shape = RoundedCornerShape(10.dp),
+                        label = { Text("MAX") },
+                    )
+                }
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { time = it },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    label = { Text(stringResource(R.string.tasks_schedule_time)) },
+                    textStyle = Baic2Mono.body,
+                )
+                Text(
+                    text = stringResource(R.string.tasks_schedule_days),
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(Baic2Spacing.xs),
+                ) {
+                    FilterChip(
+                        selected = selectedDays.isEmpty(),
+                        onClick = { daysCsv = "" },
+                        shape = RoundedCornerShape(10.dp),
+                        label = { Text(stringResource(R.string.tasks_schedule_every_day)) },
+                    )
+                    (1..7).forEach { day ->
+                        FilterChip(
+                            selected = day in selectedDays,
+                            onClick = {
+                                daysCsv = if (day in selectedDays) {
+                                    (selectedDays - day).sorted().joinToString(",")
+                                } else {
+                                    (selectedDays + day).sorted().joinToString(",")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            label = { Text(stringResource(weekdayLabelRes(day))) },
+                        )
+                    }
+                }
+                if (invalid) {
+                    Text(
+                        text = stringResource(R.string.tasks_schedule_invalid),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val trimmedTime = time.trim()
+                    val valid = name.isNotBlank() &&
+                        prompt.isNotBlank() &&
+                        nextScheduledTrigger(trimmedTime, emptySet(), 0L) != null
+                    if (!valid) {
+                        invalid = true
+                        return@TextButton
+                    }
+                    onSave(
+                        ScheduledTask(
+                            id = initial?.id ?: 0L,
+                            name = name.trim(),
+                            prompt = prompt.trim(),
+                            mode = AppMode.valueOf(modeName),
+                            agentId = initial?.agentId,
+                            timeOfDay = trimmedTime,
+                            daysOfWeek = selectedDays,
+                            enabled = initial?.enabled ?: true,
+                            conversationId = initial?.conversationId,
+                            lastRunAt = initial?.lastRunAt ?: 0L,
+                            nextRunAt = initial?.nextRunAt ?: 0L,
+                            lastResult = initial?.lastResult,
+                            createdAt = initial?.createdAt ?: 0L,
+                        ),
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.tasks_schedule_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.tasks_schedule_cancel))
+            }
+        },
+    )
 }

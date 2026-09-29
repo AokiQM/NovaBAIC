@@ -25,6 +25,7 @@ import com.verlintas.baic2.core.data.db.ConversationEntity
 import com.verlintas.baic2.core.data.db.MemoryEntity
 import com.verlintas.baic2.core.data.db.McpServerEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
+import com.verlintas.baic2.core.data.db.ScheduledTaskEntity
 import com.verlintas.baic2.core.data.db.SnapshotEntity
 import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
@@ -41,6 +42,7 @@ import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.MessageSnapshot
+import com.verlintas.baic2.core.model.ScheduledTask
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.PlanStep
 import com.verlintas.baic2.core.model.ProviderId
@@ -159,6 +161,42 @@ class ChatMapper @Inject constructor(private val json: Json) {
 
     fun encodeMessages(messages: List<com.verlintas.baic2.core.model.ChatMessage>): String =
         json.encodeToString(messages)
+
+    fun scheduledTaskToModel(entity: ScheduledTaskEntity): ScheduledTask = ScheduledTask(
+        id = entity.id,
+        name = entity.name,
+        prompt = entity.prompt,
+        mode = enumOf(entity.mode, AppMode.MAX),
+        agentId = entity.agentId,
+        timeOfDay = entity.timeOfDay,
+        daysOfWeek = entity.daysOfWeekJson
+            .split(',')
+            .mapNotNull { it.trim().toIntOrNull() }
+            .filter { it in 1..7 }
+            .toSet(),
+        enabled = entity.enabled,
+        conversationId = entity.conversationId,
+        lastRunAt = entity.lastRunAt,
+        nextRunAt = entity.nextRunAt,
+        lastResult = entity.lastResult,
+        createdAt = entity.createdAt,
+    )
+
+    fun scheduledTaskToEntity(task: ScheduledTask): ScheduledTaskEntity = ScheduledTaskEntity(
+        id = task.id,
+        name = task.name,
+        prompt = task.prompt,
+        mode = task.mode.name,
+        agentId = task.agentId,
+        timeOfDay = task.timeOfDay,
+        daysOfWeekJson = task.daysOfWeek.sorted().joinToString(","),
+        enabled = task.enabled,
+        conversationId = task.conversationId,
+        lastRunAt = task.lastRunAt,
+        nextRunAt = task.nextRunAt,
+        lastResult = task.lastResult,
+        createdAt = task.createdAt,
+    )
 
     fun snapshotToModel(entity: SnapshotEntity): MessageSnapshot = MessageSnapshot(
         id = entity.id,

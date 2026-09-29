@@ -166,6 +166,43 @@ interface MessageDao {
 }
 
 @Dao
+interface ScheduledTaskDao {
+
+    @Query("SELECT * FROM scheduled_tasks ORDER BY id ASC")
+    fun observeAll(): Flow<List<ScheduledTaskEntity>>
+
+    @Query("SELECT * FROM scheduled_tasks WHERE enabled = 1")
+    suspend fun getEnabled(): List<ScheduledTaskEntity>
+
+    @Query("SELECT * FROM scheduled_tasks WHERE id = :id")
+    suspend fun getById(id: Long): ScheduledTaskEntity?
+
+    @Insert
+    suspend fun insert(entity: ScheduledTaskEntity): Long
+
+    @Update
+    suspend fun update(entity: ScheduledTaskEntity)
+
+    @Query("UPDATE scheduled_tasks SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query(
+        "UPDATE scheduled_tasks SET conversationId = :conversationId, lastRunAt = :lastRunAt, " +
+            "nextRunAt = :nextRunAt, lastResult = :lastResult WHERE id = :id",
+    )
+    suspend fun updateAfterRun(
+        id: Long,
+        conversationId: Long?,
+        lastRunAt: Long,
+        nextRunAt: Long,
+        lastResult: String?,
+    )
+
+    @Query("DELETE FROM scheduled_tasks WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface SnapshotDao {
 
     @Insert
@@ -204,6 +241,9 @@ interface RunDao {
 
     @Query("DELETE FROM runs WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("UPDATE runs SET state = 'CANCELLED', updatedAt = :now WHERE state = 'RUNNING'")
+    suspend fun cancelStale(now: Long)
 
     @Query("DELETE FROM runs WHERE conversationId = :conversationId")
     suspend fun deleteForConversation(conversationId: Long)

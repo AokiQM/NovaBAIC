@@ -12,6 +12,8 @@ All notable changes to this project are documented in this file.
 - **实时控制**：运行中任务在详情页可"停止运行"（跨屏幕取消，RunControlBus 驱动对话里的运行）；通知点击直达该任务的运行详情（extra open_run_id → MainActivity → Tasks）
 - 纯计算层新增 ImpactSummarizer（3 测试）
 
+- **定时任务（可调度的任务实体）**：Tasks 新增"运行记录 / 定时任务"分段。定时任务 = 名称 + 提示词 + 模式（CHAT+/MAX）+ 时间（HH:mm）+ 重复（每天或指定星期）。到点由精确闹钟（`setAlarmClock` + `USE_EXACT_ALARM`，Doze 可用）唤起前台服务，在后台完整跑一遍 Agent（工具、计划、持久化消息、运行记录、消耗统计全部照常），结果写入专属对话并推送通知；支持立即运行、启用/停用、编辑、删除；开机自动重排；升级重启后会自动把残留的"运行中"记录标记为已取消
+
 ### 修复 Fixed
 
 - **模型选择改为"识别 API 自动拉取"**：凭据（Key/Base URL）变化即防抖自动拉取账号可用模型；拉取结果过滤掉 embedding/TTS/图像等非对话端点；未手动改过模型时自动选中"账号真实存在"的模型（优先保留同名选择，否则取列表首个），并按目录补全温度/上限/思考默认值；内置目录仅在 API 未返回列表时作为"推荐"出现；长列表支持搜索过滤与手动刷新

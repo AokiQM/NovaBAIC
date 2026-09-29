@@ -317,5 +317,11 @@ abstract class ToolsBindingModule {
 
     @Binds
     @Singleton
+    abstract fun bindScheduledTaskControl(
+        impl: com.verlintas.baic2.tools.scheduling.ScheduledTaskScheduler,
+    ): com.verlintas.baic2.core.data.repository.ScheduledTaskControl
+
+    @Binds
+    @Singleton
     abstract fun bindToolRunner(runner: DeviceToolRunner): ToolRunner
 }

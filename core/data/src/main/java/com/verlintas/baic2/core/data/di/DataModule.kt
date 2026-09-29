@@ -33,6 +33,7 @@ import com.verlintas.baic2.core.data.db.MemoryDao
 import com.verlintas.baic2.core.data.db.MessageDao
 import com.verlintas.baic2.core.data.db.PlanDao
 import com.verlintas.baic2.core.data.db.RunDao
+import com.verlintas.baic2.core.data.db.ScheduledTaskDao
 import com.verlintas.baic2.core.data.db.SnapshotDao
 import dagger.Module
 import dagger.Provides
@@ -61,6 +62,7 @@ object DataModule {
                 Baic2Database.MIGRATION_7_8,
                 Baic2Database.MIGRATION_8_9,
                 Baic2Database.MIGRATION_9_10,
+                Baic2Database.MIGRATION_10_11,
             )
             .build()
 
@@ -75,6 +77,9 @@ object DataModule {
 
     @Provides
     fun provideSnapshotDao(db: Baic2Database): SnapshotDao = db.snapshotDao()
+
+    @Provides
+    fun provideScheduledTaskDao(db: Baic2Database): ScheduledTaskDao = db.scheduledTaskDao()
 
     @Provides
     fun provideRunDao(db: Baic2Database): RunDao = db.runDao()

@@ -3,4 +3,8 @@
     <string name="automation_channel">Automations</string>
     <string name="automation_done">Automation finished: %1$s</string>
     <string name="automation_partial">Automation partially failed: %1$s</string>
+    <string name="scheduled_channel">Scheduled tasks</string>
+    <string name="scheduled_running">Scheduled task running: %1$s</string>
+    <string name="scheduled_done">Scheduled task finished: %1$s</string>
+    <string name="scheduled_failed">Scheduled task failed: %1$s</string>
 </resources>
