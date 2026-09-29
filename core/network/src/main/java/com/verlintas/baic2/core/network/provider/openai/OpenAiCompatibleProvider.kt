@@ -249,7 +249,8 @@ class OpenAiCompatibleProvider(
         }
         return WireRequest(
             model = request.config.model,
-            temperature = request.config.temperature,
+            // Reasoning models (o-series, gpt-5…) reject a temperature.
+            temperature = if (request.config.reasoning) null else request.config.temperature,
             maxTokens = request.config.maxTokens,
             messages = messages,
             tools = tools,
@@ -344,7 +345,7 @@ class OpenAiCompatibleProvider(
 private data class WireRequest(
     val model: String,
     @EncodeDefault val stream: Boolean = true,
-    val temperature: Double,
+    val temperature: Double? = null,
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val messages: List<WireMessage>,
     val tools: List<WireTool>? = null,

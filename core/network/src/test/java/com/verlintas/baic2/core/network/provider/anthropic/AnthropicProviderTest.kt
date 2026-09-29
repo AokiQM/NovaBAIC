@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
@@ -62,18 +63,20 @@ class AnthropicProviderTest {
         server.shutdown()
     }
 
-    private fun config() = ProviderConfig(
+    private fun config(reasoning: Boolean = false) = ProviderConfig(
         provider = ProviderId.ANTHROPIC,
         baseUrl = server.url("").toString().trimEnd('/'),
         apiKey = "sk-ant-test",
         model = "claude-test",
+        reasoning = reasoning,
     )
 
     private fun request(
         messages: List<ChatMessage> = listOf(ChatMessage(role = ChatRole.USER, content = "hi")),
         tools: List<ToolSpec> = emptyList(),
+        reasoning: Boolean = false,
     ) = ChatRequest(
-        config = config(),
+        config = config(reasoning),
         systemPrompt = "be nice",
         messages = messages,
         tools = tools,
@@ -271,5 +274,54 @@ class AnthropicProviderTest {
         val models = provider.listModels(config())
 
         assertEquals(listOf("claude-a", "claude-b"), models)
+    }
+
+    @Test
+    fun replaysThinkingSignatureAndOmitsTemperatureWhenReasoning() = runTest {
+        enqueueSse(sse("message_stop" to "{}"))
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "why?"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "because",
+                thinking = "step by step",
+                thinkingSignature = "sig-123",
+            ),
+        )
+
+        provider.stream(request(messages = history, reasoning = true)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertTrue(
+            body["temperature"] == null || body["temperature"] is kotlinx.serialization.json.JsonNull,
+            "temperature must be omitted while thinking is enabled",
+        )
+        val messages = body.getValue("messages").jsonArray
+        val blocks = messages[1].jsonObject.getValue("content").jsonArray
+        val first = blocks[0].jsonObject
+        assertEquals("thinking", first.getValue("type").jsonPrimitive.content)
+        assertEquals("step by step", first.getValue("thinking").jsonPrimitive.content)
+        assertEquals("sig-123", first.getValue("signature").jsonPrimitive.content)
+    }
+
+    @Test
+    fun dropsUnsignedThinkingWhenReasoningIsOff() = runTest {
+        enqueueSse(sse("message_stop" to "{}"))
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "why?"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "because",
+                thinking = "step by step",
+                thinkingSignature = "sig-123",
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val blocks = body.getValue("messages").jsonArray[1].jsonObject
+            .getValue("content").jsonArray
+        assertEquals("text", blocks[0].jsonObject.getValue("type").jsonPrimitive.content)
     }
 }

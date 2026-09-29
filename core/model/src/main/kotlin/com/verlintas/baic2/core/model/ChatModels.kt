@@ -38,6 +38,8 @@ data class ChatMessage(
     val role: ChatRole,
     val content: String = "",
     val thinking: String? = null,
+    /** Signature for [thinking] when the provider requires it back (Anthropic). */
+    val thinkingSignature: String? = null,
     val toolCalls: List<ToolCall> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
     val toolCallId: String? = null,
@@ -67,6 +69,8 @@ data class ToolCall(
     val argumentsJson: String = "{}",
     val result: String? = null,
     val status: ToolCallStatus = ToolCallStatus.PENDING,
+    /** Gemini thought signature that must be echoed with the function call. */
+    val signature: String? = null,
 )
 
 @Serializable

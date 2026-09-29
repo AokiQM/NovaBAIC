@@ -66,18 +66,20 @@ class OpenAiCompatibleProviderTest {
         server.shutdown()
     }
 
-    private fun config() = ProviderConfig(
+    private fun config(reasoning: Boolean = false) = ProviderConfig(
         provider = ProviderId.OPENAI_COMPATIBLE,
         baseUrl = server.url("/v1").toString().trimEnd('/'),
         apiKey = "sk-test",
         model = "test-model",
+        reasoning = reasoning,
     )
 
     private fun request(
         messages: List<ChatMessage> = listOf(ChatMessage(role = ChatRole.USER, content = "hi")),
         tools: List<ToolSpec> = emptyList(),
+        reasoning: Boolean = false,
     ) = ChatRequest(
-        config = config(),
+        config = config(reasoning),
         systemPrompt = "be nice",
         messages = messages,
         tools = tools,
@@ -411,5 +413,19 @@ class OpenAiCompatibleProviderTest {
         val toolResult = messages[3].jsonObject
         assertEquals("tool", toolResult.getValue("role").jsonPrimitive.content)
         assertEquals("call_9", toolResult.getValue("tool_call_id").jsonPrimitive.content)
+    }
+
+    @Test
+    fun omitsTemperatureWhileReasoning() = runTest {
+        enqueueSse("[DONE]")
+
+        provider.stream(request(reasoning = true)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertTrue(
+            body["temperature"] == null ||
+                body["temperature"] is kotlinx.serialization.json.JsonNull,
+            "reasoning models reject an explicit temperature",
+        )
     }
 }

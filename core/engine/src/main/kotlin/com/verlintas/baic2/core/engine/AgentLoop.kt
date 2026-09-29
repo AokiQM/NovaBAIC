@@ -119,6 +119,7 @@ class AgentLoop(
 
             val text = StringBuilder()
             val thinking = StringBuilder()
+            var thinkingSignature: String? = null
             var toolCalls = emptyList<ToolCall>()
             var roundUsageInput: Long? = null
             var roundUsageOutput: Long? = null
@@ -152,6 +153,9 @@ class AgentLoop(
                             thinking.append(event.text)
                             emit(AgentEvent.ThinkingDelta(event.text))
                         }
+                        is StreamEvent.ThinkingSignature -> {
+                            thinkingSignature = event.signature
+                        }
                         is StreamEvent.ToolCallsDone -> toolCalls = event.calls
                         is StreamEvent.Usage -> {
                             roundUsageInput = event.promptTokens
@@ -180,6 +184,7 @@ class AgentLoop(
                 role = ChatRole.ASSISTANT,
                 content = text.toString(),
                 thinking = thinking.toString().ifBlank { null },
+                thinkingSignature = thinkingSignature,
                 toolCalls = toolCalls,
                 model = config.model,
                 usageInput = roundUsageInput,

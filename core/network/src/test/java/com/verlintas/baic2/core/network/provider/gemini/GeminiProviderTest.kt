@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
@@ -236,5 +237,41 @@ class GeminiProviderTest {
 
         assertEquals(listOf("gemini-a", "gemini-b"), models)
         assertTrue(server.takeRequest().path.orEmpty().contains("key=AIza-test"))
+    }
+
+    @Test
+    fun echoesThoughtSignatureOnFunctionCalls() = runTest {
+        enqueueSse()
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "check"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "",
+                toolCalls = listOf(
+                    com.verlintas.baic2.core.model.ToolCall(
+                        id = "gcall_1",
+                        name = "device_info",
+                        argumentsJson = "{}",
+                        signature = "thought-sig-1",
+                    ),
+                ),
+            ),
+            ChatMessage(
+                role = ChatRole.TOOL,
+                content = "ok",
+                toolCallId = "gcall_1",
+                toolName = "device_info",
+            ),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val contents = body.getValue("contents").jsonArray
+        val modelParts = contents[1].jsonObject.getValue("parts").jsonArray
+        assertEquals(
+            "thought-sig-1",
+            modelParts[0].jsonObject.getValue("thoughtSignature").jsonPrimitive.content,
+        )
     }
 }

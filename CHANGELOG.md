@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.5] - 2026-09-29
+
+### 修复 Fixed
+
+- **图标恢复正常比例**：自适应图标改为"完整原图等比缩放放入安全区 + 原图底色背景"，启动器不再把全幅背景按 1.5× 放大裁切；leagcy 图标保持原图等比缩放
+
+### 完善 Changed
+
+- **CoT（思维链）全链路完善**：
+  - Anthropic：解析并持久化思维签名（DB 11→12 新增 `thinkingSignature`），多轮与工具循环中原样回传 thinking 块（含签名），开启深度思考时不再发送 temperature（Anthropic 要求温度留空）
+  - Gemini 2.5：解析 functionCall 的 `thoughtSignature` 并随调用回传，思考 + 工具调用不再因缺少签名失败
+  - OpenAI 兼容：开启深度思考时省略 temperature（o 系 / gpt-5 等推理模型会拒绝温度参数）
+  - 思维文本与签名随助手消息入库，重启后继续对话仍可正确续接
+
 ## [0.1.4] - 2026-09-29
 
 ### 修复 Fixed

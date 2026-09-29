@@ -184,6 +184,9 @@ class AnthropicProvider(
                     "thinking_delta" -> delta.thinking?.takeIf { it.isNotEmpty() }
                         ?.let { emit(StreamEvent.ThinkingDelta(it)) }
 
+                    "signature_delta" -> delta.signature?.takeIf { it.isNotEmpty() }
+                        ?.let { emit(StreamEvent.ThinkingSignature(it)) }
+
                     "input_json_delta" -> {
                         val index = event.index ?: return false
                         delta.partialJson?.let { fragment ->
@@ -258,6 +261,21 @@ class AnthropicProvider(
                 ChatRole.USER -> append("user", userBlocks(message))
                 ChatRole.ASSISTANT -> {
                     val blocks = buildList {
+                        // Extended thinking must be replayed verbatim (with its
+                        // signature) as the first block while thinking is on.
+                        if (request.config.reasoning) {
+                            val signature = message.thinkingSignature
+                            val thinkingText = message.thinking
+                            if (!signature.isNullOrBlank() && !thinkingText.isNullOrBlank()) {
+                                add(
+                                    AnthropicBlock(
+                                        type = "thinking",
+                                        thinking = thinkingText,
+                                        signature = signature,
+                                    ),
+                                )
+                            }
+                        }
                         if (message.content.isNotBlank()) {
                             add(AnthropicBlock(type = "text", text = message.content))
                         }
@@ -299,7 +317,8 @@ class AnthropicProvider(
         return AnthropicRequest(
             model = request.config.model,
             maxTokens = request.config.maxTokens ?: DEFAULT_MAX_TOKENS,
-            temperature = request.config.temperature,
+            // Thinking requires temperature to be unset (Anthropic pins it to 1).
+            temperature = if (request.config.reasoning) null else request.config.temperature,
             system = system,
             messages = messages,
             tools = tools,
@@ -387,7 +406,7 @@ class AnthropicProvider(
 private data class AnthropicRequest(
     val model: String,
     @SerialName("max_tokens") val maxTokens: Int,
-    val temperature: Double,
+    val temperature: Double? = null,
     val system: String? = null,
     val messages: List<AnthropicMessage>,
     val tools: List<AnthropicTool>? = null,
@@ -417,6 +436,8 @@ private data class AnthropicBlock(
     val source: AnthropicImageSource? = null,
     @SerialName("tool_use_id") val toolUseId: String? = null,
     val content: String? = null,
+    val thinking: String? = null,
+    val signature: String? = null,
 )
 
 @Serializable
@@ -449,6 +470,7 @@ private data class AnthropicDelta(
     val type: String? = null,
     val text: String? = null,
     val thinking: String? = null,
+    val signature: String? = null,
     @SerialName("partial_json") val partialJson: String? = null,
 )
 

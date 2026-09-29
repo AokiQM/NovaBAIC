@@ -64,6 +64,9 @@ sealed interface StreamEvent {
 
     data class ThinkingDelta(val text: String) : StreamEvent
 
+    /** Anthropic extended thinking: opaque signature to echo back verbatim. */
+    data class ThinkingSignature(val signature: String) : StreamEvent
+
     data class ToolCallsDone(val calls: List<ToolCall>) : StreamEvent
 
     data class Usage(val promptTokens: Long?, val completionTokens: Long?) : StreamEvent

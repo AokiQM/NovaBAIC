@@ -178,6 +178,7 @@ class GeminiProvider(
                         id = "gcall_${call.name}_${toolCalls.size}",
                         name = call.name,
                         argumentsJson = call.args?.toString() ?: "{}",
+                        signature = part.thoughtSignature,
                     )
                 }
             }
@@ -235,6 +236,9 @@ class GeminiProvider(
                                         name = call.name,
                                         args = parseJsonObject(call.argumentsJson),
                                     ),
+                                    // Gemini 2.5 thinking requires the opaque
+                                    // signature to travel with the call.
+                                    thoughtSignature = call.signature,
                                 ),
                             )
                         }
@@ -356,6 +360,7 @@ private data class GeminiContent(
 private data class GeminiPart(
     val text: String? = null,
     val thought: Boolean? = null,
+    @SerialName("thoughtSignature") val thoughtSignature: String? = null,
     @SerialName("functionCall") val functionCall: GeminiFunctionCall? = null,
     @SerialName("functionResponse") val functionResponse: GeminiFunctionResponse? = null,
     @SerialName("inlineData") val inlineData: GeminiInlineData? = null,

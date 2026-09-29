@@ -60,6 +60,7 @@ data class MessageEntity(
     val role: String,
     val content: String,
     val thinking: String?,
+    val thinkingSignature: String? = null,
     val toolCallsJson: String,
     val attachmentsJson: String = "[]",
     val toolCallId: String?,
