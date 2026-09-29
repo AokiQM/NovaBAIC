@@ -28,10 +28,18 @@ class ModelContextWindowsTest {
     @Test
     fun knownFamiliesResolve() {
         assertEquals(200_000L, ModelContextWindows.forModel("claude-sonnet-4-5"))
+        assertEquals(200_000L, ModelContextWindows.forModel("claude-opus-5-5"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("claude-sonnet-5-5"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("claude-fable-5-1"))
         assertEquals(1_000_000L, ModelContextWindows.forModel("gemini-2.5-flash"))
-        assertEquals(64_000L, ModelContextWindows.forModel("deepseek-chat"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("gpt-6-astra"))
         assertEquals(128_000L, ModelContextWindows.forModel("gpt-4o-mini"))
-        assertEquals(128_000L, ModelContextWindows.forModel("qwen-plus"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("qwen3.7-plus"))
+        assertEquals(1_048_576L, ModelContextWindows.forModel("kimi-k3"))
+        assertEquals(262_144L, ModelContextWindows.forModel("kimi-k2.6"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("glm-5.3"))
+        assertEquals(128_000L, ModelContextWindows.forModel("glm-4.7"))
+        assertEquals(1_000_000L, ModelContextWindows.forModel("MiniMax-M3"))
     }
 
     @Test

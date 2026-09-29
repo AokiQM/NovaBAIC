@@ -456,8 +456,123 @@ class OpenAiCompatibleProviderTest {
         )
 
         enqueueSse("[DONE]")
-        provider.stream(request(reasoning = true, model = "deepseek-reasoner")).toList()
+        provider.stream(request(reasoning = true, model = "qwen-plus")).toList()
         val otherBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertTrue(otherBody["reasoning_effort"] == null, "non-OpenAI models must not receive it")
+        assertTrue(otherBody["thinking"] == null, "non-DeepSeek models must not receive it")
+    }
+
+    @Test
+    fun controlsDeepSeekThinkingMode() = runTest {
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = true, model = "deepseek-flash")).toList()
+        val thinkingBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(
+            "high",
+            thinkingBody.getValue("reasoning_effort").jsonPrimitive.content,
+        )
+        assertEquals(
+            "enabled",
+            thinkingBody.getValue("thinking").jsonObject
+                .getValue("type").jsonPrimitive.content,
+        )
+
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = false, model = "deepseek-flash")).toList()
+        val offBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertTrue(offBody["reasoning_effort"] == null)
+        assertEquals(
+            "disabled",
+            offBody.getValue("thinking").jsonObject
+                .getValue("type").jsonPrimitive.content,
+            "DeepSeek thinking defaults to on and must be switched off explicitly",
+        )
+    }
+
+    @Test
+    fun keepsGlmThinkingEnabledAndLowersEffortWhenReasoningOff() = runTest {
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = false, model = "glm-5.3")).toList()
+        val offBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(
+            "enabled",
+            offBody.getValue("thinking").jsonObject.getValue("type").jsonPrimitive.content,
+            "GLM-5.3 rejects thinking.type=disabled",
+        )
+        assertEquals("low", offBody.getValue("reasoning_effort").jsonPrimitive.content)
+
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = true, model = "glm-5.3")).toList()
+        val onBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("high", onBody.getValue("reasoning_effort").jsonPrimitive.content)
+    }
+
+    @Test
+    fun tunesKimiK3EffortWithoutThinkingToggle() = runTest {
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = false, model = "kimi-k3")).toList()
+        val offBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("low", offBody.getValue("reasoning_effort").jsonPrimitive.content)
+        assertTrue(offBody["thinking"] == null, "K3 is always in thinking mode")
+        assertTrue(offBody["temperature"] == null, "K3 pins its sampling values")
+
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = true, model = "kimi-k3")).toList()
+        val onBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("high", onBody.getValue("reasoning_effort").jsonPrimitive.content)
+    }
+
+    @Test
+    fun kimiK3ReplaysThinkingOnTheWire() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "hi"),
+            ChatMessage(role = ChatRole.ASSISTANT, content = "ok", thinking = "let me think"),
+        )
+
+        provider.stream(request(messages = history, reasoning = false, model = "kimi-k3")).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val assistant = body.getValue("messages").jsonArray[2].jsonObject
+        assertEquals(
+            "let me think",
+            assistant.getValue("reasoning_content").jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun deepSeekReasoningRoundTripsWhenThinking() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "weather?"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "checking",
+                thinking = "I should call the weather tool",
+            ),
+        )
+        val tools = listOf(
+            ToolSpec(name = "get_weather", description = "x", parametersJson = "{}"),
+        )
+
+        provider.stream(
+            request(messages = history, tools = tools, reasoning = true, model = "deepseek-flash"),
+        ).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val assistant = body.getValue("messages").jsonArray[2].jsonObject
+        assertEquals(
+            "I should call the weather tool",
+            assistant.getValue("reasoning_content").jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun deepSeekLegacyNamesAreRoutedToV41Flash() = runTest {
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = false, model = "deepseek-chat")).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("deepseek-flash", body.getValue("model").jsonPrimitive.content)
     }
 }

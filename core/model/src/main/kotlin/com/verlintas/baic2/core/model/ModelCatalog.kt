@@ -40,49 +40,135 @@ data class ModelEntry(
 object ModelCatalog {
 
     val entries: List<ModelEntry> = listOf(
-        // OpenAI
-        ModelEntry("gpt-5", "GPT-5", ProviderId.OPENAI_COMPATIBLE, "openai", 400_000),
-        ModelEntry("gpt-5-mini", "GPT-5 mini", ProviderId.OPENAI_COMPATIBLE, "openai", 400_000),
-        ModelEntry("gpt-4.1", "GPT-4.1", ProviderId.OPENAI_COMPATIBLE, "openai", 1_047_576),
-        ModelEntry("gpt-4.1-mini", "GPT-4.1 mini", ProviderId.OPENAI_COMPATIBLE, "openai", 1_047_576),
-        ModelEntry("gpt-4o", "GPT-4o", ProviderId.OPENAI_COMPATIBLE, "openai", 128_000),
-        ModelEntry("gpt-4o-mini", "GPT-4o mini", ProviderId.OPENAI_COMPATIBLE, "openai", 128_000),
-        ModelEntry("o3", "o3", ProviderId.OPENAI_COMPATIBLE, "openai", 200_000, supportsReasoning = true),
-        ModelEntry("o4-mini", "o4-mini", ProviderId.OPENAI_COMPATIBLE, "openai", 200_000, supportsReasoning = true),
+        // OpenAI (GPT-6 / GPT-5.6 tiers; 1M context)
+        ModelEntry(
+            "gpt-6-astra",
+            "GPT-6 Astra",
+            ProviderId.OPENAI_COMPATIBLE,
+            "openai",
+            1_000_000,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "gpt-5.6-sol",
+            "GPT-5.6 Sol",
+            ProviderId.OPENAI_COMPATIBLE,
+            "openai",
+            1_000_000,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "gpt-5.6-terra",
+            "GPT-5.6 Terra",
+            ProviderId.OPENAI_COMPATIBLE,
+            "openai",
+            1_000_000,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "gpt-5.6-luna",
+            "GPT-5.6 Luna",
+            ProviderId.OPENAI_COMPATIBLE,
+            "openai",
+            1_000_000,
+            supportsReasoning = true,
+        ),
 
-        // Anthropic
-        ModelEntry("claude-sonnet-4-5", "Claude Sonnet 4.5", ProviderId.ANTHROPIC, "anthropic", 200_000, maxTokens = 8_192),
-        ModelEntry("claude-opus-4-1", "Claude Opus 4.1", ProviderId.ANTHROPIC, "anthropic", 200_000, maxTokens = 8_192),
+        // Anthropic (Fable 5.1 / Opus 5.5 / Sonnet 5.5 / Haiku 4.5)
+        ModelEntry(
+            "claude-fable-5-1",
+            "Claude Fable 5.1",
+            ProviderId.ANTHROPIC,
+            "anthropic",
+            1_000_000,
+            maxTokens = 8_192,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "claude-opus-5-5",
+            "Claude Opus 5.5",
+            ProviderId.ANTHROPIC,
+            "anthropic",
+            200_000,
+            maxTokens = 8_192,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "claude-sonnet-5-5",
+            "Claude Sonnet 5.5",
+            ProviderId.ANTHROPIC,
+            "anthropic",
+            1_000_000,
+            maxTokens = 8_192,
+            supportsReasoning = true,
+        ),
         ModelEntry("claude-haiku-4-5", "Claude Haiku 4.5", ProviderId.ANTHROPIC, "anthropic", 200_000, maxTokens = 8_192),
-        ModelEntry("claude-3-7-sonnet", "Claude 3.7 Sonnet", ProviderId.ANTHROPIC, "anthropic", 200_000, maxTokens = 8_192),
 
-        // Gemini
-        ModelEntry("gemini-2.5-pro", "Gemini 2.5 Pro", ProviderId.GEMINI, "gemini", 1_048_576),
-        ModelEntry("gemini-2.5-flash", "Gemini 2.5 Flash", ProviderId.GEMINI, "gemini", 1_048_576),
-        ModelEntry("gemini-2.0-flash", "Gemini 2.0 Flash", ProviderId.GEMINI, "gemini", 1_048_576),
+        // Gemini (3.x generation)
+        ModelEntry("gemini-3.8-flash", "Gemini 3.8 Flash", ProviderId.GEMINI, "gemini", 1_048_576, supportsReasoning = true),
+        ModelEntry("gemini-3.1-pro", "Gemini 3.1 Pro", ProviderId.GEMINI, "gemini", 1_048_576, supportsReasoning = true),
 
-        // DeepSeek
-        ModelEntry("deepseek-chat", "DeepSeek Chat", ProviderId.OPENAI_COMPATIBLE, "deepseek", 64_000),
-        ModelEntry("deepseek-reasoner", "DeepSeek Reasoner", ProviderId.OPENAI_COMPATIBLE, "deepseek", 64_000, supportsReasoning = true),
+        // DeepSeek (V4.x; thinking mode defaults on)
+        ModelEntry(
+            "deepseek-flash",
+            "DeepSeek Flash",
+            ProviderId.OPENAI_COMPATIBLE,
+            "deepseek",
+            1_000_000,
+            maxTokens = 64_000,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "deepseek-v4-pro",
+            "DeepSeek V4 Pro",
+            ProviderId.OPENAI_COMPATIBLE,
+            "deepseek",
+            1_000_000,
+            maxTokens = 64_000,
+            supportsReasoning = true,
+        ),
 
-        // Qwen
-        ModelEntry("qwen-max", "Qwen Max", ProviderId.OPENAI_COMPATIBLE, "qwen", 131_072, maxTokens = 8_192),
-        ModelEntry("qwen-plus", "Qwen Plus", ProviderId.OPENAI_COMPATIBLE, "qwen", 131_072, maxTokens = 8_192),
-        ModelEntry("qwen-turbo", "Qwen Turbo", ProviderId.OPENAI_COMPATIBLE, "qwen", 131_072, maxTokens = 8_192),
+        // Qwen (all 1M)
+        ModelEntry("qwen3.8-max", "Qwen3.8 Max", ProviderId.OPENAI_COMPATIBLE, "qwen", 1_000_000, maxTokens = 8_192, supportsReasoning = true),
+        ModelEntry("qwen3.7-plus", "Qwen3.7 Plus", ProviderId.OPENAI_COMPATIBLE, "qwen", 1_000_000, maxTokens = 8_192, supportsReasoning = true),
+        ModelEntry("qwen3.8-flash", "Qwen3.8 Flash", ProviderId.OPENAI_COMPATIBLE, "qwen", 1_000_000, maxTokens = 8_192, supportsReasoning = true),
 
         // Moonshot / Kimi
-        ModelEntry("moonshot-v1-8k", "Kimi 8K", ProviderId.OPENAI_COMPATIBLE, "moonshot", 8_192),
-        ModelEntry("moonshot-v1-32k", "Kimi 32K", ProviderId.OPENAI_COMPATIBLE, "moonshot", 32_768),
-        ModelEntry("moonshot-v1-128k", "Kimi 128K", ProviderId.OPENAI_COMPATIBLE, "moonshot", 131_072),
-        ModelEntry("kimi-k2", "Kimi K2", ProviderId.OPENAI_COMPATIBLE, "moonshot", 131_072),
+        ModelEntry(
+            "kimi-k3",
+            "Kimi K3",
+            ProviderId.OPENAI_COMPATIBLE,
+            "moonshot",
+            1_048_576,
+            maxTokens = 65_536,
+            supportsReasoning = true,
+        ),
+        ModelEntry("kimi-k2.7-code", "Kimi K2.7 Code", ProviderId.OPENAI_COMPATIBLE, "moonshot", 262_144, supportsReasoning = true),
+        ModelEntry("kimi-k2.6", "Kimi K2.6", ProviderId.OPENAI_COMPATIBLE, "moonshot", 262_144, supportsReasoning = true),
 
-        // GLM
-        ModelEntry("glm-4-plus", "GLM-4 Plus", ProviderId.OPENAI_COMPATIBLE, "glm", 131_072),
-        ModelEntry("glm-4-air", "GLM-4 Air", ProviderId.OPENAI_COMPATIBLE, "glm", 131_072),
-        ModelEntry("glm-4.5", "GLM-4.5", ProviderId.OPENAI_COMPATIBLE, "glm", 131_072),
+        // GLM (5.x; reasoning always on)
+        ModelEntry(
+            "glm-5.3",
+            "GLM-5.3",
+            ProviderId.OPENAI_COMPATIBLE,
+            "glm",
+            1_000_000,
+            maxTokens = 65_536,
+            supportsReasoning = true,
+        ),
+        ModelEntry(
+            "glm-5.2",
+            "GLM-5.2",
+            ProviderId.OPENAI_COMPATIBLE,
+            "glm",
+            1_000_000,
+            maxTokens = 65_536,
+            supportsReasoning = true,
+        ),
 
-        // MiniMax
-        ModelEntry("minimax-text-01", "MiniMax Text 01", ProviderId.OPENAI_COMPATIBLE, "minimax", 192_000),
+        // MiniMax (M-series)
+        ModelEntry("minimax-m3", "MiniMax M3", ProviderId.OPENAI_COMPATIBLE, "minimax", 1_000_000, supportsReasoning = true),
+        ModelEntry("minimax-m2.7", "MiniMax M2.7", ProviderId.OPENAI_COMPATIBLE, "minimax", 192_000, supportsReasoning = true),
     )
 
     fun entryFor(provider: ProviderId, model: String): ModelEntry? {

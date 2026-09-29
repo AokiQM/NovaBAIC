@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.10] - 2026-09-29
+
+### 修复 Fixed
+
+- **DeepSeek 适配 2026-09 新 API**：`deepseek-chat`/`deepseek-reasoner` 已停服，旧配置自动路由到 `deepseek-flash`；请求按新规携带 `thinking` 开关（关推理时显式 `disabled`）、`reasoning_effort: high`，带 tools 时回传历史 `reasoning_content`，避免 400
+- **GLM-5.3 禁止关闭思考**（传 `disabled` 会失败）：GLM-5.x 固定发送 `thinking.enabled`，关闭推理时改用 `reasoning_effort: low`
+- **Kimi K3 固定采样参数**：K3 始终思考且固定 temperature/top_p，不再显式发送这些字段，并按官方要求回传 `reasoning_content`
+
+### 优化 Changed
+
+- **模型目录全量校准**（逐一核对官方文档 / 平台发布说明）：
+  - OpenAI → `gpt-6-astra`、`gpt-5.6-sol/terra/luna`（均 1M 上下文）
+  - Anthropic → Fable 5.1（1M）、Opus 5.5、Sonnet 5.5（1M）、Haiku 4.5（Mythos 5 受限未收录）
+  - Gemini → `gemini-3.8-flash`、`gemini-3.1-pro`；Qwen → `qwen3.8-max` / `qwen3.7-plus` / `qwen3.8-flash`（均 1M）
+  - Kimi → `kimi-k3`（1M）/ `kimi-k2.7-code` / `kimi-k2.6`；GLM → `glm-5.3` / `glm-5.2`（均 1M）；MiniMax → `MiniMax-M3`（1M）/ `M2.7`
+  - 新条目默认开启推理标记（思考已是新一代模型默认行为）
+- **预设默认模型同步**：OpenAI→`gpt-5.6-luna`、Claude→`claude-sonnet-5-5`、Kimi→`kimi-k3`、Qwen→`qwen3.7-plus`、SiliconFlow→`deepseek-ai/DeepSeek-V4-Flash`
+- **上下文窗口推断表校准**：GPT-5/6、Qwen、GLM-5、Kimi K3、Fable/Sonnet 5 均为 1M，Haiku/GLM-4.x 保持保守值
+- 新增 5 个 Provider 回归测试（GLM 思考常开、K3 effort 与思维回传、DeepSeek 开关等）
+
 ## [0.1.9] - 2026-09-29
 
 采纳隐式思维链（Implicit CoT）：让分析发生在模型隐藏推理通道里，而不是把逐步推理写进可见回答——文献与实测显示可把生成 token 降低约 10–30 倍，同时准确率较显式 CoT 提升约 12–20%。

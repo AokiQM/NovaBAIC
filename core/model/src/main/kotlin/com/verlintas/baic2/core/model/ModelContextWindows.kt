@@ -27,21 +27,27 @@ package com.verlintas.baic2.core.model
 object ModelContextWindows {
 
     private val patterns = listOf(
+        "fable" to 1_000_000L,
+        "sonnet-5" to 1_000_000L,
         "claude" to 200_000L,
         "gemini" to 1_000_000L,
-        "deepseek" to 64_000L,
-        "qwen" to 128_000L,
+        "deepseek" to 1_000_000L,
+        "qwen" to 1_000_000L,
+        "kimi-k3" to 1_048_576L,
+        "kimi" to 262_144L,
         "moonshot" to 128_000L,
-        "kimi" to 128_000L,
+        "glm-5" to 1_000_000L,
         "glm" to 128_000L,
+        "gpt-6" to 1_000_000L,
+        "gpt-5" to 1_000_000L,
         "gpt-4o" to 128_000L,
         "gpt-4.1" to 128_000L,
-        "gpt-5" to 128_000L,
         "o3" to 200_000L,
         "o4" to 200_000L,
+        "minimax-m3" to 1_000_000L,
+        "minimax" to 192_000L,
         "llama" to 128_000L,
         "mistral" to 128_000L,
-        "minimax" to 192_000L,
         "step" to 128_000L,
     )
 

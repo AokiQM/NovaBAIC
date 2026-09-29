@@ -203,6 +203,17 @@ class OpenAiCompatibleProvider(
     }
 
     private fun buildPayload(request: ChatRequest): WireRequest {
+        val model = canonicalModel(request.config.model)
+        val normalizedModel = model.lowercase()
+        val openAiReasoningFamily = normalizedModel.startsWith("o1") ||
+            normalizedModel.startsWith("o3") || normalizedModel.startsWith("o4") ||
+            normalizedModel.startsWith("gpt-5") || normalizedModel.startsWith("gpt-6")
+        // Native DeepSeek ids only; gateways use names like "deepseek-ai/…".
+        val deepSeek = normalizedModel.startsWith("deepseek-") && !normalizedModel.contains("/")
+        // GLM-5.x reasoning is on by default; 5.3 rejects "disabled" outright.
+        val glmReasoning = normalizedModel.startsWith("glm-5") && !normalizedModel.contains("/")
+        // Kimi K3 always thinks; only the effort level can be tuned.
+        val kimiK3 = normalizedModel.startsWith("kimi-k3") && !normalizedModel.contains("/")
         val messages = buildList {
             if (request.systemPrompt.isNotBlank()) {
                 add(WireMessage(role = "system", content = JsonPrimitive(request.systemPrompt)))
@@ -234,6 +245,11 @@ class OpenAiCompatibleProvider(
                                         function = WireFunction(call.name, call.argumentsJson),
                                     )
                                 },
+                            // DeepSeek V4 and Kimi K3 require previous thinking
+                            // back once the request carries tools.
+                            reasoningContent = message.thinking.takeIf {
+                                (deepSeek && request.config.reasoning) || kimiK3
+                            },
                         ),
                     )
                 }
@@ -248,21 +264,45 @@ class OpenAiCompatibleProvider(
                 ),
             )
         }
-        val model = request.config.model.lowercase()
-        val openAiReasoningFamily = model.startsWith("o1") || model.startsWith("o3") ||
-            model.startsWith("o4") || model.startsWith("gpt-5") || model.startsWith("gpt-6")
         return WireRequest(
-            model = request.config.model,
-            // Reasoning models (o-series, gpt-5…) reject a temperature.
-            temperature = if (request.config.reasoning) null else request.config.temperature,
+            model = model,
+            // Thinking modes ignore a temperature; OpenAI reasoning models
+            // reject one outright; Kimi K3 pins its sampling values.
+            temperature = if (request.config.reasoning || kimiK3) {
+                null
+            } else {
+                request.config.temperature
+            },
             maxTokens = request.config.maxTokens,
             messages = messages,
             tools = tools,
             streamOptions = WireStreamOptions(),
-            // Only OpenAI reasoning families accept this field; other
-            // compatible endpoints (DeepSeek, Qwen…) would reject it.
-            reasoningEffort = if (request.config.reasoning && openAiReasoningFamily) "high" else null,
+            // Only these families accept this field; other compatible
+            // endpoints (Qwen, gateways…) would reject it.
+            reasoningEffort = when {
+                openAiReasoningFamily || deepSeek ->
+                    if (request.config.reasoning) "high" else null
+                glmReasoning || kimiK3 ->
+                    if (request.config.reasoning) "high" else "low"
+                else -> null
+            },
+            // DeepSeek thinking defaults to on and can be switched off; GLM-5
+            // thinking cannot be disabled, so reasoning-off maps to low effort.
+            thinking = when {
+                deepSeek -> WireThinking(if (request.config.reasoning) "enabled" else "disabled")
+                glmReasoning -> WireThinking("enabled")
+                else -> null
+            },
         )
+    }
+
+    /**
+     * DeepSeek retired `deepseek-chat`/`deepseek-reasoner` on 2026-07-24;
+     * route stored agent configs to V4.1-Flash instead of failing.
+     */
+    private fun canonicalModel(model: String): String = when (model.lowercase()) {
+        "deepseek-chat", "deepseek-reasoner" -> "deepseek-flash"
+        else -> model
     }
 
     /**
@@ -361,6 +401,12 @@ private data class WireRequest(
     val tools: List<WireTool>? = null,
     @SerialName("stream_options") val streamOptions: WireStreamOptions? = null,
     @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    val thinking: WireThinking? = null,
+)
+
+@Serializable
+private data class WireThinking(
+    val type: String,
 )
 
 @Serializable
@@ -374,6 +420,7 @@ private data class WireMessage(
     val content: JsonElement? = null,
     @SerialName("tool_calls") val toolCalls: List<WireToolCall>? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
 )
 
 @Serializable
