@@ -524,6 +524,8 @@ fun AboutPage(
 ) {
     val context = LocalContext.current
     val repoUrl = "https://github.com/Verlintas/NovaBAIC"
+    val tagline = stringResource(R.string.settings_about_tagline)
+    val shareChooser = stringResource(R.string.settings_about_share_chooser)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.updateState().collectAsStateWithLifecycle()
 
@@ -668,16 +670,12 @@ fun AboutPage(
                         type = "text/plain"
                         putExtra(
                             android.content.Intent.EXTRA_TEXT,
-                            "BetterAIChat2 — " + context.getString(R.string.settings_about_tagline) +
-                                " " + repoUrl,
+                            "BetterAIChat2 — $tagline $repoUrl",
                         )
                     }
                     runCatching {
                         context.startActivity(
-                            android.content.Intent.createChooser(
-                                intent,
-                                context.getString(R.string.settings_about_share_chooser),
-                            ),
+                            android.content.Intent.createChooser(intent, shareChooser),
                         )
                     }
                 },
