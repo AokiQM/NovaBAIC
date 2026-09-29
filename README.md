@@ -22,6 +22,13 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 - 无 GMS 依赖；不包含统计 SDK；明文 HTTP 仅放行环回地址
 - 支持任何 OpenAI 兼容端点（DeepSeek / Kimi / Qwen / GLM / Ollama / 网关…）以及 Claude、Gemini
 
+## AI 编程提示
+
+本项目由 AI 编程助手（opencode）参与开发：需求、审阅与发布由人类维护者完成，代码主要由 AI 编写。
+
+- 使用、引用或二次开发前，请自行评估代码的正确性与安全性
+- 如果你发现 AI 生成代码中的问题，欢迎提 [Issue](https://github.com/Verlintas/NovaBAIC/issues) 或 PR
+
 ## 截图
 
 <p align="center">
