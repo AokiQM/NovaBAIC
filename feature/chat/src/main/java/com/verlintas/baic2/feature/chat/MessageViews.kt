@@ -57,6 +57,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -286,7 +288,7 @@ private fun AssistantMessage(
             }
         }
         message.thinking?.takeIf { it.isNotBlank() }?.let { thinking ->
-            ThinkingCard(text = thinking, streaming = false)
+            ThinkingCard(text = thinking, streaming = false, durationMs = message.thinkingMs)
             Spacer(Modifier.size(Baic2Spacing.sm))
         }
         if (message.content.isNotBlank()) {
@@ -304,8 +306,19 @@ fun ThinkingCard(
     text: String,
     streaming: Boolean,
     modifier: Modifier = Modifier,
+    durationMs: Long? = null,
 ) {
     var expanded by rememberSaveable(streaming) { mutableStateOf(streaming) }
+    // Live elapsed seconds while the model is still thinking.
+    var elapsedSeconds by remember { mutableIntStateOf(0) }
+    LaunchedEffect(streaming) {
+        if (!streaming) return@LaunchedEffect
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        while (true) {
+            elapsedSeconds = ((android.os.SystemClock.elapsedRealtime() - startedAt) / 1000).toInt()
+            kotlinx.coroutines.delay(1_000)
+        }
+    }
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = Baic2Motion.spatialFast(),
@@ -332,9 +345,18 @@ fun ThinkingCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = stringResource(R.string.chat_thinking),
+                text = when {
+                    streaming -> stringResource(R.string.chat_thinking_streaming, elapsedSeconds)
+                    durationMs != null && durationMs > 0 ->
+                        stringResource(R.string.chat_thought_for, (durationMs / 1000).coerceAtLeast(1))
+                    else -> stringResource(R.string.chat_thinking)
+                },
                 style = Baic2Mono.label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (streaming) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
             if (!expanded && !streaming && text.isNotBlank()) {
                 Spacer(Modifier.width(Baic2Spacing.md))

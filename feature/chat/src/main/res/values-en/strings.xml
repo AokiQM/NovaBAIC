@@ -104,4 +104,6 @@
     <string name="chat_compress_too_short">This conversation is short enough; nothing to compress</string>
     <string name="chat_menu_hands_free">Hands-free chat</string>
     <string name="chat_action_copied">Copied</string>
+    <string name="chat_thinking_streaming">Thinking · %1$ds</string>
+    <string name="chat_thought_for">Thought for %1$ds</string>
 </resources>

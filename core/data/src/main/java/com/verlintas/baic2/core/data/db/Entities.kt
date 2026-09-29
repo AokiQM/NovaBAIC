@@ -61,6 +61,7 @@ data class MessageEntity(
     val content: String,
     val thinking: String?,
     val thinkingSignature: String? = null,
+    val thinkingMs: Long? = null,
     val toolCallsJson: String,
     val attachmentsJson: String = "[]",
     val toolCallId: String?,

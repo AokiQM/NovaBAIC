@@ -104,4 +104,6 @@
     <string name="chat_compress_too_short">对话还不够长，无需压缩</string>
     <string name="chat_menu_hands_free">免手对话</string>
     <string name="chat_action_copied">已复制</string>
+    <string name="chat_thinking_streaming">思考中 · %1$d 秒</string>
+    <string name="chat_thought_for">思考 %1$d 秒</string>
 </resources>

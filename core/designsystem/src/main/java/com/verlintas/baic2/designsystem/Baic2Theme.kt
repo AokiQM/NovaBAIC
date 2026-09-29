@@ -23,6 +23,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import com.verlintas.baic2.core.model.AccentColor
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.ColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
 
 /**
  * BAIC2 theme. Dark-first: dark is the primary surface language, light is a
@@ -39,9 +44,48 @@ fun Baic2Theme(
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = baic2ColorScheme(dark = darkTheme, accent = accent),
+        colorScheme = animatedColorScheme(baic2ColorScheme(dark = darkTheme, accent = accent)),
         shapes = Baic2Shapes,
         typography = Baic2Typography,
         content = content,
+    )
+}
+
+/**
+ * Blends every scheme colour into the next one, so switching accent or theme
+ * glides instead of snapping (the whole UI animates coherently).
+ */
+@Composable
+private fun animatedColorScheme(target: ColorScheme): ColorScheme {
+    @Composable
+    fun animate(color: Color, label: String): Color = animateColorAsState(
+        targetValue = color,
+        animationSpec = tween(durationMillis = 450),
+        label = label,
+    ).value
+
+    return target.copy(
+        primary = animate(target.primary, "primary"),
+        onPrimary = animate(target.onPrimary, "onPrimary"),
+        primaryContainer = animate(target.primaryContainer, "primaryContainer"),
+        onPrimaryContainer = animate(target.onPrimaryContainer, "onPrimaryContainer"),
+        secondary = animate(target.secondary, "secondary"),
+        secondaryContainer = animate(target.secondaryContainer, "secondaryContainer"),
+        onSecondaryContainer = animate(target.onSecondaryContainer, "onSecondaryContainer"),
+        tertiary = animate(target.tertiary, "tertiary"),
+        onTertiary = animate(target.onTertiary, "onTertiary"),
+        tertiaryContainer = animate(target.tertiaryContainer, "tertiaryContainer"),
+        background = animate(target.background, "background"),
+        onBackground = animate(target.onBackground, "onBackground"),
+        surface = animate(target.surface, "surface"),
+        onSurface = animate(target.onSurface, "onSurface"),
+        surfaceContainer = animate(target.surfaceContainer, "surfaceContainer"),
+        surfaceContainerLow = animate(target.surfaceContainerLow, "surfaceContainerLow"),
+        surfaceContainerHigh = animate(target.surfaceContainerHigh, "surfaceContainerHigh"),
+        surfaceContainerHighest = animate(target.surfaceContainerHighest, "surfaceContainerHighest"),
+        onSurfaceVariant = animate(target.onSurfaceVariant, "onSurfaceVariant"),
+        outline = animate(target.outline, "outline"),
+        outlineVariant = animate(target.outlineVariant, "outlineVariant"),
+        error = animate(target.error, "error"),
     )
 }

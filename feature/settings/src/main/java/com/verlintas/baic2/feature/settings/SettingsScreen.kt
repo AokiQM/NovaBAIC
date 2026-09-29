@@ -82,7 +82,6 @@ private object SettingsRoute {
     const val STORAGE = "settings_storage"
     const val ABOUT = "settings_about"
     const val LICENSES = "settings_licenses"
-    const val DEVELOPER = "settings_developer"
 
     fun agentWizard(agentId: Long? = null) = "settings_agent_wizard?agentId=${agentId ?: -1L}"
 }
@@ -125,7 +124,6 @@ fun SettingsScreen(
                 onOpenLanguage = { navController.navigate(SettingsRoute.LANGUAGE) },
                 onOpenStorage = { navController.navigate(SettingsRoute.STORAGE) },
                 onOpenAbout = { navController.navigate(SettingsRoute.ABOUT) },
-                onOpenDeveloper = { navController.navigate(SettingsRoute.DEVELOPER) },
             )
         }
         composable(SettingsRoute.AGENTS) {
@@ -167,12 +165,6 @@ fun SettingsScreen(
         composable(SettingsRoute.LICENSES) {
             LicensesPage(onBack = { navController.popBackStack() })
         }
-        composable(SettingsRoute.DEVELOPER) {
-            DeveloperPage(
-                buildInfo = buildInfo,
-                onBack = { navController.popBackStack() },
-            )
-        }
     }
 }
 
@@ -185,7 +177,6 @@ private fun SettingsRoot(
     onOpenLanguage: () -> Unit,
     onOpenStorage: () -> Unit,
     onOpenAbout: () -> Unit,
-    onOpenDeveloper: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -289,12 +280,6 @@ private fun SettingsRoot(
             )
         }
         item(key = "developer") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_title),
-                icon = Icons.Outlined.Build,
-                showChevron = true,
-                onClick = onOpenDeveloper,
-            )
         }
     }
 }

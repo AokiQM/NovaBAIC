@@ -34,6 +34,16 @@ import androidx.compose.ui.unit.dp
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.R
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.scale
 
 /** Compact monospace badge for the current autonomy mode. */
 @Composable
@@ -67,17 +77,30 @@ fun Baic2ModeChip(
         AppMode.ACT -> stringResource(R.string.mode_act)
         AppMode.MAX -> stringResource(R.string.mode_max)
     }
+    val animatedContainer by animateColorAsState(container, tween(220), label = "mode-container")
+    val animatedContent by animateColorAsState(content, tween(220), label = "mode-content")
+    // Codex-style pop whenever the mode actually changes (skipped on first show).
+    val pop = remember { Animatable(1f) }
+    var previousMode by remember { mutableStateOf(mode) }
+    LaunchedEffect(mode) {
+        if (previousMode != mode) {
+            previousMode = mode
+            pop.snapTo(1.22f)
+            pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 700f))
+        }
+    }
 
     Box(
         modifier = modifier
+            .scale(pop.value)
             .clip(RoundedCornerShape(6.dp))
-            .background(container)
+            .background(animatedContainer)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(
             text = label,
             style = Baic2Mono.label,
-            color = content,
+            color = animatedContent,
         )
     }
 }

@@ -120,6 +120,8 @@ class AgentLoop(
             val text = StringBuilder()
             val thinking = StringBuilder()
             var thinkingSignature: String? = null
+            var thinkingStartedAt: Long? = null
+            var thinkingEndedAt: Long? = null
             var toolCalls = emptyList<ToolCall>()
             var roundUsageInput: Long? = null
             var roundUsageOutput: Long? = null
@@ -150,6 +152,8 @@ class AgentLoop(
                             emit(AgentEvent.TextDelta(event.text))
                         }
                         is StreamEvent.ThinkingDelta -> {
+                            if (thinkingStartedAt == null) thinkingStartedAt = clock()
+                            thinkingEndedAt = clock()
                             thinking.append(event.text)
                             emit(AgentEvent.ThinkingDelta(event.text))
                         }
@@ -185,6 +189,9 @@ class AgentLoop(
                 content = text.toString(),
                 thinking = thinking.toString().ifBlank { null },
                 thinkingSignature = thinkingSignature,
+                thinkingMs = thinkingStartedAt?.let { start ->
+                    thinkingEndedAt?.minus(start)?.takeIf { it in 1..3_600_000 }
+                },
                 toolCalls = toolCalls,
                 model = config.model,
                 usageInput = roundUsageInput,
@@ -371,11 +378,15 @@ fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): Str
                 "so explain what you are about to do and why. Prefer the smallest safe step."
 
         AppMode.MAX ->
-            "You are in autonomous mode. Maintain a task plan with the plan_update tool: create it " +
-                "before the first action, keep exactly one step marked DOING, verify each step with an " +
-                "observation tool (screen_ocr / ui_control / device_info) and update its status immediately, " +
-                "then mark it DONE or FAILED. Execute tools without asking, never repeat a failed call " +
-                "with identical arguments, and summarize the outcome at the end."
+            "You are in autonomous mode and are expected to finish the whole task. Protocol: " +
+                "(1) create a short plan with plan_update before the first action, exactly one step DOING; " +
+                "(2) observe before acting on the UI (screen_ocr / ui_control find) and re-observe after " +
+                "each action to confirm it worked; " +
+                "(3) update the plan immediately: DONE, FAILED, or adjust the plan when reality differs; " +
+                "(4) never repeat a failed call with identical arguments - change approach, arguments or tool; " +
+                "(5) if a step cannot be completed, mark it FAILED with the reason and continue with the rest; " +
+                "(6) before finishing, re-read the plan and verify every step, then answer with: what was " +
+                "completed, what changed on the device, and anything left undone or risky."
     }
     val withPlan = if (!planContext.isNullOrBlank() && mode == AppMode.MAX) {
         base + "\n\nCurrent plan (keep it updated via plan_update):\n" + planContext

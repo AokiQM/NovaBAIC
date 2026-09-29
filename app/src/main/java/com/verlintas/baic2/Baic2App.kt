@@ -112,6 +112,9 @@ import com.verlintas.baic2.feature.library.LibraryScreen
 import com.verlintas.baic2.feature.settings.BuildInfo
 import com.verlintas.baic2.feature.settings.SettingsScreen
 import com.verlintas.baic2.feature.tasks.TasksScreen
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 
 /**
  * Top-level information architecture: Chats / Tasks / Library / Settings.
@@ -253,6 +256,18 @@ private fun ChatsZone(
     NavHost(
         navController = navController,
         startDestination = ROUTE_CONVERSATIONS,
+        enterTransition = {
+            slideInHorizontally(animationSpec = spring(stiffness = 380f)) { it / 5 } +
+                fadeIn(tween(220))
+        },
+        exitTransition = { fadeOut(tween(120)) },
+        popEnterTransition = {
+            slideInHorizontally(animationSpec = spring(stiffness = 380f)) { -it / 5 } +
+                fadeIn(tween(220))
+        },
+        popExitTransition = {
+            slideOutHorizontally(tween(200)) { it / 5 } + fadeOut(tween(120))
+        },
     ) {
         composable(ROUTE_CONVERSATIONS) {
             ConversationsScreen(

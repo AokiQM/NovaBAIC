@@ -526,8 +526,20 @@ fun AboutPage(
     val repoUrl = "https://github.com/Verlintas/NovaBAIC"
     val tagline = stringResource(R.string.settings_about_tagline)
     val shareChooser = stringResource(R.string.settings_about_share_chooser)
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.updateState().collectAsStateWithLifecycle()
+    val runtimeLabel = "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
+    val deviceLabel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+    val abiLabel = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(1_500)
+            copied = false
+        }
+    }
 
     LaunchedEffect(Unit) { viewModel.checkForUpdates(buildInfo.versionName) }
 
@@ -681,6 +693,77 @@ fun AboutPage(
                 },
             )
         }
+        item(key = "developer") { SettingsSectionLabel(stringResource(R.string.settings_developer_title)) }
+        item(key = "dev-version") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_version),
+                summary = "${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
+            )
+        }
+        item(key = "dev-app-id") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_app_id),
+                summary = buildInfo.applicationId,
+            )
+        }
+        item(key = "dev-runtime") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_runtime),
+                summary = "$runtimeLabel · $deviceLabel · $abiLabel",
+            )
+        }
+        item(key = "dev-diagnostics") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_copy_diagnostics),
+                summary = stringResource(R.string.settings_developer_copy_diagnostics_desc),
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            if (copied) R.string.settings_developer_copied else R.string.settings_developer_copy,
+                        ),
+                        style = Baic2Mono.label,
+                        color = if (copied) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                },
+                onClick = {
+                    clipboard.setText(
+                        AnnotatedString(
+                            buildString {
+                                append("BetterAIChat2 diagnostics").append('\n')
+                                append("version: ").append(buildInfo.versionName)
+                                    .append(" (").append(buildInfo.versionCode).append(')')
+                                    .append(' ').append(buildInfo.buildType).append('\n')
+                                append("package: ").append(buildInfo.applicationId).append('\n')
+                                append("android: ").append(runtimeLabel).append('\n')
+                                append("device: ").append(deviceLabel).append('\n')
+                                append("abi: ").append(abiLabel).append('\n')
+                            },
+                        ),
+                    )
+                    copied = true
+                },
+            )
+        }
+        item(key = "dev-changelog") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_changelog),
+                summary = "github.com/Verlintas/NovaBAIC/releases",
+                showChevron = true,
+                onClick = { openUrl(context, "$repoUrl/releases") },
+            )
+        }
+        item(key = "dev-author") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_author),
+                summary = "Verlintas · github.com/Verlintas · ulv777777@gmail.com",
+                showChevron = true,
+                onClick = { openUrl(context, "https://github.com/Verlintas") },
+            )
+        }
         item(key = "legal") { SettingsSectionLabel(stringResource(R.string.settings_about_legal)) }
         item(key = "license") {
             SettingsRow(
@@ -749,129 +832,6 @@ fun LicensesPage(onBack: () -> Unit) {
         items(libraries.size, key = { libraries[it].first }) { index ->
             val (name, license) = libraries[index]
             SettingsRow(title = name, summary = license)
-        }
-    }
-}
-
-// ---------------------------------------------------------------- developer
-
-@Composable
-fun DeveloperPage(
-    buildInfo: BuildInfo,
-    onBack: () -> Unit,
-) {
-    val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            kotlinx.coroutines.delay(1_500)
-            copied = false
-        }
-    }
-
-    val runtime = "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
-    val device = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
-
-    SettingsPage(
-        title = stringResource(R.string.settings_developer_title),
-        onBack = onBack,
-    ) {
-        item(key = "build") { SettingsSectionLabel(stringResource(R.string.settings_developer_build)) }
-        item(key = "version") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_version),
-                summary = "${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
-            )
-        }
-        item(key = "app-id") {
-            SettingsRow(title = stringResource(R.string.settings_developer_app_id), summary = buildInfo.applicationId)
-        }
-
-        item(key = "runtime") { SettingsSectionLabel(stringResource(R.string.settings_developer_runtime)) }
-        item(key = "android") {
-            SettingsRow(title = stringResource(R.string.settings_developer_android), summary = runtime)
-        }
-        item(key = "device") {
-            SettingsRow(title = stringResource(R.string.settings_developer_device), summary = device)
-        }
-        item(key = "abi") {
-            SettingsRow(title = stringResource(R.string.settings_developer_abi), summary = abi)
-        }
-        item(key = "diagnostics") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_copy_diagnostics),
-                icon = Icons.Outlined.Share,
-                summary = stringResource(R.string.settings_developer_copy_diagnostics_desc),
-                trailing = {
-                    Text(
-                        text = stringResource(
-                            if (copied) R.string.settings_developer_copied else R.string.settings_developer_copy,
-                        ),
-                        style = Baic2Mono.label,
-                        color = if (copied) {
-                            MaterialTheme.colorScheme.tertiary
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
-                },
-                onClick = {
-                    clipboard.setText(
-                        AnnotatedString(
-                            buildString {
-                                append("BetterAIChat2 diagnostics").append('\n')
-                                append("version: ").append(buildInfo.versionName)
-                                    .append(" (").append(buildInfo.versionCode).append(')')
-                                    .append(' ').append(buildInfo.buildType).append('\n')
-                                append("package: ").append(buildInfo.applicationId).append('\n')
-                                append("android: ").append(runtime).append('\n')
-                                append("device: ").append(device).append('\n')
-                                append("abi: ").append(abi).append('\n')
-                            },
-                        ),
-                    )
-                    copied = true
-                },
-            )
-        }
-
-        item(key = "author") { SettingsSectionLabel(stringResource(R.string.settings_developer_author)) }
-        item(key = "github") {
-            SettingsRow(
-                title = "Verlintas",
-                summary = "github.com/Verlintas",
-                showChevron = true,
-                onClick = { openUrl(context, "https://github.com/Verlintas") },
-            )
-        }
-        item(key = "mail") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_email),
-                summary = "ulv777777@gmail.com",
-                showChevron = true,
-                onClick = { openUrl(context, "mailto:ulv777777@gmail.com") },
-            )
-        }
-        item(key = "changelog") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_changelog),
-                summary = "github.com/Verlintas/NovaBAIC/releases",
-                showChevron = true,
-                onClick = { openUrl(context, "https://github.com/Verlintas/NovaBAIC/releases") },
-            )
-        }
-        item(key = "note") {
-            Text(
-                text = stringResource(R.string.settings_developer_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(
-                    start = Baic2Spacing.xs,
-                    top = Baic2Spacing.md,
-                ),
-            )
         }
     }
 }

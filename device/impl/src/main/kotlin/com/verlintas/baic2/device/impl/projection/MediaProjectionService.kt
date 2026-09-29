@@ -184,25 +184,42 @@ object ProjectionHolder {
         null,
     )
 
+    @Volatile
+    private var lastFrame: ByteArray? = null
+
     /**
-     * Grabs the latest frame. A static screen may not push new frames, so one
-     * retry recreates the virtual display to force one.
+     * Grabs the latest frame. Virtual displays only push frames when the
+     * screen changes, and Android 14+ forbids recreating the virtual display
+     * from the same projection token — so a static screen is served from the
+     * last captured frame instead of tearing the pipeline down (which used to
+     * kill the whole session after a single capture).
      */
     suspend fun capture(): ByteArray? = withContext(Dispatchers.Default) {
         val imageReader = reader ?: return@withContext null
+        if (display == null) return@withContext null
+
         var image = imageReader.acquireLatestImage()
-        if (image == null) {
-            delay(220)
+        var attempts = 0
+        while (image == null && attempts < 6) {
+            delay(200)
             image = imageReader.acquireLatestImage()
+            attempts++
+        }
+        if (image == null && lastFrame == null) {
+            // Fresh session with no frame yet: nudge the compositor once
+            // (resize is legal on the same VirtualDisplay, unlike recreating).
+            runCatching { display?.resize(width, height, densityDpi) }
+            attempts = 0
+            while (image == null && attempts < 5) {
+                delay(200)
+                image = imageReader.acquireLatestImage()
+                attempts++
+            }
         }
         if (image == null) {
-            val active = projection ?: return@withContext null
-            display?.release()
-            display = createDisplay(active)
-            delay(320)
-            image = imageReader.acquireLatestImage()
+            // Static screen (or screen off): reuse the newest known frame.
+            return@withContext lastFrame
         }
-        image ?: return@withContext null
 
         image.use { frame ->
             val plane = frame.planes[0]
@@ -222,7 +239,9 @@ object ProjectionHolder {
             cropped.compress(Bitmap.CompressFormat.PNG, 100, output)
             if (cropped !== padded) cropped.recycle()
             padded.recycle()
-            output.toByteArray()
+            val bytes = output.toByteArray()
+            lastFrame = bytes
+            bytes
         }
     }
 
@@ -299,6 +318,7 @@ object ProjectionHolder {
         display = null
         reader = null
         projection = null
+        lastFrame = null
         _ready.value = false
     }
 }

@@ -373,6 +373,97 @@ fun ChatScreen(
             onModeClick = { modePickerOpen = true },
             onStop = viewModel::stop,
             onMenuClick = { menuOpen = true },
+            menuOpen = menuOpen,
+            onMenuDismiss = { menuOpen = false },
+            menuContent = {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_search)) },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    searchOpen = true
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_starred)) },
+                onClick = {
+                    menuOpen = false
+                    onOpenStarred()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_export)) },
+                onClick = {
+                    menuOpen = false
+                    val text = viewModel.buildExportText(exportLabels)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/markdown"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, exportChooserTitle))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_save_skill)) },
+                onClick = {
+                    menuOpen = false
+                    skillDialogOpen = true
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
+                onClick = {
+                    menuOpen = false
+                    if (screenReady) {
+                        viewModel.analyzeScreen(screenPrompt)
+                    } else {
+                        runCatching { screenCaptureLauncher.launch(viewModel.createScreenCaptureIntent()) }
+                    }
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_compress)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.compressContext(compressTooShortHint)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_distill)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.distillMemory()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_hands_free)) },
+                trailingIcon = {
+                    if (handsFree) {
+                        Icon(Icons.Outlined.Check, contentDescription = null)
+                    }
+                },
+                onClick = {
+                    menuOpen = false
+                    viewModel.setHandsFree(!handsFree)
+                },
+            )
+            if (state.compressionSnapshot != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_restore_compression)) },
+                    onClick = {
+                        menuOpen = false
+                        viewModel.restoreCompression()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_discard_compression)) },
+                    onClick = {
+                        menuOpen = false
+                        viewModel.discardCompression()
+                    },
+                )
+            }
+            },
             onSearchQueryChange = { searchQuery = it },
             onSearchClose = {
                 searchOpen = false
@@ -520,109 +611,7 @@ fun ChatScreen(
         )
     }
 
-    // Anchored explicitly: as a bare sibling the host layout placed the
-    // dropdown in the bottom-left corner instead of under the ⋮ button.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars),
-    ) {
-        DropdownMenu(
-            expanded = menuOpen,
-            onDismissRequest = { menuOpen = false },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = Baic2Spacing.xs),
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_search)) },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                onClick = {
-                    menuOpen = false
-                    searchOpen = true
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_starred)) },
-                onClick = {
-                    menuOpen = false
-                    onOpenStarred()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_export)) },
-                onClick = {
-                    menuOpen = false
-                    val text = viewModel.buildExportText(exportLabels)
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/markdown"
-                        putExtra(Intent.EXTRA_TEXT, text)
-                    }
-                    context.startActivity(Intent.createChooser(intent, exportChooserTitle))
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_save_skill)) },
-                onClick = {
-                    menuOpen = false
-                    skillDialogOpen = true
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
-                onClick = {
-                    menuOpen = false
-                    if (screenReady) {
-                        viewModel.analyzeScreen(screenPrompt)
-                    } else {
-                        runCatching { screenCaptureLauncher.launch(viewModel.createScreenCaptureIntent()) }
-                    }
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_compress)) },
-                onClick = {
-                    menuOpen = false
-                    viewModel.compressContext(compressTooShortHint)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_distill)) },
-                onClick = {
-                    menuOpen = false
-                    viewModel.distillMemory()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_hands_free)) },
-                trailingIcon = {
-                    if (handsFree) {
-                        Icon(Icons.Outlined.Check, contentDescription = null)
-                    }
-                },
-                onClick = {
-                    menuOpen = false
-                    viewModel.setHandsFree(!handsFree)
-                },
-            )
-            if (state.compressionSnapshot != null) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_restore_compression)) },
-                    onClick = {
-                        menuOpen = false
-                        viewModel.restoreCompression()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_discard_compression)) },
-                    onClick = {
-                        menuOpen = false
-                        viewModel.discardCompression()
-                    },
-                )
-            }
-        }
-    }
+
 
     if (modePickerOpen) {
         ModePickerSheet(
@@ -772,6 +761,9 @@ private fun ChatTopBar(
     onModeClick: () -> Unit,
     onStop: () -> Unit,
     onMenuClick: () -> Unit,
+    menuOpen: Boolean,
+    onMenuDismiss: () -> Unit,
+    menuContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearchClose: () -> Unit,
     onSearchPrev: () -> Unit,
@@ -894,12 +886,22 @@ private fun ChatTopBar(
                         )
                     }
                 }
-                IconButton(onClick = onMenuClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = stringResource(R.string.chat_menu),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Box {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = stringResource(R.string.chat_menu),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    // Anchored to this Box, so the popup always unfolds right
+                    // under the ⋮ button no matter the host layout.
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = onMenuDismiss,
+                    ) {
+                        menuContent()
+                    }
                 }
             }
         }
@@ -934,14 +936,26 @@ private fun WelcomePanel(onSuggestion: (String) -> Unit) {
         ).forEach { res ->
             val text = stringResource(res)
             val shape = RoundedCornerShape(14.dp)
+            val interaction = remember { MutableInteractionSource() }
+            val pressed by interaction.collectIsPressedAsState()
+            val pressScale by animateFloatAsState(
+                targetValue = if (pressed) 0.97f else 1f,
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = 900f),
+                label = "suggestion-press",
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = Baic2Spacing.sm)
+                    .scale(pressScale)
                     .clip(shape)
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                    .clickable { onSuggestion(text) }
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = { onSuggestion(text) },
+                    )
                     .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

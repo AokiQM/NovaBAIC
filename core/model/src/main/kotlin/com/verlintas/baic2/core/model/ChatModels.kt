@@ -40,6 +40,8 @@ data class ChatMessage(
     val thinking: String? = null,
     /** Signature for [thinking] when the provider requires it back (Anthropic). */
     val thinkingSignature: String? = null,
+    /** Wall-clock milliseconds spent thinking (for "Thought for Ns" display). */
+    val thinkingMs: Long? = null,
     val toolCalls: List<ToolCall> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
     val toolCallId: String? = null,
