@@ -30,6 +30,7 @@ import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
+import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -38,12 +39,14 @@ import android.view.WindowManager
 import androidx.core.app.ServiceCompat
 import com.verlintas.baic2.device.impl.R
 import java.io.ByteArrayOutputStream
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 /**
  * Foreground service that owns the MediaProjection session (Android 14+
@@ -135,6 +138,10 @@ object ProjectionHolder {
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    private const val RECORD_MAX_DIMENSION = 1_280
+    private const val RECORD_FRAME_RATE = 30
+    private const val RECORD_BITRATE = 4_000_000
+
     fun start(context: Context, resultCode: Int, data: Intent) {
         stop()
         appContext = context.applicationContext
@@ -216,6 +223,72 @@ object ProjectionHolder {
             if (cropped !== padded) cropped.recycle()
             padded.recycle()
             output.toByteArray()
+        }
+    }
+
+    sealed interface RecordOutcome {
+        data class Recorded(
+            val filePath: String,
+            val durationMs: Long,
+            val sizeBytes: Long,
+        ) : RecordOutcome
+
+        data class Unavailable(val reason: String) : RecordOutcome
+        data class Failed(val reason: String) : RecordOutcome
+    }
+
+    /**
+     * Records video by temporarily retargeting the persistent virtual
+     * display's surface to a MediaRecorder (one VirtualDisplay per token on
+     * Android 14+, so a second display is not an option). Screenshots are
+     * unavailable while a recording is running; the reader surface is always
+     * restored afterwards.
+     */
+    suspend fun record(durationMs: Long): RecordOutcome = withContext(Dispatchers.IO) {
+        val active = projection
+        val activeDisplay = display
+        val readerSurface = reader?.surface
+        val context = appContext
+        if (active == null || activeDisplay == null || readerSurface == null || context == null) {
+            return@withContext RecordOutcome.Unavailable(
+                "Screen capture is not authorized. Take a screenshot (or grant screen analysis) first.",
+            )
+        }
+
+        val directory = File(context.filesDir, "recordings").apply { mkdirs() }
+        val file = File(directory, "rec-${System.currentTimeMillis()}.mp4")
+        val recorder = MediaRecorder()
+        try {
+            val scale = (RECORD_MAX_DIMENSION.toFloat() / max(width, height).coerceAtLeast(1))
+                .coerceAtMost(1f)
+            val videoWidth = ((width * scale).toInt()).coerceAtLeast(2) / 2 * 2
+            val videoHeight = ((height * scale).toInt()).coerceAtLeast(2) / 2 * 2
+            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            recorder.setVideoSize(videoWidth, videoHeight)
+            recorder.setVideoFrameRate(RECORD_FRAME_RATE)
+            recorder.setVideoEncodingBitRate(RECORD_BITRATE)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            activeDisplay.setSurface(recorder.surface)
+            recorder.start()
+            delay(durationMs)
+            recorder.stop()
+            RecordOutcome.Recorded(
+                filePath = file.absolutePath,
+                durationMs = durationMs,
+                sizeBytes = file.length(),
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            runCatching { file.delete() }
+            throw e
+        } catch (e: Exception) {
+            runCatching { file.delete() }
+            RecordOutcome.Failed(e.message ?: e.javaClass.simpleName)
+        } finally {
+            runCatching { recorder.release() }
+            runCatching { activeDisplay.setSurface(readerSurface) }
         }
     }
 

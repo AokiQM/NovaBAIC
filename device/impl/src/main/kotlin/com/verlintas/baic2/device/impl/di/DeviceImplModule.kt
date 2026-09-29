@@ -22,15 +22,23 @@ package com.verlintas.baic2.device.impl.di
 import com.verlintas.baic2.device.api.AccessibilityBridge
 import com.verlintas.baic2.device.api.ReminderScheduler
 import com.verlintas.baic2.device.api.OcrProvider
+import com.verlintas.baic2.device.api.PdfTextExtractor
 import com.verlintas.baic2.device.api.RunNotifier
+import com.verlintas.baic2.device.api.ScreenRecorderBridge
 import com.verlintas.baic2.device.api.ScreenshotProvider
+import com.verlintas.baic2.device.api.ShellBridge
+import com.verlintas.baic2.device.api.SpeechInputBridge
 import com.verlintas.baic2.device.api.SpeechOutput
+import com.verlintas.baic2.device.impl.AndroidPdfTextExtractor
 import com.verlintas.baic2.device.impl.AndroidSpeechOutput
 import com.verlintas.baic2.device.impl.a11y.AndroidAccessibilityBridge
 import com.verlintas.baic2.device.impl.ocr.MlKitOcrProvider
 import com.verlintas.baic2.device.impl.projection.AndroidScreenshotProvider
+import com.verlintas.baic2.device.impl.recorder.AndroidScreenRecorder
+import com.verlintas.baic2.device.impl.speech.AndroidSpeechInput
 import com.verlintas.baic2.device.impl.reminder.AndroidReminderScheduler
 import com.verlintas.baic2.device.impl.run.AndroidRunNotifier
+import com.verlintas.baic2.device.impl.shell.ShizukuShellBridge
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -52,6 +60,22 @@ abstract class DeviceImplModule {
     @Binds
     @Singleton
     abstract fun bindOcrProvider(impl: MlKitOcrProvider): OcrProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindPdfTextExtractor(impl: AndroidPdfTextExtractor): PdfTextExtractor
+
+    @Binds
+    @Singleton
+    abstract fun bindShellBridge(impl: ShizukuShellBridge): ShellBridge
+
+    @Binds
+    @Singleton
+    abstract fun bindScreenRecorder(impl: AndroidScreenRecorder): ScreenRecorderBridge
+
+    @Binds
+    @Singleton
+    abstract fun bindSpeechInput(impl: AndroidSpeechInput): SpeechInputBridge
 
     @Binds
     @Singleton

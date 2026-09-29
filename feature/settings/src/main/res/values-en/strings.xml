@@ -119,4 +119,8 @@
 
     <string name="settings_perm_usage_stats_note">Some systems hide usage access under "More permissions"</string>
     <string name="settings_about_copyright">© 2026 Verlintas · BetterAIChat2 is the successor rewrite of BetterAIChat</string>
+    <string name="settings_perm_shizuku_title">Device shell (Shizuku)</string>
+    <string name="settings_perm_shizuku_ready">Ready — the AI can run ADB-level commands</string>
+    <string name="settings_perm_shizuku_denied">Installed but not granted, tap to request</string>
+    <string name="settings_perm_shizuku_unavailable">Not installed or service not running</string>
 </resources>

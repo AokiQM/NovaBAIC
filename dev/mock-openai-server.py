@@ -55,6 +55,10 @@ TOOL_ARGS = {
     "list_files": {"scope": "downloads"},
     "read_text_file": {"file_name": "baic2-test.md"},
     "get_foreground_app": {},
+    "transcribe_audio": {"seconds": 5},
+    "screen_record": {"seconds": 5},
+    "run_shell": {"command": "id"},
+    "manage_app": {"action": "list", "keyword": "baic2"},
     "plan_update": {
         "steps": [
             {"title": "打开设置页", "status": "doing"},
@@ -91,16 +95,25 @@ class Handler(BaseHTTPRequestHandler):
 
         length = int(self.headers.get("Content-Length", "0"))
         payload = json.loads(self.rfile.read(length) or b"{}")
+        messages = payload.get("messages", [])
         user_text = ""
         system_parts = []
-        tool_results = []
-        for message in payload.get("messages", []):
+        last_user_index = max(
+            (index for index, message in enumerate(messages) if message.get("role") == "user"),
+            default=-1,
+        )
+        # Only results produced after the last user turn count; older tool
+        # output must not satisfy a new tooltest trigger.
+        tool_results = [
+            message.get("content") or ""
+            for message in messages[last_user_index + 1:]
+            if message.get("role") == "tool"
+        ]
+        for message in messages:
             if message.get("role") == "system":
                 system_parts.append(message.get("content") or "")
             if message.get("role") == "user" and isinstance(message.get("content"), str):
                 user_text = message.get("content") or ""
-            if message.get("role") == "tool":
-                tool_results.append(message.get("content") or "")
         system_text = system_parts[0] if system_parts else ""
 
         sys.stderr.write(f"[mock] system={system_text[:60]!r} count={len(system_parts)}\n")

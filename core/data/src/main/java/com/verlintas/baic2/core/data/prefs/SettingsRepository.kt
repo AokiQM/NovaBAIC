@@ -27,6 +27,7 @@ import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.ThemeMode
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -59,8 +60,20 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /** Hands-free loop: listen and auto-send after every assistant reply. */
+    val handsFreeVoice: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[HANDS_FREE_VOICE] ?: false
+    }
+
+    suspend fun setHandsFreeVoice(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[HANDS_FREE_VOICE] = enabled
+        }
+    }
+
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
+        val HANDS_FREE_VOICE = booleanPreferencesKey("hands_free_voice")
     }
 }

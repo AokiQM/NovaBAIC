@@ -111,6 +111,45 @@ class AttachmentProcessor @Inject constructor(
         }
     }
 
+    /** Reads a picked document (bytes + mime + display name) for extraction. */
+    suspend fun readDocument(uri: Uri): Result<UriDocument> = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
+                val buffer = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(16 * 1024)
+                var total = 0
+                while (total <= MAX_DOCUMENT_BYTES) {
+                    val read = stream.read(chunk)
+                    if (read == -1) break
+                    total += read
+                    buffer.write(chunk, 0, read)
+                }
+                buffer.toByteArray()
+            } ?: error("unreadable_file")
+            require(bytes.size <= MAX_DOCUMENT_BYTES) { "file_too_large" }
+            UriDocument(
+                bytes = bytes,
+                mimeType = context.contentResolver.getType(uri).orEmpty(),
+                fileName = displayName(uri) ?: "attachment",
+            )
+        }
+    }
+
+    /** Wraps extracted document text as a text attachment. */
+    fun importExtractedText(
+        mimeType: String,
+        fileName: String,
+        text: String,
+        sizeBytes: Long,
+    ): Attachment = Attachment(
+        id = UUID.randomUUID().toString(),
+        kind = AttachmentKind.TEXT,
+        mimeType = mimeType.ifBlank { "text/plain" },
+        fileName = fileName,
+        text = text.take(MAX_DOCUMENT_CHARS),
+        sizeBytes = sizeBytes,
+    )
+
     /** Persists raw image bytes (e.g. a screenshot) as a PNG attachment. */
     suspend fun importImageBytes(
         bytes: ByteArray,
@@ -176,11 +215,19 @@ class AttachmentProcessor @Inject constructor(
             }
     }.getOrNull()
 
+    data class UriDocument(
+        val bytes: ByteArray,
+        val mimeType: String,
+        val fileName: String,
+    )
+
     private companion object {
         const val ATTACHMENT_DIR = "attachments"
         const val MAX_DIMENSION = 1600
         const val JPEG_QUALITY = 82
         const val MAX_TEXT_BYTES = 1024 * 1024
+        const val MAX_DOCUMENT_BYTES = 12 * 1024 * 1024
+        const val MAX_DOCUMENT_CHARS = 60_000
         val TEXT_LIKE_MIMES = setOf(
             "application/json",
             "application/xml",

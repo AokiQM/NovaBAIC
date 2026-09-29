@@ -109,6 +109,28 @@ object ToolsModule {
 
     @Provides
     @IntoSet
+    fun screenRecordTool(
+        recorder: com.verlintas.baic2.device.api.ScreenRecorderBridge,
+    ): DeviceTool = com.verlintas.baic2.tools.ScreenRecordTool(recorder)
+
+    @Provides
+    @IntoSet
+    fun transcribeAudioTool(
+        speech: com.verlintas.baic2.device.api.SpeechInputBridge,
+    ): DeviceTool = com.verlintas.baic2.tools.TranscribeAudioTool(speech)
+
+    @Provides
+    @IntoSet
+    fun runShellTool(shell: com.verlintas.baic2.device.api.ShellBridge): DeviceTool =
+        com.verlintas.baic2.tools.RunShellTool(shell)
+
+    @Provides
+    @IntoSet
+    fun manageAppTool(shell: com.verlintas.baic2.device.api.ShellBridge): DeviceTool =
+        com.verlintas.baic2.tools.ManageAppTool(shell)
+
+    @Provides
+    @IntoSet
     fun readNotificationsTool(): DeviceTool = com.verlintas.baic2.tools.personal.ReadNotificationsTool()
 
     @Provides

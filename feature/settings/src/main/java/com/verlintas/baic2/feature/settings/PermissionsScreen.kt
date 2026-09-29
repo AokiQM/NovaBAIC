@@ -44,6 +44,8 @@ import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.device.api.AccessibilityBridge
 import com.verlintas.baic2.device.api.ScreenshotProvider
+import com.verlintas.baic2.device.api.ShellBridge
+import com.verlintas.baic2.device.api.ShellState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -55,6 +57,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
 data class PermissionsState(
+    val shizuku: ShellState = ShellState.Unavailable,
     val accessibility: Boolean = false,
     val screenCaptureReady: Boolean = false,
     val notificationListener: Boolean = false,
@@ -72,6 +75,7 @@ class PermissionsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     accessibilityBridge: AccessibilityBridge,
     screenshotProvider: ScreenshotProvider,
+    private val shellBridge: ShellBridge,
 ) : ViewModel() {
 
     private val refreshTick = MutableStateFlow(0)
@@ -79,9 +83,11 @@ class PermissionsViewModel @Inject constructor(
     val state: StateFlow<PermissionsState> = combine(
         accessibilityBridge.connected,
         screenshotProvider.ready,
+        shellBridge.state,
         refreshTick,
-    ) { accessibility, capture, _ ->
+    ) { accessibility, capture, shizuku, _ ->
         PermissionsState(
+            shizuku = shizuku,
             accessibility = accessibility,
             screenCaptureReady = capture,
             notificationListener = notificationListenerEnabled(),
@@ -103,6 +109,10 @@ class PermissionsViewModel @Inject constructor(
 
     fun refresh() {
         refreshTick.update { it + 1 }
+    }
+
+    fun requestShizukuPermission() {
+        shellBridge.requestPermission()
     }
 
     private fun runtimeGranted(permission: String): Boolean =
@@ -166,6 +176,36 @@ fun PermissionsPage(
                 description = stringResource(R.string.settings_a11y_description),
                 granted = state.accessibility,
                 onGrant = { openSettings(context, Settings.ACTION_ACCESSIBILITY_SETTINGS) },
+            )
+        }
+        item(key = "shizuku") {
+            SettingsRow(
+                title = stringResource(R.string.settings_perm_shizuku_title),
+                summary = when (state.shizuku) {
+                    ShellState.Ready -> stringResource(R.string.settings_perm_shizuku_ready)
+                    ShellState.PermissionRequired -> stringResource(R.string.settings_perm_shizuku_denied)
+                    ShellState.Unavailable -> stringResource(R.string.settings_perm_shizuku_unavailable)
+                },
+                onClick = if (state.shizuku == ShellState.PermissionRequired) {
+                    { viewModel.requestShizukuPermission() }
+                } else {
+                    null
+                },
+                trailing = {
+                    Text(
+                        text = if (state.shizuku == ShellState.Ready) {
+                            stringResource(R.string.settings_perm_granted)
+                        } else {
+                            stringResource(R.string.settings_perm_grant)
+                        },
+                        style = Baic2Mono.label,
+                        color = if (state.shizuku == ShellState.Ready) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                },
             )
         }
         item(key = "capture") {

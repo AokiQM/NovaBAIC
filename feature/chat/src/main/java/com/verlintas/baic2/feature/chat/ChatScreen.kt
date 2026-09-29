@@ -72,6 +72,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
@@ -188,21 +189,33 @@ fun ChatScreen(
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        uri?.let { viewModel.importTextFile(it) }
+        uri?.let { viewModel.importFile(it) }
     }
 
     var voiceHint by remember { mutableStateOf<String?>(null) }
     val deniedHint = stringResource(R.string.chat_voice_denied)
     val unavailableHint = stringResource(R.string.chat_voice_unavailable)
     val voicePrompt = stringResource(R.string.chat_voice_input)
+    val handsFree by viewModel.handsFree.collectAsStateWithLifecycle()
+    var handsFreeListening by remember { mutableStateOf(false) }
+    // Layout-driven bottom follow: react to layout growth instead of polling.
+    var wasAtBottom by remember { mutableStateOf(true) }
+    var forceFollow by remember { mutableStateOf(false) }
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val recognized = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-            if (!recognized.isNullOrBlank()) input = recognized
+        handsFreeListening = false
+        val recognized = if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        } else {
+            null
+        }
+        if (recognized.isNullOrBlank()) return@rememberLauncherForActivityResult
+        if (handsFree) {
+            forceFollow = true
+            viewModel.send(recognized)
+        } else {
+            input = recognized
         }
     }
 
@@ -258,6 +271,25 @@ fun ChatScreen(
         }
     }
 
+    // Hands-free loop: after every completed assistant turn, reopen the mic
+    // and auto-send what was said. Cancels itself while a run is active or a
+    // recognizer dialog is already open.
+    LaunchedEffect(
+        handsFree,
+        state.isRunning,
+        state.messages.lastOrNull()?.id,
+        state.messages.lastOrNull()?.content,
+    ) {
+        if (!handsFree || state.isRunning || handsFreeListening) return@LaunchedEffect
+        val last = state.messages.lastOrNull() ?: return@LaunchedEffect
+        if (last.role != ChatRole.ASSISTANT || last.content.isBlank()) return@LaunchedEffect
+        kotlinx.coroutines.delay(650)
+        if (!state.isRunning && !handsFreeListening) {
+            handsFreeListening = true
+            startVoiceInput()
+        }
+    }
+
     LaunchedEffect(searchQuery, matches.size) {
         matchIndex = 0
     }
@@ -268,12 +300,6 @@ fun ChatScreen(
             runCatching { listState.animateScrollToItem(index) }
         }
     }
-
-    // Layout-driven bottom follow: react to layout growth instead of polling.
-    // Programmatic scrolls also set isScrollInProgress, so user intent is read
-    // from DragInteraction; "pinned" means the last item is fully visible.
-    var wasAtBottom by remember { mutableStateOf(true) }
-    var forceFollow by remember { mutableStateOf(false) }
 
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -460,6 +486,9 @@ fun ChatScreen(
                         "application/json",
                         "application/xml",
                         "application/javascript",
+                        "application/pdf",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     ),
                 )
             },
@@ -533,6 +562,18 @@ fun ChatScreen(
             onClick = {
                 menuOpen = false
                 viewModel.distillMemory()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_menu_hands_free)) },
+            trailingIcon = {
+                if (handsFree) {
+                    Icon(Icons.Outlined.Check, contentDescription = null)
+                }
+            },
+            onClick = {
+                menuOpen = false
+                viewModel.setHandsFree(!handsFree)
             },
         )
         if (state.compressionSnapshot != null) {

@@ -102,4 +102,5 @@
     <string name="chat_menu_restore_compression">恢复压缩前的历史</string>
     <string name="chat_menu_discard_compression">放弃压缩备份</string>
     <string name="chat_compress_too_short">对话还不够长，无需压缩</string>
+    <string name="chat_menu_hands_free">免手对话</string>
 </resources>

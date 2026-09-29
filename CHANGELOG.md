@@ -19,9 +19,17 @@ All notable changes to this project are documented in this file.
 - 新增 `tools/check-strings-sync.sh`：CI（build + release）强制 zh/en 字符串键一致——原项目文档自认这项没人管
 - mock 服务器：辅助请求（标题/记忆/压缩）不再被 `tooltest:` 触发词误判；web_search 参数对齐新 schema
 
+### 新增 Added（能力补齐，均为升级版设计）
+
+- **文档附件解析**：`docx`/`xlsx` 用零依赖 ZIP+XML 抽取（段落/共享字符串/单元格、实体解码，含单元测试）；`pdf` 在设备侧用 `PdfRenderer` 栅格化 + 现有 ML Kit OCR（扫描件也能读），最多 20 页、逐页标注。附件选择器新支持 PDF/DOCX/XLSX，实测 docx 段落与 PDF 文本均正确入库
+- **Shizuku 设备 Shell**：`device:api` 新增 `ShellBridge` 抽象（Unavailable/PermissionRequired/Ready 状态流 + 受控 `exec`：超时杀进程、并发排空 stdout/stderr、输出截断）。实现封装 `IRemoteProcess`（Parcelable 包装回 `ShizukuRemoteProcess`）；`run_shell` 与 `manage_app`（list/info/force_stop/clear_data/uninstall，包名白名单校验）两个新工具；权限中心新增 Shizuku 行（状态 + 一键申请），manifest 声明 provider
+- **屏幕录制**：复用已授权的 MediaProjection 会话（Android 14+ 单 VirtualDisplay 限制下切换 surface 到 MediaRecorder，录完恢复截图面），`screen_record` 工具 1–120s、视频上限 720p/4Mbps，文件落在应用私有目录
+- **语音转写**：`transcribe_audio` 工具 + `SpeechInputBridge`（主线程创建/销毁识别器、超时兜底、不泄漏麦克风）
+- **免手对话**：聊天菜单开关（持久化），每轮助手回复完成后自动重开麦克风并把识别结果直接发送，识别对话框打开期间与运行期间不会重入
+
 ### 测试 Tests
 
-- 新增 SearchPipeline（8）、ArgumentHealer 歧义用例、Markdown 表格对齐、include_usage 载荷断言；全套 127 → 137 通过
+- 新增 SearchPipeline（8）、DocumentTextCodec（3）、ArgumentHealer 歧义用例、Markdown 表格对齐、include_usage 载荷断言；全套 127 → 140 通过
 
 ## [0.1.1] - 2026-09-29
 

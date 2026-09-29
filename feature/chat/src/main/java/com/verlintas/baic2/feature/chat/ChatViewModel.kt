@@ -42,6 +42,7 @@ import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
+import com.verlintas.baic2.core.model.DocumentTextCodec
 import com.verlintas.baic2.core.model.MemoryKind
 import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ModelCatalog
@@ -50,9 +51,11 @@ import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.RunState
+import com.verlintas.baic2.core.data.prefs.SettingsRepository
 import com.verlintas.baic2.core.model.TokenEstimator
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.device.api.PdfTextExtractor
 import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
 import com.verlintas.baic2.device.api.SpeechOutput
@@ -142,10 +145,12 @@ class ChatViewModel @Inject constructor(
     private val attachmentProcessor: AttachmentProcessor,
     private val speechOutput: SpeechOutput,
     private val screenshotProvider: ScreenshotProvider,
+    private val pdfTextExtractor: PdfTextExtractor,
     private val runNotifier: RunNotifier,
     private val confirmationQueue: ConfirmationQueue,
     private val planRepository: PlanRepository,
     private val skillRepository: SkillRepository,
+    private val settingsRepository: SettingsRepository,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -162,6 +167,17 @@ class ChatViewModel @Inject constructor(
     private val notice = MutableStateFlow<String?>(null)
 
     val notices: StateFlow<String?> = notice.asStateFlow()
+
+    /** Hands-free loop toggle (settle -> listen -> auto-send). */
+    val handsFree: StateFlow<Boolean> = settingsRepository.handsFreeVoice.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
+    )
+
+    fun setHandsFree(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setHandsFreeVoice(enabled) }
+    }
 
     private data class SessionInfo(
         val isRunning: Boolean,
@@ -313,6 +329,43 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Routes a picked file by type: plain text inline, documents extracted. */
+    fun importFile(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val document = attachmentProcessor.readDocument(uri).getOrElse { failure ->
+                attachmentError.value = failure.toAttachmentError()
+                return@launch
+            }
+            val name = document.fileName
+            val text = when {
+                document.mimeType.startsWith("text/") || document.mimeType in TEXT_LIKE_MIMES ->
+                    attachmentProcessor.importTextFile(uri)
+                        .onSuccess { attachment -> pendingAttachments.update { it + attachment } }
+                        .onFailure { failure -> attachmentError.value = failure.toAttachmentError() }
+                        .let { return@launch }
+
+                document.mimeType.contains("pdf") || name.endsWith(".pdf", ignoreCase = true) ->
+                    pdfTextExtractor.extract(document.bytes).getOrElse { failure ->
+                        attachmentError.value = failure.toAttachmentError()
+                        return@launch
+                    }
+
+                else -> DocumentTextCodec.extract(document.bytes, document.mimeType, name)
+            } ?: run {
+                attachmentError.value = AttachmentError.UNSUPPORTED
+                return@launch
+            }
+            pendingAttachments.update {
+                it + attachmentProcessor.importExtractedText(
+                    mimeType = document.mimeType,
+                    fileName = name,
+                    text = text,
+                    sizeBytes = document.bytes.size.toLong(),
+                )
+            }
+        }
+    }
+
     fun removePendingAttachment(id: String) {
         val removed = pendingAttachments.value.firstOrNull { it.id == id }
         pendingAttachments.update { list -> list.filterNot { it.id == id } }
@@ -370,7 +423,7 @@ class ChatViewModel @Inject constructor(
 
     private fun Throwable.toAttachmentError(): AttachmentError = when (message) {
         "file_too_large" -> AttachmentError.TOO_LARGE
-        "unsupported_type" -> AttachmentError.UNSUPPORTED
+        "unsupported_type", "no_text_found" -> AttachmentError.UNSUPPORTED
         else -> AttachmentError.READ_FAILED
     }
 
@@ -893,6 +946,12 @@ class ChatViewModel @Inject constructor(
         const val ARG_CONVERSATION_ID = "conversationId"
         private const val TITLE_MAX_CHARS = 24
         private const val KEEP_RECENT_MESSAGES = 6
+        private val TEXT_LIKE_MIMES = setOf(
+            "application/json",
+            "application/xml",
+            "application/javascript",
+            "application/x-yaml",
+        )
         private const val DISTILL_EVERY_MESSAGES = 10
         private const val AUTO_COMPRESS_THRESHOLD = 0.85
         private const val MAX_IMAGE_ATTACHMENTS = 4
