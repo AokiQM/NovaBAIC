@@ -69,4 +69,67 @@ class TokenEstimatorTest {
         assertTrue(withTools > base)
         assertTrue(withStream > base)
     }
+
+    @Test
+    fun attachmentsAreOnlyCountedForTheLastUserTurn() {
+        val image = Attachment(
+            id = "img",
+            kind = AttachmentKind.IMAGE,
+            mimeType = "image/jpeg",
+            fileName = "photo.jpg",
+        )
+        val olderWithImage = ChatMessage(
+            role = ChatRole.USER,
+            content = "look at this",
+            attachments = listOf(image),
+        )
+        val newer = ChatMessage(role = ChatRole.USER, content = "and now this")
+        val withoutAttachment = olderWithImage.copy(attachments = emptyList())
+
+        val withImage = TokenEstimator.estimate(listOf(olderWithImage, newer))
+        val withoutImage = TokenEstimator.estimate(listOf(withoutAttachment, newer))
+        assertEquals(withoutImage, withImage, "older attachments must not be counted")
+    }
+
+    @Test
+    fun imagesOnTheLastUserTurnAddTokens() {
+        val image = Attachment(
+            id = "img",
+            kind = AttachmentKind.IMAGE,
+            mimeType = "image/jpeg",
+            fileName = "photo.jpg",
+        )
+        val plain = ChatMessage(role = ChatRole.USER, content = "look")
+        val withImage = plain.copy(attachments = listOf(image))
+        val delta = TokenEstimator.estimate(listOf(withImage)) - TokenEstimator.estimate(listOf(plain))
+        assertTrue(delta >= 800, "image should add a rough token cost, delta=$delta")
+    }
+
+    @Test
+    fun toolResultsAreNotDoubleCounted() {
+        val call = ToolCall(
+            id = "call_1",
+            name = "device_info",
+            argumentsJson = "{}",
+            result = "x".repeat(400),
+        )
+        val assistantWithResult = ChatMessage(
+            role = ChatRole.ASSISTANT,
+            content = "",
+            toolCalls = listOf(call),
+        )
+        val toolMessage = ChatMessage(
+            role = ChatRole.TOOL,
+            content = "x".repeat(400),
+            toolCallId = "call_1",
+            toolName = "device_info",
+        )
+        val estimate = TokenEstimator.estimate(listOf(assistantWithResult, toolMessage))
+        val resultOnlyOnce = TokenEstimator.estimate(listOf(toolMessage))
+        // The 400-char result (~100 tokens) must appear once, not twice.
+        assertTrue(
+            estimate - resultOnlyOnce < 200,
+            "result appears more than once: estimate=$estimate baseline=$resultOnlyOnce",
+        )
+    }
 }

@@ -161,6 +161,19 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             time.sleep(delay)
 
+        def send_usage():
+            # Mimic stream_options.include_usage: a final chunk with usage only.
+            send(
+                {
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 123,
+                        "completion_tokens": 45,
+                        "total_tokens": 168,
+                    },
+                },
+            )
+
         auxiliary = (
             "Summarize the conversation" in system_text
             or "short conversation titles" in system_text
@@ -231,6 +244,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 for piece in _chunks(text, 6):
                     send({"choices": [{"delta": {"content": piece}}]})
+            send_usage()
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
             return
@@ -268,6 +282,7 @@ class Handler(BaseHTTPRequestHandler):
                     }
                 )
                 send({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+            send_usage()
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
             return
@@ -302,6 +317,7 @@ class Handler(BaseHTTPRequestHandler):
 
         for piece in _chunks(answer, 3):
             send({"choices": [{"delta": {"content": piece}}]})
+        send_usage()
 
         send(
             {

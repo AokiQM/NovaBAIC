@@ -158,6 +158,9 @@ interface MessageDao {
     )
     fun observeStarred(): Flow<List<MessageEntity>>
 
+    @Query("UPDATE messages SET usageInput = NULL, usageOutput = NULL WHERE conversationId = :conversationId")
+    suspend fun clearUsage(conversationId: Long)
+
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteAllForConversation(conversationId: Long)
 

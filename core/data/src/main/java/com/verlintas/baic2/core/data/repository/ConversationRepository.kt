@@ -106,8 +106,10 @@ class ConversationRepository @Inject constructor(
         db.messageDao().deleteAllForConversation(id)
     }
 
-    suspend fun deleteMessagesAfter(conversationId: Long, afterMessageId: Long) {
+    suspend fun deleteMessagesAfter(conversationId: Long, afterMessageId: Long) = db.withTransaction {
         db.messageDao().deleteAfter(conversationId, afterMessageId)
+        // The last provider report described a history that no longer exists.
+        db.messageDao().clearUsage(conversationId)
     }
 
     fun observeStarredMessages(): Flow<List<ChatMessage>> =
@@ -132,6 +134,7 @@ class ConversationRepository @Inject constructor(
         if (message.toolCalls.isNotEmpty()) {
             db.messageDao().deleteByToolCallIds(message.toolCalls.map { it.id })
         }
+        db.messageDao().clearUsage(message.conversationId)
     }
 
     /**
@@ -163,6 +166,7 @@ class ConversationRepository @Inject constructor(
         }
         db.messageDao().updateRoleAndContent(summaryCarrierId, ChatRole.ASSISTANT.name, summary)
         db.messageDao().deleteRange(conversationId, summaryCarrierId, keepFromMessageId)
+        db.messageDao().clearUsage(conversationId)
     }
 
     fun observeSnapshots(conversationId: Long): Flow<List<MessageSnapshot>> =

@@ -235,9 +235,9 @@ class ChatViewModel @Inject constructor(
             streamingThinking = stream.thinking,
             isRunning = session.isRunning,
             error = session.error,
-            contextUsedTokens = maxOf(reported ?: 0L, estimated).takeIf { it > 0 },
+            contextUsedTokens = (reported ?: estimated).takeIf { it > 0 },
             contextWindowTokens = contextWindowFor(agent?.provider, agent?.model ?: conversationModel(messages)),
-            contextEstimated = reported == null || estimated > reported,
+            contextEstimated = reported == null,
             auxBusy = extras.auxBusy,
             pendingAttachments = extras.pendingAttachments,
             plan = extras.plan,
@@ -861,8 +861,8 @@ class ChatViewModel @Inject constructor(
             ),
             toolSpecs = toolCatalog.specs(mode),
         )
-        val reported = messages.asReversed().firstOrNull { it.usageInput != null }?.usageInput ?: 0L
-        val used = maxOf(reported, estimated)
+        val reported = messages.asReversed().firstOrNull { it.usageInput != null }?.usageInput
+        val used = reported ?: estimated
         if (used < window * AUTO_COMPRESS_THRESHOLD) return
         autoCompressAttempted = true
         runCompression(config)

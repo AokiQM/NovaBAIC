@@ -33,6 +33,9 @@ object TokenEstimator {
     private const val TOOL_OVERHEAD = 8L
     private const val ATTACHMENT_OVERHEAD = 16L
 
+    /** Rough per-image cost; only the latest user turn ever sends images. */
+    private const val IMAGE_TOKENS = 800L
+
     fun estimate(
         messages: List<ChatMessage>,
         systemPrompt: String = "",
@@ -40,7 +43,12 @@ object TokenEstimator {
         streamingText: String = "",
     ): Long {
         var total = if (systemPrompt.isBlank()) 0L else text(systemPrompt) + MESSAGE_OVERHEAD
-        messages.forEach { message -> total += message(message) }
+        // Attachments only travel with the newest user turn (older ones are
+        // stripped before sending), so only that turn pays for them.
+        val attachmentCarrier = messages.indexOfLast { it.role == ChatRole.USER }
+        messages.forEachIndexed { index, message ->
+            total += message(message, includeAttachments = index == attachmentCarrier)
+        }
         toolSpecs.forEach { spec ->
             total += TOOL_OVERHEAD + text(spec.name) + text(spec.description) + text(spec.parametersJson)
         }
@@ -48,14 +56,18 @@ object TokenEstimator {
         return total
     }
 
-    fun message(message: ChatMessage): Long {
+    fun message(message: ChatMessage, includeAttachments: Boolean = true): Long {
         var total = MESSAGE_OVERHEAD + text(message.content)
         message.thinking?.let { total += text(it) }
         message.toolCalls.forEach { call ->
-            total += TOOL_OVERHEAD + text(call.name) + text(call.argumentsJson) + text(call.result.orEmpty())
+            // Tool results are counted once, via the persisted TOOL messages.
+            total += TOOL_OVERHEAD + text(call.name) + text(call.argumentsJson)
         }
-        message.attachments.forEach { attachment ->
-            total += ATTACHMENT_OVERHEAD + text(attachment.fileName.orEmpty()) + text(attachment.text.orEmpty())
+        if (includeAttachments) {
+            message.attachments.forEach { attachment ->
+                total += ATTACHMENT_OVERHEAD + text(attachment.fileName.orEmpty()) + text(attachment.text.orEmpty())
+                if (attachment.kind == AttachmentKind.IMAGE) total += IMAGE_TOKENS
+            }
         }
         return total
     }
