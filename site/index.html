@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>BetterAIChat2 — The AI agent that actually operates your phone</title>
+<meta name="description" content="Local-first Android AI agent with 48 real device tools. Bring any model — DeepSeek, GPT-6, Claude, Gemini, Kimi, Qwen, GLM, MiniMax or any OpenAI-compatible endpoint. No account, no cloud, no telemetry." />
+<meta name="theme-color" content="#0B0B0D" />
+<link rel="icon" type="image/png" href="assets/icon.png" />
+<!-- Update og:url / og:image when a custom domain is configured. -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="BetterAIChat2 — The AI agent that actually operates your phone" />
+<meta property="og:description" content="48 device tools, four run modes, scheduled tasks, skills, subagents and MCP. Local-first, GPL-3.0, no account required." />
+<meta property="og:url" content="https://verlintas.github.io/NovaBAIC/" />
+<meta property="og:image" content="https://verlintas.github.io/NovaBAIC/assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="stylesheet" href="styles.css" />
+<script defer src="app.js"></script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/icon.png" alt="" width="28" height="28" />
+      <span>BetterAIChat2</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features">Features</a>
+      <a href="#models">Models</a>
+      <a href="#screens">Screenshots</a>
+      <a href="#compare">Compare</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/README.en.md">Docs</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="gh-pill" href="https://github.com/Verlintas/NovaBAIC" aria-label="GitHub repository">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        <span id="star-count">GitHub</span>
+      </a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">Local-first Android AI agent · GPL-3.0</p>
+        <h1>The AI agent that<br />actually operates<br /><span class="grad">your phone.</span></h1>
+        <p class="lede">
+          48 real device tools — see the screen, tap, type, browse files, run shell.
+          Bring any model you already pay for. Every action gated by mode.
+          No account, no cloud, no telemetry.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/Verlintas/NovaBAIC/releases/latest">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.14-.53.38.38 0 0 0-.52.14l-1.87 3.23a11.4 11.4 0 0 0-9.83 0L5.2 5.91a.38.38 0 0 0-.52-.14.38.38 0 0 0-.14.53L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52ZM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Z"/></svg>
+            Download for Android
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/HOW_IT_WORKS.md">Read the docs</a>
+        </div>
+        <p class="hero-meta">Android 8.0+ · No GMS · Sideload-friendly · Free &amp; open source</p>
+      </div>
+
+      <div class="hero-visual reveal">
+        <div class="phone" aria-label="Live demo of the app">
+          <div class="phone-notch" aria-hidden="true"></div>
+          <div class="phone-screen">
+            <div class="demo-top">
+              <span class="demo-back" aria-hidden="true">←</span>
+              <span class="demo-title">Hangzhou One-Day Trip</span>
+              <span class="demo-meter">128/1.0M · 0%</span>
+              <span class="demo-chip">CHAT</span>
+            </div>
+            <div class="demo-body">
+              <div class="d-msg" data-step="1">Plan a solo weekend trip to Hangzhou</div>
+              <div class="d-think" data-step="2">
+                <div class="d-think-head">
+                  <span class="d-think-label">Thinking</span>
+                  <span class="d-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <span class="d-think-done">Thought for 1s</span>
+                </div>
+                <div class="d-think-text"></div>
+              </div>
+              <div class="d-answer" data-step="3">
+                <p class="d-h">Hangzhou One-Day Trip · Weekend Draft</p>
+                <p class="d-sub">Morning · West Lake west shore (quieter side)</p>
+                <p class="d-line">• 08:00 — Quyuan Fenghe → Yanggongdi</p>
+                <p class="d-line">• 10:30 — Maijiawu → Longjing Village</p>
+                <p class="d-sub">Lunch · Longjing Village — farmhouse dishes + fresh tea.</p>
+                <p class="d-sub">Evening · Hubin Walkway — fountain show + late snacks.</p>
+              </div>
+              <button class="d-replay" id="demo-replay" type="button">Replay demo</button>
+            </div>
+            <div class="demo-input">
+              <span class="d-plus">+</span>
+              <span class="d-field">Message…</span>
+              <span class="d-send">➤</span>
+            </div>
+          </div>
+        </div>
+        <p class="hero-caption">A scripted preview — the real app streams from your own model.</p>
+      </div>
+    </div>
+
+    <div class="wrap stats reveal">
+      <div class="stat"><b>48</b><span>built-in device tools</span></div>
+      <div class="stat"><b>3</b><span>provider protocols</span></div>
+      <div class="stat"><b>4</b><span>run modes</span></div>
+      <div class="stat"><b>0</b><span>accounts or telemetry</span></div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <p class="eyebrow reveal">Features</p>
+      <h2 class="reveal">Everything a phone agent needs.</h2>
+      <p class="section-lede reveal">Perception, automation, content, memory and orchestration — as first-class tools, not a toy demo.</p>
+
+      <div class="tabs reveal" role="tablist" aria-label="Feature areas">
+        <button class="tab is-active" role="tab" aria-selected="true" data-tab="0">See &amp; operate</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="1">Automate</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="2">Files &amp; web</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="3">Skills &amp; MCP</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="4">Private</button>
+      </div>
+
+      <div class="panels reveal">
+        <div class="panel is-active" role="tabpanel" data-panel="0">
+          <div class="panel-copy">
+            <h3>See the screen, then act on it.</h3>
+            <p><code>ui_control</code> fuzzy-matches text in the accessibility tree, falls back to OCR, scrolls to find off-screen targets and restores your position when it fails. Every tap is verified by comparing the screen before and after — locate, act and check in a single call.</p>
+            <ul class="checks">
+              <li>Tap, long-press, type, keys, scroll, wait-for</li>
+              <li>Screenshots, on-device OCR with coordinates, screen recording</li>
+              <li>Foreground app and screen state as first-class signals</li>
+            </ul>
+          </div>
+          <div class="panel-visual">
+            <div class="mock tool-card">
+              <div class="mock-head"><span class="dot ok"></span><span class="mono">ui_control</span><span class="mock-badge">done</span></div>
+              <div class="mock-body mono">
+                <p>{ "action": "tap", "text": "Send" }</p>
+                <p class="ok-line">✓ Found "Send" @ (985, 2253)</p>
+                <p class="ok-line">✓ Screen changed: com.example.chat</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" data-panel="1">
+          <div class="panel-copy">
+            <h3>Tap by accessibility. Go deeper with Shizuku.</h3>
+            <p>Gestures run through an accessibility service, so no root is required for everyday automation. Install Shizuku when you want a real shell: <code>run_shell</code> and <code>manage_app</code> can inspect, force-stop and manage packages.</p>
+            <ul class="checks">
+              <li>Time (daily / weekly) and battery triggers</li>
+              <li>Exact alarms survive Doze; a foreground service runs the full agent</li>
+              <li>Boot receiver re-arms every schedule automatically</li>
+            </ul>
+          </div>
+          <div class="panel-visual">
+            <div class="mock automation-card">
+              <div class="row"><span class="row-title">Morning brief</span><span class="pill on">on</span></div>
+              <p class="mono muted">every day · 08:00 · next in 17 hr</p>
+              <div class="timeline">
+                <span class="tl-dot"></span><span>exact alarm fires</span>
+                <span class="tl-dot"></span><span>agent runs with tools</span>
+                <span class="tl-dot"></span><span>notification with the result</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" data-panel="2">
+          <div class="panel-copy">
+            <h3>Files, articles and the open web.</h3>
+            <p>A six-engine search pipeline fans out concurrently, dedupes by URL and near-duplicate titles, then extracts clean article text for reading. Files live where you expect them: Downloads and Documents, with reads, writes, appends and deletes.</p>
+            <ul class="checks">
+              <li><code>web_search</code> · <code>web_read</code> · <code>fetch_rss</code> · <code>get_weather</code></li>
+              <li><code>files</code> · <code>file_write</code> · <code>download_file</code> · <code>ocr_file</code></li>
+              <li>QR codes, clipboard, share sheet, PDF / Word / Excel attachments</li>
+            </ul>
+          </div>
+          <div class="panel-visual">
+            <div class="mock file-card">
+              <div class="mock-head"><span class="dot ok"></span><span class="mono">web_read</span><span class="mock-badge">9,000 chars</span></div>
+              <div class="mock-body">
+                <p class="file-line mono">article.md → Downloads</p>
+                <p class="muted">Extracted body: title, headings, lists and code — paged on demand.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" data-panel="3">
+          <div class="panel-copy">
+            <h3>Skills, subagents and remote tools.</h3>
+            <p>Record a successful run as a declarative YAML skill, or import one. Spawn parallel subagents with their own budgets for research branches. Add remote MCP servers and their tools join the same toolbox — behind the same gates.</p>
+            <ul class="checks">
+              <li>YAML recipes replay tools with captured arguments</li>
+              <li><code>spawn_agent</code> — isolated context, hard budgets, no recursion</li>
+              <li>MCP over Streamable HTTP; collisions with built-ins are refused</li>
+            </ul>
+          </div>
+          <div class="panel-visual">
+            <div class="mock yaml-card">
+              <pre class="mono">id: focus-mode
+name: Focus Mode
+tools:
+  - id: start_focus_session
+    steps:
+      - tool: set_volume
+        args: { stream: ring, level: 0 }
+      - tool: set_brightness
+        args: { percent: 20 }</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" data-panel="4">
+          <div class="panel-copy">
+            <h3>Your keys never leave the device.</h3>
+            <p>API keys are encrypted with the Android Keystore; transcripts, memories and run records live in a local database. There is no app server and no analytics. Cleartext HTTP is allowed only for loopback, so local models work without weakening anything else.</p>
+            <ul class="checks">
+              <li>Keystore AES-GCM for secrets, Room for data</li>
+              <li>Permissions on demand — tools explain the next step when one is missing</li>
+              <li>Per-call confirmation in Act mode; Chat mode doesn't even advertise tools</li>
+            </ul>
+          </div>
+          <div class="panel-visual">
+            <div class="mock priv-card">
+              <div class="row"><span>API key</span><span class="pill safe">Keystore AES-GCM</span></div>
+              <div class="row"><span>Transcripts</span><span class="pill safe">On-device DB</span></div>
+              <div class="row"><span>Telemetry</span><span class="pill none">None</span></div>
+              <div class="row"><span>Account</span><span class="pill none">Not required</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODES ============ -->
+  <section class="section alt" id="modes">
+    <div class="wrap">
+      <p class="eyebrow reveal">Modes</p>
+      <h2 class="reveal">From chat to full autonomy, in one chip.</h2>
+      <div class="mode-grid reveal">
+        <div class="mode-card"><span class="mode-chip chat">Chat</span><p>Plain conversation. No tools are advertised, so nothing can run.</p></div>
+        <div class="mode-card"><span class="mode-chip plus">Chat+</span><p>Read-only research: notifications, files, web, weather. Writes are denied by the gate.</p></div>
+        <div class="mode-card"><span class="mode-chip act">Act</span><p>Every tool call pops a confirmation with the exact arguments before it runs.</p></div>
+        <div class="mode-card"><span class="mode-chip max">Max</span><p>Autonomous runs with budgets — 60 rounds, 160 calls, 60 minutes — persisted and stoppable.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODELS ============ -->
+  <section class="section" id="models">
+    <div class="wrap">
+      <p class="eyebrow reveal">Models</p>
+      <h2 class="reveal">Bring your own model.</h2>
+      <p class="section-lede reveal">Three native protocols plus every OpenAI-compatible endpoint. Keys stay on the device; switching providers is a field, not a migration.</p>
+      <div class="model-grid reveal">
+        <div class="model-card"><b>DeepSeek</b><span class="mono">deepseek-flash · v4-pro</span></div>
+        <div class="model-card"><b>OpenAI</b><span class="mono">gpt-6-astra · gpt-5.6 sol/terra/luna</span></div>
+        <div class="model-card"><b>Anthropic</b><span class="mono">fable-5-1 · opus-5-5 · sonnet-5-5</span></div>
+        <div class="model-card"><b>Google</b><span class="mono">gemini-3.8-flash · 3.1-pro</span></div>
+        <div class="model-card"><b>Kimi</b><span class="mono">kimi-k3 · k2.7-code · k2.6</span></div>
+        <div class="model-card"><b>Qwen</b><span class="mono">qwen3.8-max · 3.7-plus · 3.8-flash</span></div>
+        <div class="model-card"><b>GLM</b><span class="mono">glm-5.3 · glm-5.2</span></div>
+        <div class="model-card"><b>MiniMax</b><span class="mono">MiniMax-M3 · M2.7</span></div>
+        <div class="model-card wide"><b>Anything else</b><span class="mono">Ollama · vLLM · LM Studio · any gateway</span></div>
+      </div>
+      <p class="fineprint reveal">Reasoning contracts follow each vendor's latest spec: thinking toggles, effort levels, reasoning round-trips with tools, signed thinking replay.</p>
+    </div>
+  </section>
+
+  <!-- ============ SCREENSHOTS ============ -->
+  <section class="section alt" id="screens">
+    <div class="wrap">
+      <p class="eyebrow reveal">Screenshots</p>
+      <h2 class="reveal">Look around.</h2>
+      <div class="poster-grid reveal">
+        <button class="poster" data-full="assets/screenshots/chat.webp" data-caption="Chat with a live thinking card and Markdown rendering">
+          <img src="assets/screenshots/chat.webp" alt="Chat with a thinking card" loading="lazy" />
+          <span>Chat &amp; thinking</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/scheduled-tasks.webp" data-caption="Scheduled tasks with exact alarms and a run-now action">
+          <img src="assets/screenshots/scheduled-tasks.webp" alt="Scheduled tasks" loading="lazy" />
+          <span>Scheduled tasks</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/agent-wizard.webp" data-caption="Pick a provider, paste a key, fetch the model list">
+          <img src="assets/screenshots/agent-wizard.webp" alt="Agent wizard" loading="lazy" />
+          <span>Agent setup</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/tasks.webp" data-caption="Run center with states, durations and usage">
+          <img src="assets/screenshots/tasks.webp" alt="Run center" loading="lazy" />
+          <span>Run center</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/library.webp" data-caption="Skills, MCP servers and long-term memory">
+          <img src="assets/screenshots/library.webp" alt="Library" loading="lazy" />
+          <span>Skills &amp; memory</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/conversations.webp" data-caption="Conversations with modes at a glance">
+          <img src="assets/screenshots/conversations.webp" alt="Conversations" loading="lazy" />
+          <span>Conversations</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/settings.webp" data-caption="Permissions and capabilities, granted on demand">
+          <img src="assets/screenshots/settings.webp" alt="Settings" loading="lazy" />
+          <span>Settings</span>
+        </button>
+        <button class="poster" data-full="assets/screenshots/about.webp" data-caption="Version, update check and statistics">
+          <img src="assets/screenshots/about.webp" alt="About" loading="lazy" />
+          <span>About</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMPARE ============ -->
+  <section class="section" id="compare">
+    <div class="wrap">
+      <p class="eyebrow reveal">Compare</p>
+      <h2 class="reveal">Built for devices, not retrofitted from chat.</h2>
+      <div class="table-wrap reveal">
+        <table class="compare">
+          <thead>
+            <tr><th>Capability</th><th class="col-us">BetterAIChat2</th><th>Chat apps</th><th>Agent wrappers</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Actually operates the device (taps, types, files, shell)</td><td class="col-us yes">Yes</td><td class="no">No</td><td class="partial">Partial</td></tr>
+            <tr><td>Mode gates + per-call confirmation</td><td class="col-us yes">Yes</td><td class="no">No</td><td class="partial">Partial</td></tr>
+            <tr><td>Keys encrypted on device, no account</td><td class="col-us yes">Yes</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+            <tr><td>Scheduled agent runs on device</td><td class="col-us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+            <tr><td>Any model: 3 protocols + OpenAI-compatible</td><td class="col-us yes">Yes</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+            <tr><td>Skills, subagents and MCP</td><td class="col-us yes">Yes</td><td class="no">No</td><td class="partial">Partial</td></tr>
+            <tr><td>Open source (GPL-3.0)</td><td class="col-us yes">Yes</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="section alt" id="faq">
+    <div class="wrap narrow">
+      <p class="eyebrow reveal">FAQ</p>
+      <h2 class="reveal">Questions, answered.</h2>
+      <div class="faq reveal">
+        <details>
+          <summary>What is BetterAIChat2?</summary>
+          <p>A local-first Android AI agent. It runs an agent loop on your phone and gives the model 48 real device tools — screen reading, UI automation, files, web, reminders and more. It's the successor rewrite of <a href="https://github.com/Verlintas/BetterAIChat">BetterAIChat</a>, released under GPL-3.0.</p>
+        </details>
+        <details>
+          <summary>Which models can I use?</summary>
+          <p>DeepSeek, OpenAI, Anthropic and Gemini natively, plus any OpenAI-compatible endpoint (Kimi, Qwen, GLM, MiniMax, Ollama, vLLM, LM Studio, gateways). Paste an API key and the provider is detected; the model list is fetched from the endpoint.</p>
+        </details>
+        <details>
+          <summary>Is it really private? Where are my keys?</summary>
+          <p>Keys are encrypted with the Android Keystore (AES-GCM) and stored on the device. Conversations, memories and run records live in a local database. There is no app server, no account and no analytics; cleartext HTTP is allowed only for loopback addresses.</p>
+        </details>
+        <details>
+          <summary>Do I need Shizuku or root?</summary>
+          <p>No. Most tools — accessibility automation, screen capture, files, web, personal-assistant tasks — work without it. Shizuku only unlocks <code>run_shell</code> and deep app management, and it's optional.</p>
+        </details>
+        <details>
+          <summary>Does it drain the battery?</summary>
+          <p>Nothing lingers while idle. Long runs (Act / Max, scheduled tasks) hold a foreground service that can be stopped from the notification, and screen capture is owned by a foreground service only after you grant it.</p>
+        </details>
+        <details>
+          <summary>What happens if a run is stopped mid-tool-call?</summary>
+          <p>Stopping synthesizes "cancelled" tool results for interrupted calls and rewrites their status, so the transcript always satisfies the model's protocol. You can keep chatting or retry — the conversation never breaks.</p>
+        </details>
+        <details>
+          <summary>Does it work without Google Play Services?</summary>
+          <p>Yes. The app has no GMS dependency; OCR runs on-device with a bundled model, so it works on de-Googled devices and emulators.</p>
+        </details>
+        <details>
+          <summary>How is this different from the original BetterAIChat?</summary>
+          <p>It's an architecture rewrite: new package name, new signing key, new agent runtime, new UI. It installs side by side with the old app and shares no data. Later releases upgrade in place.</p>
+        </details>
+        <details>
+          <summary>Is it free?</summary>
+          <p>Yes — free software under GPL-3.0. You only pay your model provider for what you use, and API keys stay on your device. If you find it useful, star the repo or open an issue with feedback.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="section cta-section" id="download">
+    <div class="wrap cta-box reveal">
+      <img src="assets/icon.png" alt="" width="64" height="64" class="cta-icon" />
+      <h2>Give your phone an agent.</h2>
+      <p>Download the APK, paste a key, and watch it work. Android 8.0+, no account required.</p>
+      <div class="cta-row center">
+        <a class="btn btn-primary" href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download APK</a>
+        <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC">Star on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/README.en.md">Read the README</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <div class="brand"><img src="assets/icon.png" alt="" width="24" height="24" /><span>BetterAIChat2</span></div>
+      <p class="muted">Local-first Android AI agent. Free and open source under GPL-3.0.</p>
+    </div>
+    <div>
+      <h4>Product</h4>
+      <a href="https://github.com/Verlintas/NovaBAIC/releases/latest">Download</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/issues">Report an issue</a>
+    </div>
+    <div>
+      <h4>Documentation</h4>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/README.en.md">English README</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/HOW_IT_WORKS.md">How it works</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </div>
+    <div>
+      <h4>Project</h4>
+      <a href="https://github.com/Verlintas/NovaBAIC">GitHub</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/LICENSE">License (GPL-3.0)</a>
+      <a href="https://github.com/Verlintas/NovaBAIC/blob/main/README.md">简体中文</a>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>© 2026 Verlintas. Built with AI assistance (opencode); requirements, review and releases by the human maintainer.</span>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button class="lb-close" aria-label="Close">×</button>
+  <button class="lb-prev" aria-label="Previous">‹</button>
+  <img id="lb-img" src="" alt="" />
+  <button class="lb-next" aria-label="Next">›</button>
+  <p class="lb-caption" id="lb-caption"></p>
+</div>
+
+</body>
+</html>
