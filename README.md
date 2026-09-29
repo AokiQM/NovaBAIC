@@ -10,17 +10,25 @@
 
 <p align="center">
   <a href="https://github.com/Verlintas/NovaBAIC/releases"><img src="https://img.shields.io/github/v/release/Verlintas/NovaBAIC" alt="Latest release" /></a>
+  <a href="https://github.com/Verlintas/NovaBAIC/releases"><img src="https://img.shields.io/github/downloads/Verlintas/NovaBAIC/total" alt="Downloads" /></a>
   <a href="https://github.com/Verlintas/NovaBAIC/actions/workflows/build.yml"><img src="https://github.com/Verlintas/NovaBAIC/actions/workflows/build.yml/badge.svg" alt="Build status" /></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 8.0+" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/Verlintas/NovaBAIC" alt="License" /></a>
 </p>
 
 ## 简介
 
-BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的继任重制版（代号 Nova）：全新架构、全新 UI、面向设备操作的 Agent Runtime。它是**本地优先**的 AI 智能体 —— API Key 经 Android Keystore 加密留在设备上，没有云端、没有遥测、不需要账号；AI 通过**函数调用**真实操作你的手机：看屏、点击、输入、读写文件、设置提醒、跑自动化。
+BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的继任重制版（代号 Nova）：全新架构、全新 UI、面向设备操作的 Agent Runtime。
 
-- 要求：Android 8.0（API 26）及以上
-- 无 GMS 依赖；不包含统计 SDK；明文 HTTP 仅放行环回地址
-- 支持任何 OpenAI 兼容端点（DeepSeek / Kimi / Qwen / GLM / Ollama / 网关…）以及 Claude、Gemini
+它是**本地优先**的 AI 智能体 —— API Key 经 Android Keystore 加密留在设备上，没有云端、没有遥测、不需要账号；AI 通过**函数调用**真实操作你的手机：看屏、点击、输入、读写文件、设置提醒、跑自动化。
+
+- **真操作设备**：48 个内置工具，覆盖无障碍操作、截屏 OCR、文件、网络、个人助理与 Shizuku shell
+- **不锁定模型**：DeepSeek / OpenAI / Claude / Gemini / Kimi / Qwen / GLM / MiniMax / Ollama / 任意兼容网关，随时切换
+- **四种模式**：从纯聊天到逐项确认，再到带预算约束的自主运行
+- **无人值守**：定时任务、前台服务、子代理、MCP 远程工具、Skills 技能
+- **要求**：Android 8.0（API 26）及以上；无 GMS 依赖，不包含统计 SDK，明文 HTTP 仅放行环回地址
+
+> 与旧版 BetterAIChat 分属不同应用（包名不同、数据不互通），可并存安装。
 
 ## AI 编程提示
 
@@ -32,11 +40,121 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 ## 截图
 
 <p align="center">
-  <img src="docs/screenshots/conversations.png" width="22%" alt="会话" />
-  <img src="docs/screenshots/chat.png" width="22%" alt="聊天与工具" />
-  <img src="docs/screenshots/library.png" width="22%" alt="库" />
-  <img src="docs/screenshots/settings.png" width="22%" alt="设置" />
+  <img src="docs/screenshots/conversations.png" width="23%" alt="会话列表" />
+  <img src="docs/screenshots/chat.png" width="23%" alt="聊天：思考过程与 Markdown" />
+  <img src="docs/screenshots/agent-wizard.png" width="23%" alt="模型服务配置" />
+  <img src="docs/screenshots/scheduled-tasks.png" width="23%" alt="定时任务" />
 </p>
+<p align="center">
+  <img src="docs/screenshots/tasks.png" width="23%" alt="任务运行中心" />
+  <img src="docs/screenshots/library.png" width="23%" alt="库：技能、MCP 与记忆" />
+  <img src="docs/screenshots/settings.png" width="23%" alt="设置" />
+  <img src="docs/screenshots/about.png" width="23%" alt="关于" />
+</p>
+
+## 功能
+
+### 对话与模型
+
+- 流式回复、思考过程卡片（实时秒数 / "Thought for Ns" 自动收起）、Markdown 渲染（标题 / 代码块 / 表格 / 列表 / 引用）、中止与重试
+- 三家协议适配：OpenAI 兼容、Anthropic Messages、Google Gemini；统一重试、错误分类与速率限制处理
+- 附件：图片（视觉模型）、文本文件、Word / Excel / PDF（本地解析，PDF 栅格化后 OCR）
+- 语音输入、免手对话、消息朗读；语音转写工具
+- 长期记忆（自动提炼 + 手动管理）；上下文压缩（>85% 自动，压缩前生成**可回滚快照**）
+- 上下文占用表：实时显示 token 用量与百分比；AI 自动标题；对话搜索、收藏、Markdown 导出分享
+
+### Agents 与模式
+
+Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示词。粘贴 Key 自动识别服务商，一键拉取端点模型列表，内置目录提供准确的上下文窗口与推理默认值。
+
+| 模式 | 语义 |
+| --- | --- |
+| `Chat` | 纯对话，无工具 |
+| `Chat+` | 对话 + 只读工具 + 计划 |
+| `Act` | 执行工具，逐项确认 |
+| `Max` | 自主运行：持久化 Run、预算约束（60 轮 / 160 次工具调用 / 60 分钟）、可后台 |
+
+### AI × 设备（48 个内置工具）
+
+**看屏与操作（无障碍 + 视觉）**
+
+- `take_screenshot`、`screen_ocr`（中英文 OCR，带坐标）、`screen_record`（录屏）、`get_screen_state`、`get_foreground_app`
+- `ui_control`：按文字 / 描述模糊查找，点击 / 长按 / 滚动查找 / 输入 / 按键 / 等待出现；一次调用完成「定位 → 操作 → 校验」，操作前后的界面差异作为验证信号
+- `open_app` / `manage_app`（模糊匹配应用名）、`open_settings`（直达系统设置页）、`run_shell`（Shizuku，可选 root 级 shell）
+
+**系统与设备**
+
+`set_volume` · `set_brightness` · `set_flashlight` · `media_control` · `vibrate` · `send_notification` · `read_notifications` · `get_clipboard` / `set_clipboard` · `share_text` · `open_dialer` · `get_location` · `device_info` · `network_status` · `get_app_usage` · `list_installed_apps` · `get_time` · `compute`
+
+**内容与网络**
+
+`files`（浏览 / 搜索 / 读取）· `file_write` · `download_file` · `web_search`（多引擎并发）· `web_read`（正文提取 + 分页）· `fetch_rss` · `get_weather` · `generate_qr` / `decode_qr` · `ocr_file`
+
+**个人助理**
+
+`search_contacts` · `send_email` · `create_calendar_event` · `reminder`（单次 / 每日重复）· `transcribe_audio`
+
+**Agent 协作**
+
+- `spawn_agent`：子代理独立上下文与预算，可并行发起
+- `plan_update`：计划工件，聊天顶部常驻计划卡，步骤状态实时更新
+- `load_skill`：按需把技能加载为工具
+- `automation`：创建定时 / 电量触发的自动化
+
+### 自动化、技能与 MCP
+
+- **定时任务**：每日 / 按周调度（系统精确闹钟），前台服务无人值守执行，结束后通知汇报；可开关、立即运行
+- **Skills v2**：YAML recipe 声明式技能，导入后按需加载为工具；也可以把一次完成的操作序列「保存为技能」
+- **MCP**：添加远程 Streamable HTTP 服务器，其工具自动并入工具箱
+- **自动化**：定时（每日 / 按周）与电量触发，动作序列执行并回报通知
+
+### 任务与运行
+
+- Tasks 运行中心：运行记录（状态 / 模式 / 时长 / 真实 token 消耗），点击直达会话
+- 运行控制：失败重试、运行中停止、影响摘要、完成通知直达运行详情
+- 后台运行：前台服务保持长任务，通知栏可停止
+
+## 模型支持
+
+| 服务商 | 协议 | 模型示例 |
+| --- | --- | --- |
+| DeepSeek | OpenAI 兼容 | `deepseek-flash`、`deepseek-v4-pro`（思考模式默认开启，可显式关闭） |
+| OpenAI | OpenAI 兼容 | `gpt-6-astra`、`gpt-5.6-sol` / `terra` / `luna` |
+| Anthropic | Messages | `claude-fable-5-1`、`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-haiku-4-5` |
+| Google | Gemini | `gemini-3.8-flash`、`gemini-3.1-pro` |
+| Kimi | OpenAI 兼容 | `kimi-k3`（始终思考，可调推理强度）、`kimi-k2.7-code`、`kimi-k2.6` |
+| Qwen | DashScope 兼容 | `qwen3.8-max`、`qwen3.7-plus`、`qwen3.8-flash` |
+| GLM | OpenAI 兼容 | `glm-5.3`、`glm-5.2` |
+| MiniMax | OpenAI 兼容 | `MiniMax-M3`、`MiniMax-M2.7` |
+| 其它 | OpenAI 兼容 | Ollama、vLLM、LM Studio、任意网关 / 中转 |
+
+推理强度、思考回传（带工具调用时的 `reasoning_content`）等协议细节已按各家最新规范适配；模型列表可由端点实时拉取，目录条目会持续跟进。
+
+## 权限
+
+所有权限均为按需授予；未授权时工具会返回明确的下一步指引，而不是静默失败。
+
+| 权限 | 用途 | 授予方式 |
+| --- | --- | --- |
+| 通知 | 任务 / 提醒 / 自动化结果 | 首次运行请求 |
+| 麦克风 | 语音输入、免手对话、语音转写 | 使用时请求 |
+| 相机 | 手电筒等 | 使用时请求 |
+| 修改系统设置 | 亮度 / 屏幕超时 | 跳转系统页授权 |
+| 屏幕捕获 | 截屏、屏幕 OCR、录屏 | 每次会话授权一次，之后持久复用 |
+| 无障碍 | UI 自动化（看屏、点击、输入） | 跳转系统页按需开启 |
+| 通知使用权 | 读取通知工具 | 按需开启 |
+| 使用情况访问 | App 用量统计 | 按需开启 |
+| 通讯录 / 位置 | 联系人、位置工具 | 使用时请求 |
+| 闹钟与提醒 | 定时任务（精确闹钟） | 使用时请求 |
+| 所有文件访问 | 文件管理工具 | 按需开启（Android 11+） |
+| Shizuku | 可选：root 级 shell、应用管理 | 自行安装 Shizuku 并授权 |
+
+## 隐私
+
+- API Key 由 Android Keystore 加密存储（AES-GCM），数据库不含明文 Key
+- 无云端、无遥测、无账号；对话、记忆、运行记录全部保存在本地 Room 数据库
+- 明文 HTTP 仅放行环回地址（本地模型 / 开发 mock），其余流量强制 HTTPS
+- 全部源代码开放（GPL-3.0），可自行审计与构建
 
 ## 下载与安装
 
@@ -44,55 +162,6 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 - 安装时系统会提示「未知来源」权限，属于侧载 APK 的正常流程
 - 与旧版 BetterAIChat 分属不同应用（包名不同、数据不互通），可并存安装；新版使用新的签名密钥
 - 后续版本共用同一密钥，可覆盖升级
-
-## 功能
-
-**聊天与模型**
-- 流式回复、思考过程、Markdown（代码块 / 表格 / 列表 / 链接）、中止与重试
-- OpenAI 兼容 / Anthropic Claude / Google Gemini 三家适配，统一重试与错误分类
-- 附件：图片（视觉模型）、文本文件；语音输入与消息朗读
-- 长期记忆（自动提炼 + 手动）、上下文压缩（>85% 自动）、AI 自动标题
-- 对话搜索、收藏夹、Markdown 导出分享、消息复制 / 编辑重发 / 朗读 / 删除
-
-**Agents 与模式**
-- Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示词；一键识别 Key 前缀、拉取模型列表
-- `Chat`（纯对话）· `Chat+`（只读工具 + 计划）· `Act`（逐项确认）· `Max`（自主运行，预算约束）
-
-**AI × 设备（48 个内置工具）**
-- 看屏：`take_screenshot`、`screen_ocr`（ML Kit 中英，带坐标）
-- 操作：`ui_control`（无障碍：按文字模糊查找并点击/长按、滚动查找、输入、按键、等待控件出现，一次调用完成定位→操作→校验）
-- App 与系统：打开应用 / 设置页、音量 / 亮度 / 手电筒 / 铃声 / 勿扰、媒体控制、通知、剪贴板、分享、拨号
-- 内容：文件读写与下载、文本文件、OCR 文件、二维码生成 / 识别、网页搜索与阅读、天气、RSS、汇率（内置计算）
-- 个人：联系人、邮件、日历、提醒（单次 / 每日重复）、通知读取、位置、用量统计
-- 进阶：Shizuku shell（规划中）、自动化引擎、Skills、子代理、MCP 远程工具
-
-**自动化与技能**
-- 自动化：定时（每日 / 按周）与电量触发，动作序列无人值守执行并回报通知
-- Skills v2：YAML recipe 声明式技能，导入后按需加载为工具；也可以把一次完成的操作序列「保存为技能」
-- 子代理：`spawn_agent` 独立上下文与预算（research 只读 / max 全量），可并行发起
-- MCP：添加远程 Streamable HTTP 服务器，其工具自动并入工具箱
-
-**任务与运行**
-- Tasks 运行中心：运行记录（状态 / 模式 / 时长），点击直达会话
-- 计划工件：`plan_update` + 聊天置顶计划卡，步骤状态实时更新
-- 后台运行：前台服务保持长任务，通知栏可停止
-
-## 权限
-
-| 权限 | 用途 |
-| --- | --- |
-| 通知 | AI 通知、提醒与自动化结果 |
-| 麦克风 | 语音输入 |
-| 相机 | 手电筒、拍照相关工具 |
-| 修改系统设置 | 亮度 / 屏幕超时（工具会引导授权） |
-| 屏幕捕获 | 截屏、屏幕 OCR、分析屏幕（每次会话授权一次） |
-| 无障碍 | UI 自动化（看屏、点击、输入）；按需开启 |
-| 通知使用权 | 读取通知工具；按需开启 |
-| 使用情况访问 | App 用量统计；按需开启 |
-| 通讯录 / 位置 | 联系人、位置工具；按需开启 |
-| Shizuku | 可选，root 级 shell 与 App 管理 |
-
-所有权限均为按需授予；未授权时工具会返回明确的下一步指引，而不是静默失败。
 
 ## 技术栈与架构
 
@@ -103,31 +172,50 @@ app                装配、导航、DI 入口
 core:model         纯 Kotlin 领域模型          core:engine   AgentLoop / 确认队列 / 工具契约
 core:data          Room + DataStore + 仓库 + Keystore 加密
 core:network       OkHttp + SSE + 三家 Provider 适配
-core:designsystem  设计系统 token 与组件
+core:runtime       运行调度与前台服务            core:designsystem  设计系统 token 与组件
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    截图 / OCR / 无障碍 / 语音 / 提醒 / 运行通知
-tools              内置工具 + 自动化 + 技能 + 子代理
+tools              48 个内置工具 + 自动化 + 技能 + 子代理
 mcp                远程 MCP 客户端             eval          场景评测 harness
 ```
 
-架构说明与决策记录见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/adr/](docs/adr/)。
+设计原则、模块依赖与关键决策记录见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/adr/](docs/adr/)。
 
-## 构建
+## 构建与开发
+
+需要 JDK 17 与 Android SDK（platform 37、build-tools 37.0.0）：
 
 ```bash
-# JDK 17 + Android SDK（platform 37, build-tools 37.0.0）
 ./gradlew :app:assembleDebug     # APK: app/build/outputs/apk/debug/app-debug.apk
 ./gradlew test                   # 单元测试
 ./gradlew lintDebug              # Android Lint
-tools/check-license-headers.sh   # 许可头校验（CI 会跑）
+tools/check-license-headers.sh   # 许可头校验
+tools/check-strings-sync.sh      # 中英文字符串同步校验
+python3 tools/check-tool-schemas.py  # 工具 schema 校验
 ```
 
-本地联调不需要 API Key：`dev/` 下带两个 mock 服务器（OpenAI 兼容流式 + MCP），并且支持脚本化工具轮次（`tooltest:工具名`、`tooltest:auto`）。
+以上检查全部在 CI（`build.yml`）中执行；推送 `v*` 标签会自动构建并发布签名 APK（`release.yml`）。
+
+本地联调不需要 API Key：`dev/` 下带两个 mock 服务器（OpenAI 兼容流式 + MCP），并且支持脚本化工具轮次（`tooltest:工具名`、`tooltest:auto`）：
+
+```bash
+python3 dev/mock-openai-server.py   # :8765
+python3 dev/mock-mcp-server.py      # :8766
+adb reverse tcp:8765 tcp:8765
+```
+
+## 里程碑与路线图
+
+- **已完成 · M0 骨架**：模块化、设计系统、CI 门禁
+- **已完成 · M1 Agent Runtime v2**：运行持久化、四模式、工具契约、计划工件、MCP、子代理、评测骨架
+- **已完成 · v0.1.x 快速迭代**：隐式 CoT、任务中心与定时任务、持久截屏、Shizuku、录屏 / 转写 / 免手对话、全量模型目录
+- **进行中**：真机能力全量验收（Shizuku / 语音 / 录屏）、UI 细节持续打磨、评测场景扩充
+- **计划中**：更丰富的设备能力与技能生态、更多模型协议跟进
 
 ## 参与贡献
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
-- [CHANGELOG.md](CHANGELOG.md)
+- [CHANGELOG.md](CHANGELOG.md)：每个版本的详细变更
 
 ## License
 
