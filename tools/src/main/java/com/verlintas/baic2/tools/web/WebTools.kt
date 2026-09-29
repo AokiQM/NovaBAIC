@@ -388,8 +388,10 @@ class WebReadTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "web_read",
-        description = "Fetch a web page and return its readable text (scripts/navigation stripped, truncated).",
-        parametersJson = """{"type":"object","properties":{"url":{"type":"string"},"max_chars":{"type":"integer","description":"default 6000"}},"required":["url"]}""",
+        description = "Fetch a web page and return its readable article text (boilerplate stripped). " +
+            "Long pages are paged: pass 'offset' from the '(more: …)' hint to continue instead of " +
+            "re-fetching.",
+        parametersJson = """{"type":"object","properties":{"url":{"type":"string"},"offset":{"type":"integer","description":"character offset to continue from, default 0"},"max_chars":{"type":"integer","description":"page size, 500-12000, default 6000"}},"required":["url"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -398,17 +400,38 @@ class WebReadTool @Inject constructor(
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
         val url = (arguments["url"] as? JsonPrimitive)?.content?.trim()
             ?: return ToolResult.Failure("Missing 'url' argument")
-        val maxChars = ((arguments["max_chars"] as? JsonPrimitive)?.intOrNull ?: 6_000).coerceIn(500, 12_000)
+        val offset = ((arguments["offset"] as? JsonPrimitive)?.intOrNull ?: 0).coerceAtLeast(0)
+        val maxChars = ((arguments["max_chars"] as? JsonPrimitive)?.intOrNull ?: 6_000)
+            .coerceIn(500, 12_000)
+
         val html = fetcher.fetch(url).getOrElse { failure ->
             return ToolResult.Failure("Fetch failed: ${failure.message}")
         }
         val doc = Jsoup.parse(html, url)
-        doc.select("script, style, nav, header, footer, aside, noscript, iframe, svg").remove()
-        val title = doc.title()
-        val text = (doc.body()?.text() ?: doc.text()).replace(Regex("\\s+"), " ").trim()
+        val title = doc.title().trim()
+        var text = SearchPipeline.extractArticle(html)
+        if (text.isBlank()) {
+            doc.select("script, style, nav, header, footer, aside, noscript, iframe, svg").remove()
+            text = (doc.body()?.text() ?: doc.text()).replace(Regex("\\s+"), " ").trim()
+        }
         if (text.isBlank()) return ToolResult.Failure("Page has no readable text.")
-        val clipped = if (text.length > maxChars) text.take(maxChars) + "…(truncated)" else text
-        return ToolResult.Success("$title\n\n$clipped")
+
+        val header = if (title.isBlank()) url else "$title\n$url"
+        if (offset >= text.length) {
+            return ToolResult.Success("$header\n\n(page has ${text.length} characters; offset $offset is past the end)")
+        }
+        val chunk = text.substring(offset, minOf(text.length, offset + maxChars))
+        val more = offset + chunk.length < text.length
+        return ToolResult.Success(
+            buildString {
+                append(header).append("\n\n")
+                append(chunk)
+                if (more) {
+                    append("\n…(more: call web_read offset=").append(offset + chunk.length)
+                        .append(" to continue)")
+                }
+            },
+        )
     }
 }
 

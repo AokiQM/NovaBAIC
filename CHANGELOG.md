@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### 工具智能化 Tool intelligence
+
+不堆数量，合并同类项并让工具自己多做一步——模型不再需要"查找→读坐标→点击→验证"或"先列应用再打开"。
+
+- **UI 五合一 → `ui_control`**：按文字模糊匹配（精确/前缀/子串/编辑距离打分）、自动滚动查找（找不到会回滚位置）、点击后校验屏幕是否真的变化并回报新窗口；`type` 先检查输入焦点、可选回车提交；`press_key` 支持 enter；`scroll`/`wait_for`/`find`/`screen_text` 同在一处。移除 ui_find/ui_tap/ui_swipe/ui_type/ui_press
+- **文件家族 → `files` + `file_write`**：读侧支持 list（过滤/范围）、read（offset/limit 分页并报告总长）、info，部分文件名自动解析（`report.md` 能找到 `report (1).md`）；写侧 write/append/delete。读侧保持 readOnly，Chat+ 仍可浏览。外部文件不可见时给出"设置→权限→文件访问"的可操作指引，权限中心新增"文件访问"行（Android 13+ 直达系统所有文件访问页）
+- **`open_app` / `manage_app` 智能解析**：接受应用显示名（"设置"/"Settings"）、部分名或包名，内部打分匹配，启动后读取前台包名验证；manage_app 的目标同样先解析再校验，杜绝模型拼包名
+- **`screen_ocr` 感知合一**：一次调用返回前台 App、窗口标题、可交互/文本元素列表（无障碍）与 OCR 全文，替代 App+OCR+find 多次往返
+- **`web_read` 正文抽取 + offset 续读**：可读性提取替代纯文本倾泻，长文分页并提示下一步 offset，避免重复抓取
+- **修复**：files 查询漏掉 Download/ 顶层文件（RELATIVE_PATH 精确匹配）；免手模式在进入会话时误触发一次麦克风
+
+工具数 52 → 47。
+
+
 在原项目 HOW_IT_WORKS 的基础上做了几处"不是照搬、而是升级"的改造。
 
 ### 升级 Changed

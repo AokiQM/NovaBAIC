@@ -26,6 +26,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
 REASONING = "让我想想……这是在验证流式管线：先输出思考内容，再输出正文。"
+# Trigger aliases whose request fires a different (real) tool or action.
+TOOL_ALIASES = {
+    "ui_control_find": ("ui_control", {"action": "find", "text": "Back"}),
+    "files_list": ("files", {"action": "list", "scope": "downloads"}),
+    "files_read": ("files", {"action": "read", "name": "baic2-test.md"}),
+    "files_info": ("files", {"action": "info", "name": "baic2-test.md"}),
+}
+
 TOOL_ARGS = {
     "get_time": {},
     "device_info": {},
@@ -34,7 +42,6 @@ TOOL_ARGS = {
     "open_app": {"name": "Settings"},
     "take_screenshot": {},
     "screen_ocr": {},
-    "ui_find": {"text": "Back"},
     "web_search": {"query": "BAIC2 Android AI agent", "max_results": 4, "read_top": 1},
     "web_read": {"url": "https://example.com", "max_chars": 500},
     "spawn_agent": {"task": "汇报当前设备与时间信息", "mode": "research"},
@@ -51,9 +58,7 @@ TOOL_ARGS = {
     "get_weather": {"city": "Beijing"},
     "get_screen_state": {},
     "generate_qr": {"text": "https://github.com/Verlintas"},
-    "write_document": {"content": "hello from BAIC2", "file_name": "baic2-test.md"},
-    "list_files": {"scope": "downloads"},
-    "read_text_file": {"file_name": "baic2-test.md"},
+    "file_write": {"action": "write", "name": "baic2-test.md", "content": "hello from BAIC2"},
     "get_foreground_app": {},
     "transcribe_audio": {"seconds": 5},
     "screen_record": {"seconds": 5},
@@ -161,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
             or "short conversation titles" in system_text
             or "Extract durable facts" in system_text
         )
-        trigger = None if auxiliary else re.search(r"tooltest:([a-z_]+)", user_text)
+        trigger = None if auxiliary else re.search(r"tooltest:([a-z_0-9]+)", user_text)
         if not auxiliary and trigger is None and not tool_results and (
             "设备" in user_text or "status" in user_text.lower()
         ):
@@ -179,8 +184,8 @@ class Handler(BaseHTTPRequestHandler):
                                             "id": "call_mock_1",
                                             "type": "function",
                                             "function": {
-                                                "name": "ui_find",
-                                                "arguments": json.dumps({"text": "Back"}),
+                                                "name": "ui_control",
+                                                "arguments": json.dumps({"action": "find", "text": "Back"}),
                                             },
                                         }
                                     ]
@@ -205,8 +210,8 @@ class Handler(BaseHTTPRequestHandler):
                                                 "id": "call_mock_2",
                                                 "type": "function",
                                                 "function": {
-                                                    "name": "ui_tap",
-                                                    "arguments": json.dumps(coords),
+                                                    "name": "ui_control",
+                                                    "arguments": json.dumps({**coords, "action": "tap"}),
                                                 },
                                             }
                                         ]
@@ -232,7 +237,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if trigger and not tool_results:
             name = trigger.group(1)
+            tool_name = name
             args = TOOL_ARGS.get(name)
+            if args is None and name in TOOL_ALIASES:
+                tool_name, args = TOOL_ALIASES[name]
             if args is None:
                 text = f"未知测试工具 {name}，可选：{', '.join(TOOL_ARGS)}"
                 for piece in _chunks(text, 8):
@@ -249,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
                                             "id": "call_mock_1",
                                             "type": "function",
                                             "function": {
-                                                "name": name,
+                                                "name": tool_name,
                                                 "arguments": json.dumps(args, ensure_ascii=False),
                                             },
                                         }

@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.update
 
 data class PermissionsState(
     val shizuku: ShellState = ShellState.Unavailable,
+    val filesAccess: Boolean = false,
     val accessibility: Boolean = false,
     val screenCaptureReady: Boolean = false,
     val notificationListener: Boolean = false,
@@ -88,6 +89,7 @@ class PermissionsViewModel @Inject constructor(
     ) { accessibility, capture, shizuku, _ ->
         PermissionsState(
             shizuku = shizuku,
+            filesAccess = filesAccessEnabled(),
             accessibility = accessibility,
             screenCaptureReady = capture,
             notificationListener = notificationListenerEnabled(),
@@ -114,6 +116,14 @@ class PermissionsViewModel @Inject constructor(
     fun requestShizukuPermission() {
         shellBridge.requestPermission()
     }
+
+    private fun filesAccessEnabled(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.os.Environment.isExternalStorageManager()
+        } else {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                PackageManager.PERMISSION_GRANTED
+        }
 
     private fun runtimeGranted(permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
@@ -155,6 +165,11 @@ fun PermissionsPage(
     ) {
         viewModel.refresh()
     }
+    val filesPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        viewModel.refresh()
+    }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -176,6 +191,27 @@ fun PermissionsPage(
                 description = stringResource(R.string.settings_a11y_description),
                 granted = state.accessibility,
                 onGrant = { openSettings(context, Settings.ACTION_ACCESSIBILITY_SETTINGS) },
+            )
+        }
+        item(key = "files-access") {
+            PermissionRow(
+                title = stringResource(R.string.settings_perm_files_title),
+                description = stringResource(R.string.settings_perm_files_desc),
+                granted = state.filesAccess,
+                onGrant = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        runCatching {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                    Uri.parse("package:${context.packageName}"),
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    } else {
+                        filesPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
+                },
             )
         }
         item(key = "shizuku") {

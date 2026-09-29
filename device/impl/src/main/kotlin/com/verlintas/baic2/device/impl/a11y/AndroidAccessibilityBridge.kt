@@ -64,6 +64,11 @@ class AndroidAccessibilityBridge @Inject constructor() : AccessibilityBridge {
         dispatch(path, durationMs = 60)
     }
 
+    override suspend fun longPress(x: Int, y: Int): Result<Unit> = withContext(Dispatchers.Main) {
+        val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+        dispatch(path, durationMs = 650)
+    }
+
     override suspend fun swipe(
         x1: Int,
         y1: Int,
@@ -98,13 +103,31 @@ class AndroidAccessibilityBridge @Inject constructor() : AccessibilityBridge {
 
     override suspend fun pressKey(key: String): Result<Unit> = withContext(Dispatchers.Main) {
         val active = service ?: return@withContext notEnabled()
+        if (key.lowercase() == "enter") {
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+                return@withContext Result.failure(
+                    IllegalStateException("enter_requires_android_11: use press_key 'back' or tap the send button"),
+                )
+            }
+            val target = active.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                ?: active.rootInActiveWindow?.firstEditable()
+                ?: return@withContext Result.failure(
+                    IllegalStateException("no_focused_input: tap a text field first"),
+                )
+            val enterAction = AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
+            return@withContext if (target.performAction(enterAction)) {
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalStateException("enter_rejected: the field refused the action"))
+            }
+        }
         val action = when (key.lowercase()) {
             "back" -> AccessibilityService.GLOBAL_ACTION_BACK
             "home" -> AccessibilityService.GLOBAL_ACTION_HOME
             "recents" -> AccessibilityService.GLOBAL_ACTION_RECENTS
             "notifications", "shade" -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
             else -> return@withContext Result.failure(
-                IllegalArgumentException("unknown_key: use back|home|recents|notifications"),
+                IllegalArgumentException("unknown_key: use back|home|recents|notifications|enter"),
             )
         }
         if (active.performGlobalAction(action)) {
@@ -130,6 +153,19 @@ class AndroidAccessibilityBridge @Inject constructor() : AccessibilityBridge {
         }
         return results
     }
+
+    override fun windowTitle(): String? = runCatching {
+        service?.rootInActiveWindow?.window?.title?.toString()?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    override fun screenSize(): Pair<Int, Int>? = runCatching {
+        service?.resources?.displayMetrics?.let { it.widthPixels to it.heightPixels }
+    }.getOrNull()
+
+    override fun editableFocused(): Boolean = runCatching {
+        val root = service?.rootInActiveWindow ?: return@runCatching false
+        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) != null || root.firstEditable() != null
+    }.getOrDefault(false)
 
     override fun screenText(maxNodes: Int): String {
         val root = service?.rootInActiveWindow ?: return ""

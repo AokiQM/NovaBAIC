@@ -198,6 +198,7 @@ fun ChatScreen(
     val voicePrompt = stringResource(R.string.chat_voice_input)
     val handsFree by viewModel.handsFree.collectAsStateWithLifecycle()
     var handsFreeListening by remember { mutableStateOf(false) }
+    var handsFreeHandledMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Layout-driven bottom follow: react to layout growth instead of polling.
     var wasAtBottom by remember { mutableStateOf(true) }
     var forceFollow by remember { mutableStateOf(false) }
@@ -271,18 +272,24 @@ fun ChatScreen(
         }
     }
 
-    // Hands-free loop: after every completed assistant turn, reopen the mic
-    // and auto-send what was said. Cancels itself while a run is active or a
-    // recognizer dialog is already open.
+    // Hands-free loop: after every *new* assistant reply, reopen the mic and
+    // auto-send what was said. Entering a conversation must not fire it, and
+    // it stays quiet while a run is active or a dialog is already open.
     LaunchedEffect(
         handsFree,
         state.isRunning,
         state.messages.lastOrNull()?.id,
-        state.messages.lastOrNull()?.content,
     ) {
-        if (!handsFree || state.isRunning || handsFreeListening) return@LaunchedEffect
+        if (!handsFree) {
+            handsFreeHandledMessageId = null
+            return@LaunchedEffect
+        }
+        if (state.isRunning || handsFreeListening) return@LaunchedEffect
         val last = state.messages.lastOrNull() ?: return@LaunchedEffect
         if (last.role != ChatRole.ASSISTANT || last.content.isBlank()) return@LaunchedEffect
+        val handled = handsFreeHandledMessageId
+        handsFreeHandledMessageId = last.id
+        if (handled == null || handled == last.id) return@LaunchedEffect
         kotlinx.coroutines.delay(650)
         if (!state.isRunning && !handsFreeListening) {
             handsFreeListening = true

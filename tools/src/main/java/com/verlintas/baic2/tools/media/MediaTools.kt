@@ -64,7 +64,7 @@ class OcrFileTool @Inject constructor() : DeviceTool {
             } else {
                 null
             }
-        } ?: return ToolResult.Failure("Image '$name' not found. Use list_files to check the name.")
+        } ?: return ToolResult.Failure("Image '$name' not found. Use files action=list to check the name.")
 
         val bytes = runCatching {
             context.appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }

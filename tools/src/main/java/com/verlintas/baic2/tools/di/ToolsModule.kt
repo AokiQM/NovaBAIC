@@ -182,17 +182,15 @@ object ToolsModule {
         fetcher: com.verlintas.baic2.tools.web.WebFetcher,
     ): DeviceTool = com.verlintas.baic2.tools.files.DownloadFileTool(fetcher)
 
-    @Provides
-    @IntoSet
-    fun writeDocumentTool(): DeviceTool = com.verlintas.baic2.tools.files.WriteDocumentTool()
+
 
     @Provides
     @IntoSet
-    fun listFilesTool(): DeviceTool = com.verlintas.baic2.tools.files.ListFilesTool()
+    fun fileReadTool(): DeviceTool = com.verlintas.baic2.tools.files.FileReadTool()
 
     @Provides
     @IntoSet
-    fun readTextFileTool(): DeviceTool = com.verlintas.baic2.tools.files.ReadTextFileTool()
+    fun fileWriteTool(): DeviceTool = com.verlintas.baic2.tools.files.FileWriteTool()
 
     @Provides
     @IntoSet
@@ -238,23 +236,7 @@ object ToolsModule {
 
     @Provides
     @IntoSet
-    fun uiFindTool(): DeviceTool = com.verlintas.baic2.tools.UiFindTool()
-
-    @Provides
-    @IntoSet
-    fun uiTapTool(): DeviceTool = com.verlintas.baic2.tools.UiTapTool()
-
-    @Provides
-    @IntoSet
-    fun uiSwipeTool(): DeviceTool = com.verlintas.baic2.tools.UiSwipeTool()
-
-    @Provides
-    @IntoSet
-    fun uiTypeTool(): DeviceTool = com.verlintas.baic2.tools.UiTypeTool()
-
-    @Provides
-    @IntoSet
-    fun uiPressTool(): DeviceTool = com.verlintas.baic2.tools.UiPressTool()
+    fun uiControlTool(): DeviceTool = com.verlintas.baic2.tools.UiControlTool()
 
     @Provides
     @IntoSet

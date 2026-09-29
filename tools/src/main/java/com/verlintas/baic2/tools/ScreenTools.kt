@@ -57,7 +57,7 @@ class TakeScreenshotTool : DeviceTool {
             file.writeBytes(bytes)
             ToolResult.Success(
                 "Screenshot saved: ${file.absolutePath} (${bytes.size / 1024} KB). " +
-                    "Use screen_ocr to read its text, or ui_find to locate elements.",
+                    "Use screen_ocr to read its text, or ui_control find to locate elements.",
             )
         } catch (e: Exception) {
             ToolResult.Failure("Could not save the screenshot: ${e.message}")
@@ -68,8 +68,9 @@ class TakeScreenshotTool : DeviceTool {
 class ScreenOcrTool : DeviceTool {
     override val spec = ToolSpec(
         name = "screen_ocr",
-        description = "Capture the screen and return its visible text (Chinese + English, per line). " +
-            "Use it to read what is on screen.",
+        description = "One-shot screen perception: foreground app, window title, interactive " +
+            "elements with coordinates (when accessibility is on) and the full visible text. " +
+            "Prefer this over separate app/OCR/find calls.",
         parametersJson = """{"type":"object","properties":{}}""",
         readOnly = true,
         danger = DangerLevel.LOW,
@@ -77,18 +78,48 @@ class ScreenOcrTool : DeviceTool {
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
+        val header = buildString {
+            val pkg = context.accessibility.foregroundPackage()
+            val title = context.accessibility.windowTitle()
+            if (pkg != null) append("App: ").append(pkg)
+            if (!title.isNullOrBlank()) {
+                if (isNotEmpty()) append(" · ")
+                append("Window: ").append(title)
+            }
+        }
+
+        val interactive = context.accessibility.screenText(60)
+            .lines()
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(25)
+
         val bytes = context.screenshot.capture().getOrElse { return screenshotFailure(it) }
         val lines = context.ocr.recognize(bytes).getOrElse { error ->
             return ToolResult.Failure("OCR failed: ${error.message ?: "unknown error"}")
         }
-        if (lines.isEmpty()) return ToolResult.Success("No text detected on screen.")
-        val text = lines.joinToString("\n") { it.text }
-        val clipped = if (text.length > SCREEN_TEXT_LIMIT) {
-            text.take(SCREEN_TEXT_LIMIT) + "\n…(truncated)"
-        } else {
-            text
-        }
-        return ToolResult.Success("Screen text (${lines.size} lines):\n$clipped")
+
+        return ToolResult.Success(
+            buildString {
+                if (header.isNotEmpty()) append(header).append("\n\n")
+                if (interactive.isNotEmpty()) {
+                    append("Interactive/text elements (accessibility):\n")
+                    interactive.forEach { append("- ").append(it).append('\n') }
+                    append('\n')
+                }
+                if (lines.isEmpty()) {
+                    append("No OCR text detected on screen.")
+                } else {
+                    val text = lines.joinToString("\n") { it.text }
+                    val clipped = if (text.length > SCREEN_TEXT_LIMIT) {
+                        text.take(SCREEN_TEXT_LIMIT) + "\n…(truncated)"
+                    } else {
+                        text
+                    }
+                    append("Visible text (OCR, ").append(lines.size).append(" lines):\n").append(clipped)
+                }
+            },
+        )
     }
 
     private companion object {

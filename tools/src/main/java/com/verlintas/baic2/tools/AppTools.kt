@@ -25,45 +25,58 @@ import android.provider.Settings
 import com.verlintas.baic2.core.model.DangerLevel
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
+import com.verlintas.baic2.tools.apps.AppResolver
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 
 class OpenAppTool : DeviceTool {
+
     override val spec = ToolSpec(
         name = "open_app",
-        description = "Launch an installed app by exact package name or by (partial) display name.",
-        parametersJson = """{"type":"object","properties":{"package":{"type":"string","description":"Exact package name, e.g. com.android.settings"},"name":{"type":"string","description":"App label (partial match allowed), e.g. Calculator"}}}""",
+        description = "Launch an installed app by display name or package. Fuzzy matching: " +
+            "'微信', 'settings', 'chrome' and exact packages all work without listing apps first.",
+        parametersJson = """{"type":"object","properties":{"name":{"type":"string","description":"app label (partial ok) or package name"},"package":{"type":"string"}},"required":[]}""",
         readOnly = false,
         danger = DangerLevel.LOW,
         parallelSafe = false,
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
+        val query = (arguments["package"] as? JsonPrimitive)?.content?.trim()?.takeIf { it.isNotBlank() }
+            ?: (arguments["name"] as? JsonPrimitive)?.content?.trim()?.takeIf { it.isNotBlank() }
+            ?: return ToolResult.Failure("Provide 'name' (app label) or 'package'")
+
         val pm = context.appContext.packageManager
-        val packageArg = (arguments["package"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
-        val nameArg = (arguments["name"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+        val matches = AppResolver.resolve(context.appContext, query, launchableOnly = true)
+        val best = matches.firstOrNull()
+            ?: return ToolResult.Failure(
+                "No launchable app matches '$query'. Use list_installed_apps to see what is installed.",
+            )
 
-        val packageName = packageArg ?: run {
-            val needle = nameArg?.lowercase()
-                ?: return ToolResult.Failure("Provide either 'package' or 'name'")
-            pm.getInstalledApplications(PackageManager.MATCH_DISABLED_COMPONENTS)
-                .firstOrNull { app ->
-                    pm.getApplicationLabel(app).toString().lowercase().contains(needle)
-                }
-                ?.packageName
-                ?: return ToolResult.Failure("No installed app matches '$needle'. Try list_installed_apps first.")
-        }
-
-        val launchIntent = pm.getLaunchIntentForPackage(packageName)
-            ?: return ToolResult.Failure("'$packageName' has no launchable activity (system component?).")
+        val launchIntent = pm.getLaunchIntentForPackage(best.packageName)
+            ?: return ToolResult.Failure("'${best.label}' (${best.packageName}) has no launchable activity.")
         return try {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.appContext.startActivity(launchIntent)
-            ToolResult.Success("Launched $packageName")
+            delay(700)
+            val foreground = context.accessibility.foregroundPackage()
+            val alternatives = matches.drop(1).take(3)
+            ToolResult.Success(
+                buildString {
+                    append("Launched \"").append(best.label).append("\" (").append(best.packageName).append(')')
+                    if (foreground == best.packageName) append(" — now in the foreground")
+                    if (alternatives.isNotEmpty()) {
+                        append(". Other matches: ").append(
+                            alternatives.joinToString("; ") { "${it.label} (${it.packageName})" },
+                        )
+                    }
+                },
+            )
         } catch (e: Exception) {
-            ToolResult.Failure("Could not launch $packageName: ${e.message}")
+            ToolResult.Failure("Could not launch ${best.packageName}: ${e.message}")
         }
     }
 }

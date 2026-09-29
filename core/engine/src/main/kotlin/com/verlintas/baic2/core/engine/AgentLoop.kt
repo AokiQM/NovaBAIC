@@ -368,7 +368,7 @@ fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): Str
         AppMode.MAX ->
             "You are in autonomous mode. Maintain a task plan with the plan_update tool: create it " +
                 "before the first action, keep exactly one step marked DOING, verify each step with an " +
-                "observation tool (screen_ocr / ui_find / device_info) and update its status immediately, " +
+                "observation tool (screen_ocr / ui_control / device_info) and update its status immediately, " +
                 "then mark it DONE or FAILED. Execute tools without asking, never repeat a failed call " +
                 "with identical arguments, and summarize the outcome at the end."
     }

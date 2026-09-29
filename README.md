@@ -53,7 +53,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 
 **AI × 设备（48 个内置工具）**
 - 看屏：`take_screenshot`、`screen_ocr`（ML Kit 中英，带坐标）
-- 操作：`ui_find` / `ui_tap` / `ui_swipe` / `ui_type` / `ui_press`（无障碍，支持按文字点击）
+- 操作：`ui_control`（无障碍：按文字模糊查找并点击/长按、滚动查找、输入、按键、等待控件出现，一次调用完成定位→操作→校验）
 - App 与系统：打开应用 / 设置页、音量 / 亮度 / 手电筒 / 铃声 / 勿扰、媒体控制、通知、剪贴板、分享、拨号
 - 内容：文件读写与下载、文本文件、OCR 文件、二维码生成 / 识别、网页搜索与阅读、天气、RSS、汇率（内置计算）
 - 个人：联系人、邮件、日历、提醒（单次 / 每日重复）、通知读取、位置、用量统计

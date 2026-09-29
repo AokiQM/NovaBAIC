@@ -24,6 +24,7 @@ import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import com.verlintas.baic2.device.api.ShellBridge
 import com.verlintas.baic2.device.api.ShellResult
+import com.verlintas.baic2.tools.apps.AppResolver
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -95,8 +96,9 @@ class ManageAppTool(
     override val spec = ToolSpec(
         name = "manage_app",
         description = "Manage installed apps via Shizuku: 'list' (optional keyword), 'info', " +
-            "'force_stop', 'clear_data', 'uninstall'. Package names are validated before use.",
-        parametersJson = """{"type":"object","properties":{"action":{"type":"string","enum":["list","info","force_stop","clear_data","uninstall"]},"package":{"type":"string","description":"package name, required unless action=list"},"keyword":{"type":"string","description":"filter for action=list"}},"required":["action"]}""",
+            "'force_stop', 'clear_data', 'uninstall'. Targets accept a package name OR an app " +
+            "label (resolved fuzzily); the resolved package is validated before use.",
+        parametersJson = """{"type":"object","properties":{"action":{"type":"string","enum":["list","info","force_stop","clear_data","uninstall"]},"app":{"type":"string","description":"app label or package name, required unless action=list"},"keyword":{"type":"string","description":"filter for action=list"}},"required":["action"]}""",
         readOnly = false,
         danger = DangerLevel.HIGH,
         parallelSafe = false,
@@ -114,10 +116,16 @@ class ManageAppTool(
             return runShell(command)
         }
 
-        val packageName = (arguments["package"] as? JsonPrimitive)?.content?.trim().orEmpty()
+        val rawTarget = (arguments["app"] as? JsonPrimitive)?.content?.trim()
+            ?: (arguments["package"] as? JsonPrimitive)?.content?.trim()
+            ?: return ToolResult.Failure("Missing 'app' (label or package name)")
+        val packageName = resolvePackage(context, rawTarget)
+            ?: return ToolResult.Failure(
+                "No installed app matches '$rawTarget'. Use list_installed_apps to see what is installed.",
+            )
         if (!PACKAGE_PATTERN.matches(packageName)) {
             return ToolResult.Failure(
-                "ERROR: invalid package name '$packageName' — expected letters, digits, dots and underscores",
+                "Invalid package name '$packageName' — expected letters, digits, dots and underscores",
             )
         }
         val command = when (action) {
@@ -149,6 +157,12 @@ class ManageAppTool(
                 if (result.exitCode == 0) ToolResult.Success(text) else ToolResult.Failure(text)
             }
         }
+
+    /** Package names pass through; anything else is treated as a fuzzy app label. */
+    private fun resolvePackage(context: ToolContext, target: String): String? {
+        if (PACKAGE_PATTERN.matches(target) && target.contains('.')) return target
+        return AppResolver.resolve(context.appContext, target).firstOrNull()?.packageName
+    }
 
     private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 

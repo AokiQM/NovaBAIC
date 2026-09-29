@@ -42,11 +42,14 @@ interface AccessibilityBridge {
 
     suspend fun tap(x: Int, y: Int): Result<Unit>
 
+    /** Press and hold a point (e.g. context menus, drag handles). */
+    suspend fun longPress(x: Int, y: Int): Result<Unit>
+
     suspend fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Int): Result<Unit>
 
     suspend fun typeText(text: String): Result<Unit>
 
-    /** key: back | home | recents | notifications */
+    /** key: back | home | recents | notifications | enter */
     suspend fun pressKey(key: String): Result<Unit>
 
     /** Interactive elements whose text/description contains [query]. */
@@ -56,4 +59,13 @@ interface AccessibilityBridge {
 
     /** Package name of the app currently in the foreground, when known. */
     fun foregroundPackage(): String?
+
+    /** Active window title, when the service can read one. */
+    fun windowTitle(): String?
+
+    /** Display size in pixels. */
+    fun screenSize(): Pair<Int, Int>?
+
+    /** True when a text input currently owns the input focus (or one exists). */
+    fun editableFocused(): Boolean
 }
