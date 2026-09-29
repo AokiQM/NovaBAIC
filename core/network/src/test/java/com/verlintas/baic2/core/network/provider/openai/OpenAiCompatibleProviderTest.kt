@@ -220,6 +220,9 @@ class OpenAiCompatibleProviderTest {
         assertEquals("be nice", messages[0].jsonObject.getValue("content").jsonPrimitive.content)
         assertEquals("user", messages[1].jsonObject.getValue("role").jsonPrimitive.content)
 
+        val streamOptions = body.getValue("stream_options").jsonObject
+        assertTrue(streamOptions.getValue("include_usage").jsonPrimitive.content == "true")
+
         val wireTools = body.getValue("tools").jsonArray
         val function = wireTools[0].jsonObject.getValue("function").jsonObject
         assertEquals("get_weather", function.getValue("name").jsonPrimitive.content)

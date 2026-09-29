@@ -58,6 +58,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
@@ -76,7 +77,11 @@ sealed interface MarkdownBlock {
 
     data class Code(val language: String, val code: String) : MarkdownBlock
 
-    data class Table(val header: List<String>, val rows: List<List<String>>) : MarkdownBlock
+    data class Table(
+        val header: List<String>,
+        val rows: List<List<String>>,
+        val alignments: List<MarkdownNormalizer.TableAlignment> = emptyList(),
+    ) : MarkdownBlock
 }
 
 fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
@@ -135,7 +140,11 @@ fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
                 rows += MarkdownNormalizer.splitTableRow(lines[cursor])
                 cursor++
             }
-            blocks += MarkdownBlock.Table(header, rows)
+            blocks += MarkdownBlock.Table(
+                header = header,
+                rows = rows,
+                alignments = MarkdownNormalizer.tableAlignments(lines[lineIndex + 1]),
+            )
             lineIndex = cursor
             continue
         }
@@ -266,14 +275,14 @@ private fun MarkdownTable(table: MarkdownBlock.Table) {
         Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
             Row(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 table.header.take(columnCount).forEachIndexed { index, cell ->
-                    TableCell(cell, widths[index], header = true)
+                    TableCell(cell, widths[index], table.alignments.getOrNull(index), header = true)
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             table.rows.forEach { row ->
                 Row {
                     widths.indices.forEach { index ->
-                        TableCell(row.getOrNull(index).orEmpty(), widths[index])
+                        TableCell(row.getOrNull(index).orEmpty(), widths[index], table.alignments.getOrNull(index))
                     }
                 }
             }
@@ -282,7 +291,12 @@ private fun MarkdownTable(table: MarkdownBlock.Table) {
 }
 
 @Composable
-private fun TableCell(text: String, widthChars: Int, header: Boolean = false) {
+private fun TableCell(
+    text: String,
+    widthChars: Int,
+    alignment: MarkdownNormalizer.TableAlignment?,
+    header: Boolean = false,
+) {
     Text(
         text = inlineMarkdown(text),
         style = if (header) {
@@ -293,6 +307,11 @@ private fun TableCell(text: String, widthChars: Int, header: Boolean = false) {
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 4,
         overflow = TextOverflow.Ellipsis,
+        textAlign = when (alignment) {
+            MarkdownNormalizer.TableAlignment.CENTER -> TextAlign.Center
+            MarkdownNormalizer.TableAlignment.RIGHT -> TextAlign.End
+            else -> TextAlign.Start
+        },
         modifier = Modifier
             .width((widthChars * 7.5f).dp)
             .padding(horizontal = 8.dp, vertical = 6.dp),

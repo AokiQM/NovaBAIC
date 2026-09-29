@@ -84,6 +84,19 @@ class ArgumentHealerTest {
     }
 
     @Test
+    fun skipsAmbiguousRenames() {
+        val ambiguousSchema = """
+            {"type":"object","properties":{"path":{"type":"string"},"pash":{"type":"string"}}}
+        """.trimIndent()
+        val healed = ArgumentHealer.heal(
+            JsonObject(mapOf("pafh" to JsonPrimitive("x"))),
+            ambiguousSchema,
+        )
+        assertEquals("x", healed.arguments["pafh"]?.jsonPrimitive?.content)
+        assertTrue(healed.notes.isEmpty())
+    }
+
+    @Test
     fun leavesValidArgumentsUntouched() {
         val arguments = JsonObject(
             mapOf(

@@ -43,6 +43,7 @@ import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ModelCatalog
 import com.verlintas.baic2.core.model.ModelContextWindows
 import com.verlintas.baic2.core.model.Plan
@@ -97,6 +98,7 @@ data class ChatUiState(
     val pendingAttachments: List<Attachment> = emptyList(),
     val plan: Plan? = null,
     val confirmRequest: ToolCall? = null,
+    val compressionSnapshot: MessageSnapshot? = null,
 )
 
 enum class AttachmentError {
@@ -172,6 +174,7 @@ class ChatViewModel @Inject constructor(
         val pendingAttachments: List<Attachment>,
         val confirmRequest: ToolCall?,
         val plan: Plan?,
+        val snapshot: MessageSnapshot?,
     )
 
     val attachmentErrors: StateFlow<AttachmentError?> = attachmentError.asStateFlow()
@@ -188,8 +191,9 @@ class ChatViewModel @Inject constructor(
             pendingAttachments,
             confirmation,
             planRepository.observePlan(conversationId),
-        ) { busy, attachments, confirmRequest, plan ->
-            ViewExtras(busy, attachments, confirmRequest, plan)
+            conversationRepository.observeSnapshots(conversationId),
+        ) { busy, attachments, confirmRequest, plan, snapshots ->
+            ViewExtras(busy, attachments, confirmRequest, plan, snapshots.firstOrNull())
         },
     ) { conversation, messages, stream, session, extras ->
         val mode = conversation?.mode ?: AppMode.CHAT
@@ -220,6 +224,7 @@ class ChatViewModel @Inject constructor(
             pendingAttachments = extras.pendingAttachments,
             plan = extras.plan,
             confirmRequest = extras.confirmRequest,
+            compressionSnapshot = extras.snapshot,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -418,9 +423,31 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Summarizes older history, keeping recent turns verbatim. */
-    fun compressContext() {
+    fun compressContext(tooShortHint: String) {
         if (running.value || auxBusy.value) return
-        viewModelScope.launch { runCompression() }
+        viewModelScope.launch {
+            val messages = conversationRepository.getMessages(conversationId)
+            if (messages.size <= KEEP_RECENT_MESSAGES) {
+                notice.value = tooShortHint
+                return@launch
+            }
+            runCompression()
+        }
+    }
+
+    /** Brings back the messages the last compression replaced. */
+    fun restoreCompression() {
+        val snapshot = uiState.value.compressionSnapshot ?: return
+        viewModelScope.launch {
+            notice.value = null
+            conversationRepository.restoreSnapshot(snapshot.id)
+        }
+    }
+
+    /** Keeps the summarized history and drops the backup. */
+    fun discardCompression() {
+        val snapshot = uiState.value.compressionSnapshot ?: return
+        viewModelScope.launch { conversationRepository.discardSnapshot(snapshot.id) }
     }
 
     /** Extracts durable user facts from the recent conversation. */

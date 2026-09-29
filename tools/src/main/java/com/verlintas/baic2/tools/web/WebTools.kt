@@ -27,9 +27,17 @@ import com.verlintas.baic2.tools.ToolContext
 import java.io.IOException
 import java.net.URLDecoder
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -148,108 +156,229 @@ class WebSearchTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "web_search",
-        description = "Search the web (DuckDuckGo with Bing fallback) and return titles, URLs and snippets.",
-        parametersJson = """{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","description":"1-10, default 6"}},"required":["query"]}""",
+        description = "Search the web across multiple engines; results are merged, deduplicated " +
+            "and ranked by relevance. Optionally reads the full text of the top results " +
+            "(read_top). `query` may be an array of up to 3 queries for comparisons; " +
+            "`refresh` bypasses the 5-minute cache.",
+        parametersJson = """{"type":"object","properties":{"query":{"description":"One query string or an array of up to 3 queries"},"max_results":{"type":"integer","description":"1-12, default 8"},"read_top":{"type":"integer","description":"read the full text of the top N results, 0-3, default 1"},"refresh":{"type":"boolean","description":"bypass the 5-minute cache"}},"required":["query"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
-        val query = (arguments["query"] as? JsonPrimitive)?.content?.trim()
-            ?: return ToolResult.Failure("Missing 'query' argument")
-        val limit = ((arguments["limit"] as? JsonPrimitive)?.intOrNull ?: 6).coerceIn(1, 10)
+        val queries = parseQueries(arguments)
+        if (queries.isEmpty()) return ToolResult.Failure("Missing 'query' argument")
+        val maxResults = ((arguments["max_results"] as? JsonPrimitive)?.intOrNull ?: 8).coerceIn(1, 12)
+        val readTop = ((arguments["read_top"] as? JsonPrimitive)?.intOrNull ?: 1).coerceIn(0, 3)
+        val refresh = (arguments["refresh"] as? JsonPrimitive)?.booleanOrNull ?: false
 
-        val errors = mutableListOf<String>()
-        val hits = searchDuckDuckGoLite(query, limit, errors)
-            .ifEmpty { searchDuckDuckGo(query, limit, errors) }
-            .ifEmpty { searchBing(query, limit, errors) }
-            .ifEmpty { searchBaidu(query, limit, errors) }
+        val cacheKey = queries.joinToString("|") + "|$maxResults|$readTop"
+        if (!refresh) SearchCache.get(cacheKey)?.let { return ToolResult.Success(it) }
+
+        val (hits, diagnostics) = runEngines(queries, (maxResults * 2).coerceAtMost(24))
         if (hits.isEmpty()) {
-            return ToolResult.Failure(
-                "No results for '$query'" +
-                    (if (errors.isEmpty()) "." else " (${errors.joinToString("; ")})"),
-            )
+            return ToolResult.Failure("No results for ${queries.joinToString()} ($diagnostics)")
         }
-        return ToolResult.Success(
-            buildString {
-                append("Results for '$query':\n")
-                hits.forEachIndexed { index, hit ->
-                    append("\n${index + 1}. ${hit.title}\n   ${hit.url}\n   ${hit.snippet.take(200)}")
+        val ranked = SearchPipeline.rank(hits, queries)
+        val deduped = SearchPipeline.dedupe(ranked).take(maxResults)
+
+        val text = buildString {
+            append("Results for ").append(queries.joinToString(" | ") { "'$it'" }).append(":\n")
+            deduped.forEachIndexed { index, hit ->
+                append('\n').append(index + 1).append(". ").append(hit.title).append('\n')
+                append("   ").append(hit.url).append('\n')
+                if (hit.snippet.isNotBlank()) {
+                    append("   ").append(hit.snippet.take(240)).append('\n')
                 }
-            },
-        )
+            }
+            if (readTop > 0) append(readBodies(deduped, readTop))
+            append('\n').append('[').append(diagnostics).append(']')
+        }
+        val clipped = if (text.length > MAX_OUTPUT_CHARS) {
+            text.take(MAX_OUTPUT_CHARS) + "…(truncated)"
+        } else {
+            text
+        }
+        SearchCache.put(cacheKey, clipped)
+        return ToolResult.Success(clipped)
     }
 
-    private fun searchDuckDuckGoLite(query: String, limit: Int, errors: MutableList<String>): List<SearchHit> {
-        val url = "https://lite.duckduckgo.com/lite/?q=" + java.net.URLEncoder.encode(query, "UTF-8")
-        val html = fetcher.fetch(url).getOrElse { failure ->
-            errors += "ddg-lite: ${failure.message}"
-            return emptyList()
+    private fun parseQueries(arguments: JsonObject): List<String> {
+        val element = arguments["query"] ?: return emptyList()
+        val raw = when (element) {
+            is JsonArray -> element.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            is JsonPrimitive -> listOfNotNull(element.contentOrNull)
+            else -> emptyList()
         }
-        val doc = Jsoup.parse(html)
+        return raw.map { it.trim() }.filter { it.isNotBlank() }.distinct().take(3)
+    }
+
+    private suspend fun runEngines(queries: List<String>, perQuery: Int): Pair<List<SearchHit>, String> =
+        supervisorScope {
+            val jobs = buildList {
+                queries.forEach { query ->
+                    add("ddg-lite" to async { searchDuckDuckGoLite(query, perQuery) })
+                    add("ddg" to async { searchDuckDuckGo(query, perQuery) })
+                    add("bing" to async { searchBing(query, perQuery) })
+                    add("baidu" to async { searchBaidu(query, perQuery) })
+                    add("mojeek" to async { searchMojeek(query, perQuery) })
+                    add("360" to async { search360(query, perQuery) })
+                }
+            }
+            data class EngineTally(var count: Int = 0, var error: String? = null)
+            val tally = LinkedHashMap<String, EngineTally>()
+            val hits = mutableListOf<SearchHit>()
+            jobs.forEach { (name, job) ->
+                val slot = tally.getOrPut(name) { EngineTally() }
+                val outcome = runCatching {
+                    withTimeoutOrNull(ENGINE_TIMEOUT_MS) { job.await() }
+                }
+                val result = outcome.getOrNull()
+                when {
+                    result != null -> {
+                        slot.count += result.size
+                        hits += result
+                    }
+                    outcome.isSuccess -> slot.error = slot.error ?: "timeout"
+                    else -> {
+                        val message = outcome.exceptionOrNull()?.message.orEmpty()
+                        slot.error = slot.error ?: message.ifBlank { "failed" }.take(60)
+                    }
+                }
+            }
+            val diagnostics = tally.entries.joinToString(" ") { (name, slot) ->
+                when {
+                    slot.count > 0 -> "$name\u2713${slot.count}"
+                    slot.error != null -> "$name\u2717(${slot.error})"
+                    else -> "$name\u2717"
+                }
+            }
+            hits to diagnostics
+        }
+
+    private suspend fun readBodies(hits: List<SearchHit>, wanted: Int): String =
+        withContext(Dispatchers.IO) {
+            val chunks = mutableListOf<String>()
+            var attempts = 0
+            for (hit in hits) {
+                if (chunks.size >= wanted || attempts >= READ_ATTEMPTS) break
+                attempts++
+                val html = fetcher.fetch(hit.url).getOrNull() ?: continue
+                val article = SearchPipeline.extractArticle(html)
+                if (article.isBlank()) continue
+                val body = if (article.length > BODY_BUDGET) {
+                    article.take(BODY_BUDGET) + "…"
+                } else {
+                    article
+                }
+                chunks += "\n--- ${hit.title}\n${hit.url}\n$body"
+            }
+            if (chunks.isEmpty()) "" else "\n\nTop result bodies:" + chunks.joinToString("\n")
+        }
+
+    private fun searchDuckDuckGoLite(query: String, limit: Int): List<SearchHit> {
+        val url = "https://lite.duckduckgo.com/lite/?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
         return doc.select("a.result-link").mapNotNull { anchor ->
-            val href = anchor.attr("href")
+            val href = anchor.absUrl("href")
             if (!href.startsWith("http")) return@mapNotNull null
             val snippet = anchor.parent()?.parent()?.nextElementSibling()?.text().orEmpty()
             SearchHit(anchor.text(), href, snippet)
         }.take(limit)
     }
 
-    private fun searchDuckDuckGo(query: String, limit: Int, errors: MutableList<String>): List<SearchHit> {
+    private fun searchDuckDuckGo(query: String, limit: Int): List<SearchHit> {
         val url = "https://html.duckduckgo.com/html/?q=" + java.net.URLEncoder.encode(query, "UTF-8")
-        val html = fetcher.fetch(url).getOrElse { failure ->
-            errors += "duckduckgo: ${failure.message}"
-            return emptyList()
-        }
-        val doc = Jsoup.parse(html)
-        return doc.select("a.result__a").mapNotNull { anchor ->
-            val href = anchor.attr("href")
-            val resolved = if (href.contains("uddg=")) {
-                runCatching {
-                    URLDecoder.decode(
-                        href.substringAfter("uddg=").substringBefore('&'),
-                        "UTF-8",
-                    )
-                }.getOrNull()
-            } else {
-                href
-            } ?: return@mapNotNull null
-            val snippet = anchor.closest(".result")?.selectFirst(".result__snippet")?.text().orEmpty()
-            SearchHit(anchor.text(), resolved, snippet)
-        }.filter { it.url.startsWith("http") }.take(limit)
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
+        return doc.select("div.result, div.web-result").mapNotNull { result ->
+            val hit = titleAnchor(result, url, "a.result__a") ?: return@mapNotNull null
+            val snippet = result.selectFirst(".result__snippet")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
     }
 
-    private fun searchBing(query: String, limit: Int, errors: MutableList<String>): List<SearchHit> {
+    private fun searchBing(query: String, limit: Int): List<SearchHit> {
         val url = "https://www.bing.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8")
-        val html = fetcher.fetch(url).getOrElse { failure ->
-            errors += "bing: ${failure.message}"
-            return emptyList()
-        }
-        val doc = Jsoup.parse(html)
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
         return doc.select("li.b_algo").mapNotNull { item ->
-            val anchor = item.selectFirst("h2 a") ?: return@mapNotNull null
-            SearchHit(
-                title = anchor.text(),
-                url = anchor.attr("href"),
-                snippet = item.selectFirst(".b_caption p")?.text().orEmpty(),
-            )
-        }.filter { it.url.startsWith("http") }.take(limit)
+            val hit = titleAnchor(item, url) ?: return@mapNotNull null
+            val snippet = item.selectFirst(".b_caption p, p")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
     }
 
-    private fun searchBaidu(query: String, limit: Int, errors: MutableList<String>): List<SearchHit> {
+    private fun searchBaidu(query: String, limit: Int): List<SearchHit> {
         val url = "https://www.baidu.com/s?wd=" + java.net.URLEncoder.encode(query, "UTF-8")
-        val html = fetcher.fetch(url).getOrElse { failure ->
-            errors += "baidu: ${failure.message}"
-            return emptyList()
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
+        return doc.select("div.result, div.c-container, div.c-result").mapNotNull { item ->
+            val hit = titleAnchor(item, url) ?: return@mapNotNull null
+            val snippet = item.selectFirst(".c-abstract, .content-right_8Zs40, .c-span-last")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
+    }
+
+    private fun searchMojeek(query: String, limit: Int): List<SearchHit> {
+        val url = "https://www.mojeek.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
+        return doc.select("ul.results-standard li, li.result").mapNotNull { item ->
+            val hit = titleAnchor(item, url, "a.title") ?: return@mapNotNull null
+            val snippet = item.selectFirst("p.s, .s")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
+    }
+
+    private fun search360(query: String, limit: Int): List<SearchHit> {
+        val url = "https://www.so.com/s?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
+        return doc.select("li.res-list, div.res-list, .result").mapNotNull { item ->
+            val hit = titleAnchor(item, url) ?: return@mapNotNull null
+            val snippet = item.selectFirst(".res-desc, p.res-desc")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
+    }
+
+    /**
+     * Resolves a result's title anchor: explicit selectors first, then the
+     * first public link inside the container (engine markup changes often).
+     */
+    private fun titleAnchor(
+        item: org.jsoup.nodes.Element,
+        baseUrl: String,
+        vararg preferred: String,
+    ): SearchHit? {
+        val selectors = preferred.toList() + listOf("h3 a", "h2 a", "a.title", "a.result__a")
+        for (selector in selectors) {
+            val anchor = item.selectFirst(selector) ?: continue
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+            if (href.startsWith("http")) {
+                return SearchHit(
+                    anchor.text().ifBlank { item.selectFirst("h2, h3")?.text().orEmpty() },
+                    href,
+                    "",
+                )
+            }
         }
-        val doc = Jsoup.parse(html)
-        return doc.select("h3.t a, h3 a").mapNotNull { anchor ->
-            val title = anchor.text()
-            val href = anchor.attr("href")
-            if (title.isBlank() || !href.startsWith("http")) return@mapNotNull null
-            SearchHit(title, href, "")
-        }.distinctBy { it.url }.take(limit)
+        item.selectFirst("a[href]")?.let { anchor ->
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+            if (href.startsWith("http") && !href.contains(baseUrl.substringAfter("//").substringBefore("/"))) {
+                return SearchHit(anchor.text(), href, "")
+            }
+        }
+        return null
+    }
+
+    private companion object {
+        const val ENGINE_TIMEOUT_MS = 8_000L
+        const val READ_ATTEMPTS = 6
+        const val BODY_BUDGET = 5_000
+        const val MAX_OUTPUT_CHARS = 9_000
     }
 }
 

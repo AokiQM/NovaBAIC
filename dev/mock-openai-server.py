@@ -35,7 +35,7 @@ TOOL_ARGS = {
     "take_screenshot": {},
     "screen_ocr": {},
     "ui_find": {"text": "Back"},
-    "web_search": {"query": "BAIC2 Android AI agent", "limit": 3},
+    "web_search": {"query": "BAIC2 Android AI agent", "max_results": 4, "read_top": 1},
     "web_read": {"url": "https://example.com", "max_chars": 500},
     "spawn_agent": {"task": "汇报当前设备与时间信息", "mode": "research"},
     "mock_echo": {"text": "hi from baic2"},
@@ -143,8 +143,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             time.sleep(delay)
 
-        trigger = re.search(r"tooltest:([a-z_]+)", user_text)
-        if trigger is None and not tool_results and (
+        auxiliary = (
+            "Summarize the conversation" in system_text
+            or "short conversation titles" in system_text
+            or "Extract durable facts" in system_text
+        )
+        trigger = None if auxiliary else re.search(r"tooltest:([a-z_]+)", user_text)
+        if not auxiliary and trigger is None and not tool_results and (
             "设备" in user_text or "status" in user_text.lower()
         ):
             trigger = re.match(r"(?P<name>device_info)", "device_info")

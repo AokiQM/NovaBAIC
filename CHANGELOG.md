@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+在原项目 HOW_IT_WORKS 的基础上做了几处"不是照搬、而是升级"的改造。
+
+### 升级 Changed
+
+- **可回滚的上下文压缩**：压缩前把被替换的消息完整归档到 `message_snapshots`（DB 7→8 显式迁移），聊天菜单可"恢复压缩前的历史 / 放弃压缩备份"；恢复时按时间顺序重写会话，保证消息 id 始终与创建顺序一致。原项目用 memories 表存快照、"导入最近对话"手工恢复，这里改成一等公民且原子可回滚
+- **web_search 管线重写**：六引擎并发扇出（DDG lite/html、Bing、Baidu、Mojeek、360）、URL 归一化与跟踪参数剥离、URL/近似标题/单域配额三层去重、标题×3+摘要×1 相关性排序、CJK 二元分词、`read_top` 元素级正文抽取（噪声过滤/相邻去重）、多 query（≤3）、5 分钟 TTL 缓存与 `refresh`、逐引擎诊断（如 `bing✓5 360✓8 ddg✗(timeout)`），失败引擎不再拖垮整体
+- **OpenAI 兼容端点请求 `stream_options.include_usage`**：流式响应现在能拿到真实 prompt/completion tokens，配合 CJK 估算与 ModelCatalog 窗口，上下文计数器在"精确/估算"间自动切换
+- **表格列对齐**：解析 `:---`/`:---:`/`---:` 并渲染对齐；参数自愈拒绝歧义重命名（多个候选时宁可不改）
+- **压缩反馈**：对话不够长时给出本地化提示，而不是静默无操作
+
+### 工程 Engineering
+
+- 新增 `tools/check-strings-sync.sh`：CI（build + release）强制 zh/en 字符串键一致——原项目文档自认这项没人管
+- mock 服务器：辅助请求（标题/记忆/压缩）不再被 `tooltest:` 触发词误判；web_search 参数对齐新 schema
+
+### 测试 Tests
+
+- 新增 SearchPipeline（8）、ArgumentHealer 歧义用例、Markdown 表格对齐、include_usage 载荷断言；全套 127 → 150+ 通过
+
 ## [0.1.1] - 2026-09-29
 
 修复 0.1.0 验收反馈的全部问题，并修复工具调用历史导致后续请求必然失败的关键缺陷。

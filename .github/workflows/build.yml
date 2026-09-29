@@ -39,6 +39,9 @@ jobs:
       - name: License headers
         run: tools/check-license-headers.sh
 
+      - name: String resources in sync
+        run: tools/check-strings-sync.sh
+
       - name: Unit tests
         run: ./gradlew test
 

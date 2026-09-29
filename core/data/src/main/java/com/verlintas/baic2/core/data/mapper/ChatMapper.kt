@@ -25,6 +25,7 @@ import com.verlintas.baic2.core.data.db.ConversationEntity
 import com.verlintas.baic2.core.data.db.MemoryEntity
 import com.verlintas.baic2.core.data.db.McpServerEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
+import com.verlintas.baic2.core.data.db.SnapshotEntity
 import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
 import com.verlintas.baic2.core.data.db.RunSummaryRow
@@ -39,6 +40,7 @@ import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.Memory
 import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.PlanStep
 import com.verlintas.baic2.core.model.ProviderId
@@ -154,6 +156,20 @@ class ChatMapper @Inject constructor(private val json: Json) {
     )
 
     fun encodeToolCalls(toolCalls: List<ToolCall>): String = json.encodeToString(toolCalls)
+
+    fun encodeMessages(messages: List<com.verlintas.baic2.core.model.ChatMessage>): String =
+        json.encodeToString(messages)
+
+    fun snapshotToModel(entity: SnapshotEntity): MessageSnapshot = MessageSnapshot(
+        id = entity.id,
+        conversationId = entity.conversationId,
+        carrierId = entity.carrierId,
+        keepFromMessageId = entity.keepFromMessageId,
+        messages = runCatching {
+            json.decodeFromString<List<com.verlintas.baic2.core.model.ChatMessage>>(entity.payloadJson)
+        }.getOrDefault(emptyList()),
+        createdAt = entity.createdAt,
+    )
 
     fun runToModel(entity: RunEntity): Run = Run(
         id = entity.id,

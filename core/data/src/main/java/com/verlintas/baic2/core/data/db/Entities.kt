@@ -101,6 +101,19 @@ data class ConversationSummary(
     val lastMessage: String?,
 )
 
+@Entity(
+    tableName = "message_snapshots",
+    indices = [Index(value = ["conversationId"])],
+)
+data class SnapshotEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val conversationId: Long,
+    val carrierId: Long,
+    val keepFromMessageId: Long,
+    val payloadJson: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "automations")
 data class AutomationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,

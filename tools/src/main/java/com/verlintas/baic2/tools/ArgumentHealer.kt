@@ -75,12 +75,15 @@ object ArgumentHealer {
         arguments.forEach { (key, value) ->
             val target = when {
                 key in properties -> key
-                else -> schemaNames
-                    .minByOrNull { distance(key.lowercase(), it.lowercase()) }
-                    ?.takeIf { candidate ->
+                else -> {
+                    // Rename only when exactly one schema key is close enough;
+                    // an ambiguous match could silently change the meaning.
+                    val candidates = schemaNames.filter { candidate ->
                         val gap = distance(key.lowercase(), candidate.lowercase())
                         gap in 1..2 && candidate.lowercase() != key.lowercase()
                     }
+                    candidates.singleOrNull()
+                }
             }
             if (target != null && target != key && target !in healed) {
                 healed[target] = value

@@ -72,4 +72,18 @@ object MarkdownNormalizer {
         val trimmed = line.trim()
         return trimmed.contains('|') && !trimmed.startsWith("```")
     }
+
+    /** Column alignment from the separator row (`:---`, `:---:`, `---:`). */
+    fun tableAlignments(separatorLine: String): List<MarkdownNormalizer.TableAlignment> =
+        splitTableRow(separatorLine).map { cell ->
+            val left = cell.startsWith(":")
+            val right = cell.endsWith(":")
+            when {
+                left && right -> TableAlignment.CENTER
+                right -> TableAlignment.RIGHT
+                else -> TableAlignment.LEFT
+            }
+        }
+
+    enum class TableAlignment { LEFT, CENTER, RIGHT }
 }

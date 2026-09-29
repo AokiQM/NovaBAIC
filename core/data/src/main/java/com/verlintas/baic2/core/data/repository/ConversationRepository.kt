@@ -21,9 +21,11 @@ package com.verlintas.baic2.core.data.repository
 
 import androidx.room.withTransaction
 import com.verlintas.baic2.core.data.db.Baic2Database
+import com.verlintas.baic2.core.data.db.SnapshotEntity
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
+import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.ConversationPreview
@@ -137,13 +139,56 @@ class ConversationRepository @Inject constructor(
      * oldest summarized message becomes the summary carrier so ordering and
      * ids stay stable.
      */
+    /**
+     * Replaces an older message range with a summary. The replaced messages are
+     * archived first, so a compression is always reversible ("restore history").
+     */
     suspend fun applyCompression(
         conversationId: Long,
         summaryCarrierId: Long,
         keepFromMessageId: Long,
         summary: String,
     ) = db.withTransaction {
+        val archived = db.messageDao().getRange(conversationId, summaryCarrierId, keepFromMessageId)
+        if (archived.isNotEmpty()) {
+            db.snapshotDao().insert(
+                SnapshotEntity(
+                    conversationId = conversationId,
+                    carrierId = summaryCarrierId,
+                    keepFromMessageId = keepFromMessageId,
+                    payloadJson = mapper.encodeMessages(archived.map(mapper::messageToModel)),
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
         db.messageDao().updateRoleAndContent(summaryCarrierId, ChatRole.ASSISTANT.name, summary)
         db.messageDao().deleteRange(conversationId, summaryCarrierId, keepFromMessageId)
     }
+
+    fun observeSnapshots(conversationId: Long): Flow<List<MessageSnapshot>> =
+        db.snapshotDao().observeForConversation(conversationId)
+            .map { list -> list.map(mapper::snapshotToModel) }
+
+    /**
+     * Restores the messages a compression replaced and drops the summary.
+     * The whole conversation is rewritten in chronological order so message
+     * ids keep matching creation order (all id-based range operations rely on
+     * that invariant).
+     */
+    suspend fun restoreSnapshot(snapshotId: Long): Boolean = db.withTransaction {
+        val entity = db.snapshotDao().getById(snapshotId) ?: return@withTransaction false
+        val snapshot = mapper.snapshotToModel(entity)
+        val current = db.messageDao().getByConversation(snapshot.conversationId)
+            .map(mapper::messageToModel)
+            .filterNot { it.id == snapshot.carrierId }
+        val merged = (snapshot.messages + current)
+            .sortedWith(compareBy({ it.createdAt }, { it.id }))
+            .map { message -> mapper.messageToEntity(message.copy(id = 0L)) }
+        db.messageDao().deleteAllForConversation(snapshot.conversationId)
+        db.messageDao().insertAll(merged)
+        db.snapshotDao().delete(snapshotId)
+        true
+    }
+
+    suspend fun discardSnapshot(snapshotId: Long) = db.snapshotDao().delete(snapshotId)
 }

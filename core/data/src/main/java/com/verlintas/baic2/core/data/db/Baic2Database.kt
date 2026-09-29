@@ -34,8 +34,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlanEntity::class,
         AutomationEntity::class,
         McpServerEntity::class,
+        SnapshotEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -55,6 +56,8 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun automationDao(): AutomationDao
 
     abstract fun mcpServerDao(): McpServerDao
+
+    abstract fun snapshotDao(): SnapshotDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -80,6 +83,27 @@ abstract class Baic2Database : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
+                )
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS message_snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        conversationId INTEGER NOT NULL,
+                        carrierId INTEGER NOT NULL,
+                        keepFromMessageId INTEGER NOT NULL,
+                        payloadJson TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_message_snapshots_conversationId " +
+                        "ON message_snapshots(conversationId)",
                 )
             }
         }

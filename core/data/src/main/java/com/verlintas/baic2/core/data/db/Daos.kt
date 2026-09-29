@@ -109,6 +109,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY id ASC")
     suspend fun getByConversation(conversationId: Long): List<MessageEntity>
 
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND id >= :afterId AND id < :beforeId ORDER BY id ASC",
+    )
+    suspend fun getRange(conversationId: Long, afterId: Long, beforeId: Long): List<MessageEntity>
+
     @Insert
     suspend fun insert(entity: MessageEntity): Long
 
@@ -157,6 +163,22 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId AND id > :afterId")
     suspend fun deleteAfter(conversationId: Long, afterId: Long)
+}
+
+@Dao
+interface SnapshotDao {
+
+    @Insert
+    suspend fun insert(entity: SnapshotEntity): Long
+
+    @Query("SELECT * FROM message_snapshots WHERE conversationId = :conversationId ORDER BY id DESC")
+    fun observeForConversation(conversationId: Long): Flow<List<SnapshotEntity>>
+
+    @Query("SELECT * FROM message_snapshots WHERE id = :id")
+    suspend fun getById(id: Long): SnapshotEntity?
+
+    @Query("DELETE FROM message_snapshots WHERE id = :id")
+    suspend fun delete(id: Long)
 }
 
 @Dao

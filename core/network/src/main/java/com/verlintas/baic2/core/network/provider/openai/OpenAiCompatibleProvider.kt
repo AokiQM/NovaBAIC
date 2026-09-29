@@ -253,6 +253,7 @@ class OpenAiCompatibleProvider(
             maxTokens = request.config.maxTokens,
             messages = messages,
             tools = tools,
+            streamOptions = WireStreamOptions(),
         )
     }
 
@@ -347,6 +348,12 @@ private data class WireRequest(
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val messages: List<WireMessage>,
     val tools: List<WireTool>? = null,
+    @SerialName("stream_options") val streamOptions: WireStreamOptions? = null,
+)
+
+@Serializable
+private data class WireStreamOptions(
+    @SerialName("include_usage") @EncodeDefault val includeUsage: Boolean = true,
 )
 
 @Serializable

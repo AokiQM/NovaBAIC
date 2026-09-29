@@ -49,6 +49,17 @@ data class ChatMessage(
     val usageOutput: Long? = null,
 )
 
+/** A restorable backup of the messages a compression replaced. */
+@Serializable
+data class MessageSnapshot(
+    val id: Long = 0L,
+    val conversationId: Long,
+    val carrierId: Long,
+    val keepFromMessageId: Long,
+    val messages: List<ChatMessage>,
+    val createdAt: Long,
+)
+
 @Serializable
 data class ToolCall(
     val id: String,

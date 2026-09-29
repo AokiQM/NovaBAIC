@@ -216,6 +216,7 @@ fun ChatScreen(
             .onFailure { voiceHint = unavailableHint }
     }
 
+    val compressTooShortHint = stringResource(R.string.chat_compress_too_short)
     val screenPrompt = stringResource(R.string.chat_screen_prompt)
     val screenReady by viewModel.screenCaptureReady.collectAsStateWithLifecycle()
     val screenCaptureLauncher = rememberLauncherForActivityResult(
@@ -524,7 +525,7 @@ fun ChatScreen(
             text = { Text(stringResource(R.string.chat_menu_compress)) },
             onClick = {
                 menuOpen = false
-                viewModel.compressContext()
+                viewModel.compressContext(compressTooShortHint)
             },
         )
         DropdownMenuItem(
@@ -534,6 +535,22 @@ fun ChatScreen(
                 viewModel.distillMemory()
             },
         )
+        if (state.compressionSnapshot != null) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_restore_compression)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.restoreCompression()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_discard_compression)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.discardCompression()
+                },
+            )
+        }
     }
 
     if (modePickerOpen) {

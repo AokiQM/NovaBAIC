@@ -83,6 +83,20 @@ class MarkdownNormalizerTest {
     }
 
     @Test
+    fun parsesColumnAlignment() {
+        val text = "| left | center | right |\n| :--- | :---: | ---: |\n| a | b | c |"
+        val table = parseMarkdownBlocks(text)[0] as MarkdownBlock.Table
+        assertEquals(
+            listOf(
+                MarkdownNormalizer.TableAlignment.LEFT,
+                MarkdownNormalizer.TableAlignment.CENTER,
+                MarkdownNormalizer.TableAlignment.RIGHT,
+            ),
+            table.alignments,
+        )
+    }
+
+    @Test
     fun separatorDetectionRejectsTextLines() {
         assertTrue(MarkdownNormalizer.isTableSeparator("| --- | :---: |"))
         assertTrue(MarkdownNormalizer.isTableSeparator("--- | ---"))
