@@ -21,7 +21,7 @@ All notable changes to this project are documented in this file.
 
 ### 测试 Tests
 
-- 新增 SearchPipeline（8）、ArgumentHealer 歧义用例、Markdown 表格对齐、include_usage 载荷断言；全套 127 → 150+ 通过
+- 新增 SearchPipeline（8）、ArgumentHealer 歧义用例、Markdown 表格对齐、include_usage 载荷断言；全套 127 → 137 通过
 
 ## [0.1.1] - 2026-09-29
 
