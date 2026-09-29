@@ -595,8 +595,16 @@ class ChatViewModel @Inject constructor(
 
         val rawHistory = conversationRepository.getMessages(conversationId)
         val history = withMemories(prepareHistory(rawHistory))
-        val runId = runRepository.start(conversationId, conversation.mode)
-        runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" })
+        // Tasks record agentic work only: plain Chat / Chat+ turns are not runs.
+        val agentic = conversation.mode.requiresConfirmation || conversation.mode == AppMode.MAX
+        val runId: Long? = if (agentic) {
+            runRepository.start(conversationId, conversation.mode)
+        } else {
+            null
+        }
+        if (agentic) {
+            runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" })
+        }
 
         running.value = true
         error.value = null
@@ -672,12 +680,12 @@ class ChatViewModel @Inject constructor(
 
                     is AgentEvent.Usage -> Unit
 
-                    AgentEvent.Completed -> runRepository.finish(runId, RunState.COMPLETED)
+                    AgentEvent.Completed -> runId?.let { runRepository.finish(it, RunState.COMPLETED) }
 
                     is AgentEvent.Failed -> {
                         failed = true
                         error.value = event.error.toChatError()
-                        runRepository.finish(runId, RunState.FAILED)
+                        runId?.let { runRepository.finish(it, RunState.FAILED) }
                     }
                 }
             }
@@ -696,13 +704,13 @@ class ChatViewModel @Inject constructor(
                     )
                 }
                 rejectPendingToolCalls()
-                runRepository.finish(runId, RunState.CANCELLED)
+                runId?.let { runRepository.finish(it, RunState.CANCELLED) }
             }
             throw e
         } catch (e: Exception) {
             failed = true
             error.value = ChatError(ChatError.Kind.INTERNAL, e.message)
-            runRepository.finish(runId, RunState.FAILED)
+            runId?.let { runRepository.finish(it, RunState.FAILED) }
         } finally {
             running.value = false
             streaming.value = StreamingState()

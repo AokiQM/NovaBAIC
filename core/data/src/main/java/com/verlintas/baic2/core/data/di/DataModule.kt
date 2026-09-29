@@ -59,6 +59,7 @@ object DataModule {
                 Baic2Database.MIGRATION_5_6,
                 Baic2Database.MIGRATION_6_7,
                 Baic2Database.MIGRATION_7_8,
+                Baic2Database.MIGRATION_8_9,
             )
             .build()
 

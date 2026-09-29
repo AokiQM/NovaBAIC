@@ -36,7 +36,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         McpServerEntity::class,
         SnapshotEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -84,6 +84,14 @@ abstract class Baic2Database : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
                 )
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Chat / Chat+ turns used to create run rows; Tasks is agentic
+                // only, so remove the bookkeeping rows those turns left behind.
+                db.execSQL("DELETE FROM runs WHERE mode NOT IN ('ACT', 'MAX')")
             }
         }
 

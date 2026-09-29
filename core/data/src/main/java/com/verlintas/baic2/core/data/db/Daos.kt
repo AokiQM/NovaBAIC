@@ -211,6 +211,7 @@ interface RunDao {
                r.mode AS mode, r.state AS state, r.startedAt AS startedAt, r.updatedAt AS updatedAt
         FROM runs r
         INNER JOIN conversations c ON c.id = r.conversationId
+        WHERE r.mode IN ('ACT', 'MAX')
         ORDER BY r.id DESC
         LIMIT :limit
         """,
