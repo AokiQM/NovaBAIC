@@ -63,6 +63,10 @@ class ConversationRepository @Inject constructor(
     suspend fun getMessages(conversationId: Long): List<ChatMessage> =
         db.messageDao().getByConversation(conversationId).map(mapper::messageToModel)
 
+    suspend fun conversationCount(): Int = db.conversationDao().count()
+
+    suspend fun messageCount(): Int = db.messageDao().countAll()
+
     suspend fun create(agentId: Long?, mode: AppMode, title: String): Long {
         val now = System.currentTimeMillis()
         return db.conversationDao().insert(

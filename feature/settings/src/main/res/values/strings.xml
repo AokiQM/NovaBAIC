@@ -125,4 +125,24 @@
     <string name="settings_perm_shizuku_unavailable">未安装或服务未启动</string>
     <string name="settings_perm_files_title">文件访问</string>
     <string name="settings_perm_files_desc">读取 Downloads/Documents 中的文件（Android 13+ 需"所有文件访问"）</string>
+    <string name="settings_about_update_title">检查更新</string>
+    <string name="settings_about_update_idle">点击检查新版本</string>
+    <string name="settings_about_update_checking">正在检查…</string>
+    <string name="settings_about_update_latest">已是最新版本</string>
+    <string name="settings_about_update_available">新版本 %1$s 可用，点击前往下载</string>
+    <string name="settings_about_update_failed">检查失败，点击重试</string>
+    <string name="settings_about_stats_title">统计</string>
+    <string name="settings_about_stats_conversations">对话</string>
+    <string name="settings_about_stats_messages">消息</string>
+    <string name="settings_about_share">分享应用</string>
+    <string name="settings_about_share_chooser">分享 BetterAIChat2</string>
+    <string name="settings_developer_runtime">运行环境</string>
+    <string name="settings_developer_android">系统版本</string>
+    <string name="settings_developer_device">设备型号</string>
+    <string name="settings_developer_abi">架构</string>
+    <string name="settings_developer_copy_diagnostics">复制诊断信息</string>
+    <string name="settings_developer_copy_diagnostics_desc">版本 / 系统 / 设备，便于反馈问题时粘贴</string>
+    <string name="settings_developer_copy">复制</string>
+    <string name="settings_developer_copied">已复制</string>
+    <string name="settings_developer_changelog">更新日志</string>
 </resources>

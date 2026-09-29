@@ -202,6 +202,7 @@ fun Baic2App(
                 Baic2Destination.Settings -> SettingsScreen(
                     buildInfo = BuildInfo(
                         versionName = BuildConfig.VERSION_NAME,
+                        versionCode = BuildConfig.VERSION_CODE,
                         applicationId = BuildConfig.APPLICATION_ID,
                         buildType = BuildConfig.BUILD_TYPE,
                     ),

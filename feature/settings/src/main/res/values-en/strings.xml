@@ -125,4 +125,24 @@
     <string name="settings_perm_shizuku_unavailable">Not installed or service not running</string>
     <string name="settings_perm_files_title">Files access</string>
     <string name="settings_perm_files_desc">Read files in Downloads/Documents (Android 13+ needs "All files access")</string>
+    <string name="settings_about_update_title">Check for updates</string>
+    <string name="settings_about_update_idle">Tap to check for a new version</string>
+    <string name="settings_about_update_checking">Checking…</string>
+    <string name="settings_about_update_latest">You are up to date</string>
+    <string name="settings_about_update_available">%1$s is available — tap to download</string>
+    <string name="settings_about_update_failed">Check failed — tap to retry</string>
+    <string name="settings_about_stats_title">Statistics</string>
+    <string name="settings_about_stats_conversations">Conversations</string>
+    <string name="settings_about_stats_messages">Messages</string>
+    <string name="settings_about_share">Share app</string>
+    <string name="settings_about_share_chooser">Share BetterAIChat2</string>
+    <string name="settings_developer_runtime">Runtime</string>
+    <string name="settings_developer_android">Android version</string>
+    <string name="settings_developer_device">Device</string>
+    <string name="settings_developer_abi">ABI</string>
+    <string name="settings_developer_copy_diagnostics">Copy diagnostics</string>
+    <string name="settings_developer_copy_diagnostics_desc">Version / system / device, ready to paste into an issue</string>
+    <string name="settings_developer_copy">Copy</string>
+    <string name="settings_developer_copied">Copied</string>
+    <string name="settings_developer_changelog">Changelog</string>
 </resources>

@@ -67,6 +67,7 @@ import com.verlintas.baic2.designsystem.Baic2Spacing
 
 data class BuildInfo(
     val versionName: String,
+    val versionCode: Int,
     val applicationId: String,
     val buildType: String,
 )

@@ -24,17 +24,20 @@ import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.core.data.prefs.AppLocaleStore
 import com.verlintas.baic2.core.data.prefs.SettingsRepository
 import com.verlintas.baic2.core.data.repository.AgentRepository
+import com.verlintas.baic2.core.data.repository.ConversationRepository
 import com.verlintas.baic2.core.data.storage.AppStorage
 import com.verlintas.baic2.core.data.storage.StorageUsage
 import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.Agent
 import com.verlintas.baic2.core.model.AppLanguage
 import com.verlintas.baic2.core.model.ThemeMode
+import com.verlintas.baic2.core.model.isVersionNewer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -45,7 +48,21 @@ data class SettingsUiState(
     val accent: AccentColor = AccentColor.BLUE,
     val language: AppLanguage = AppLanguage.SYSTEM,
     val storage: StorageUsage? = null,
+    val stats: UsageStats? = null,
 )
+
+data class UsageStats(
+    val conversations: Int,
+    val messages: Int,
+)
+
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val tag: String, val url: String) : UpdateState
+    data object Failed : UpdateState
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -53,28 +70,62 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val localeStore: AppLocaleStore,
     private val appStorage: AppStorage,
+    private val conversationRepository: ConversationRepository,
 ) : ViewModel() {
 
     private val storage = MutableStateFlow<StorageUsage?>(null)
+    private val stats = MutableStateFlow<UsageStats?>(null)
+    private val updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
 
     init {
         refreshStorage()
+        refreshStats()
+    }
+
+    fun updateState(): StateFlow<UpdateState> = updateState.asStateFlow()
+
+    fun checkForUpdates(currentVersion: String) {
+        if (updateState.value == UpdateState.Checking) return
+        viewModelScope.launch {
+            updateState.value = UpdateState.Checking
+            val latest = UpdateChecker.fetchLatest()
+            updateState.value = when {
+                latest == null -> UpdateState.Failed
+                isVersionNewer(latest.tag, currentVersion) ->
+                    UpdateState.Available(latest.tag, latest.url)
+
+                else -> UpdateState.UpToDate
+            }
+        }
+    }
+
+    fun refreshStats() {
+        viewModelScope.launch {
+            stats.value = UsageStats(
+                conversations = conversationRepository.conversationCount(),
+                messages = conversationRepository.messageCount(),
+            )
+        }
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        agentRepository.observeAgents(),
-        settingsRepository.themeMode,
-        settingsRepository.accentColor,
-        localeStore.language,
+        combine(
+            agentRepository.observeAgents(),
+            settingsRepository.themeMode,
+            settingsRepository.accentColor,
+            localeStore.language,
+        ) { agents, themeMode, accent, language ->
+            SettingsUiState(
+                agents = agents,
+                themeMode = themeMode,
+                accent = accent,
+                language = language,
+            )
+        },
         storage,
-    ) { agents, themeMode, accent, language, storageUsage ->
-        SettingsUiState(
-            agents = agents,
-            themeMode = themeMode,
-            accent = accent,
-            language = language,
-            storage = storageUsage,
-        )
+        stats,
+    ) { base, storageUsage, usageStats ->
+        base.copy(storage = storageUsage, stats = usageStats)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

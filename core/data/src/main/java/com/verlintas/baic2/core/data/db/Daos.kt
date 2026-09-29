@@ -90,6 +90,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET title = :title, updatedAt = :now WHERE id = :id")
     suspend fun updateTitle(id: Long, title: String, now: Long)
 
+    @Query("SELECT COUNT(*) FROM conversations")
+    suspend fun count(): Int
+
     @Query("UPDATE conversations SET agentId = :agentId, mode = :mode, updatedAt = :now WHERE id = :id")
     suspend fun updateMeta(id: Long, agentId: Long?, mode: String, now: Long)
 
@@ -166,6 +169,9 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId AND id > :afterId")
     suspend fun deleteAfter(conversationId: Long, afterId: Long)
+
+    @Query("SELECT COUNT(*) FROM messages")
+    suspend fun countAll(): Int
 }
 
 @Dao

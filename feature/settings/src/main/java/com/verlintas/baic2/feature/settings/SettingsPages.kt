@@ -84,6 +84,14 @@ import com.verlintas.baic2.core.model.ThemeMode
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.accentSpec
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.runtime.remember
 
 // ---------------------------------------------------------------- agents
 
@@ -512,9 +520,14 @@ fun AboutPage(
     buildInfo: BuildInfo,
     onBack: () -> Unit,
     onOpenLicenses: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val repoUrl = "https://github.com/Verlintas/NovaBAIC"
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val update by viewModel.updateState().collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) { viewModel.checkForUpdates(buildInfo.versionName) }
 
     SettingsPage(
         title = stringResource(R.string.settings_about_title),
@@ -542,7 +555,7 @@ fun AboutPage(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "v${buildInfo.versionName} (${buildInfo.buildType})",
+                    text = "v${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
                     style = Baic2Mono.label,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -554,6 +567,64 @@ fun AboutPage(
                 )
             }
         }
+
+        item(key = "update") {
+            val summary = when (val current = update) {
+                is UpdateState.Checking -> stringResource(R.string.settings_about_update_checking)
+                is UpdateState.UpToDate -> stringResource(R.string.settings_about_update_latest)
+                is UpdateState.Available -> stringResource(
+                    R.string.settings_about_update_available,
+                    current.tag,
+                )
+
+                is UpdateState.Failed -> stringResource(R.string.settings_about_update_failed)
+                else -> stringResource(R.string.settings_about_update_idle)
+            }
+            SettingsRow(
+                title = stringResource(R.string.settings_about_update_title),
+                summary = summary,
+                icon = Icons.Outlined.Refresh,
+                trailing = {
+                    if (update is UpdateState.Checking) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else if (update is UpdateState.Available) {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .rotate(-90f),
+                        )
+                    }
+                },
+                onClick = {
+                    val available = update as? UpdateState.Available
+                    if (available != null) {
+                        openUrl(context, available.url)
+                    } else {
+                        viewModel.checkForUpdates(buildInfo.versionName)
+                    }
+                },
+            )
+        }
+
+        item(key = "stats") { SettingsSectionLabel(stringResource(R.string.settings_about_stats_title)) }
+        item(key = "stats-card") {
+            SettingsCard {
+                Column(modifier = Modifier.padding(Baic2Spacing.lg)) {
+                    StatLine(
+                        stringResource(R.string.settings_about_stats_conversations),
+                        state.stats?.conversations?.toString() ?: "…",
+                    )
+                    StatLine(
+                        stringResource(R.string.settings_about_stats_messages),
+                        state.stats?.messages?.toString() ?: "…",
+                    )
+                }
+            }
+        }
+
         item(key = "links") { SettingsSectionLabel(stringResource(R.string.settings_about_links)) }
         item(key = "repo") {
             SettingsRow(
@@ -588,6 +659,30 @@ fun AboutPage(
                 onClick = onOpenLicenses,
             )
         }
+        item(key = "share") {
+            SettingsRow(
+                title = stringResource(R.string.settings_about_share),
+                icon = Icons.Outlined.Share,
+                onClick = {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(
+                            android.content.Intent.EXTRA_TEXT,
+                            "BetterAIChat2 — " + context.getString(R.string.settings_about_tagline) +
+                                " " + repoUrl,
+                        )
+                    }
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent.createChooser(
+                                intent,
+                                context.getString(R.string.settings_about_share_chooser),
+                            ),
+                        )
+                    }
+                },
+            )
+        }
         item(key = "legal") { SettingsSectionLabel(stringResource(R.string.settings_about_legal)) }
         item(key = "license") {
             SettingsRow(
@@ -607,6 +702,23 @@ fun AboutPage(
                 ),
             )
         }
+    }
+}
+
+@Composable
+private fun StatLine(label: String, value: String) {
+    Row(modifier = Modifier.padding(vertical = 3.dp)) {
+        Text(
+            text = label,
+            style = Baic2Mono.label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            style = Baic2Mono.label,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -651,21 +763,82 @@ fun DeveloperPage(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(1_500)
+            copied = false
+        }
+    }
+
+    val runtime = "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
+    val device = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
 
     SettingsPage(
         title = stringResource(R.string.settings_developer_title),
         onBack = onBack,
     ) {
         item(key = "build") { SettingsSectionLabel(stringResource(R.string.settings_developer_build)) }
-        item(key = "app-id") {
-            SettingsRow(title = stringResource(R.string.settings_developer_app_id), summary = buildInfo.applicationId)
-        }
         item(key = "version") {
             SettingsRow(
                 title = stringResource(R.string.settings_developer_version),
-                summary = "${buildInfo.versionName} · ${buildInfo.buildType}",
+                summary = "${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
             )
         }
+        item(key = "app-id") {
+            SettingsRow(title = stringResource(R.string.settings_developer_app_id), summary = buildInfo.applicationId)
+        }
+
+        item(key = "runtime") { SettingsSectionLabel(stringResource(R.string.settings_developer_runtime)) }
+        item(key = "android") {
+            SettingsRow(title = stringResource(R.string.settings_developer_android), summary = runtime)
+        }
+        item(key = "device") {
+            SettingsRow(title = stringResource(R.string.settings_developer_device), summary = device)
+        }
+        item(key = "abi") {
+            SettingsRow(title = stringResource(R.string.settings_developer_abi), summary = abi)
+        }
+        item(key = "diagnostics") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_copy_diagnostics),
+                icon = Icons.Outlined.Share,
+                summary = stringResource(R.string.settings_developer_copy_diagnostics_desc),
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            if (copied) R.string.settings_developer_copied else R.string.settings_developer_copy,
+                        ),
+                        style = Baic2Mono.label,
+                        color = if (copied) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                },
+                onClick = {
+                    clipboard.setText(
+                        AnnotatedString(
+                            buildString {
+                                append("BetterAIChat2 diagnostics").append('\n')
+                                append("version: ").append(buildInfo.versionName)
+                                    .append(" (").append(buildInfo.versionCode).append(')')
+                                    .append(' ').append(buildInfo.buildType).append('\n')
+                                append("package: ").append(buildInfo.applicationId).append('\n')
+                                append("android: ").append(runtime).append('\n')
+                                append("device: ").append(device).append('\n')
+                                append("abi: ").append(abi).append('\n')
+                            },
+                        ),
+                    )
+                    copied = true
+                },
+            )
+        }
+
         item(key = "author") { SettingsSectionLabel(stringResource(R.string.settings_developer_author)) }
         item(key = "github") {
             SettingsRow(
@@ -681,6 +854,14 @@ fun DeveloperPage(
                 summary = "ulv777777@gmail.com",
                 showChevron = true,
                 onClick = { openUrl(context, "mailto:ulv777777@gmail.com") },
+            )
+        }
+        item(key = "changelog") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_changelog),
+                summary = "github.com/Verlintas/NovaBAIC/releases",
+                showChevron = true,
+                onClick = { openUrl(context, "https://github.com/Verlintas/NovaBAIC/releases") },
             )
         }
         item(key = "note") {
