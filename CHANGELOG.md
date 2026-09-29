@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.1.2] - 2026-09-29
 
 ### 任务中心 Tasks 升级
 
