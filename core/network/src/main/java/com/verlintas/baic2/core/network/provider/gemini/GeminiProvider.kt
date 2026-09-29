@@ -269,7 +269,7 @@ class GeminiProvider(
                         GeminiFunctionDeclaration(
                             name = spec.name,
                             description = spec.description,
-                            parameters = parseJsonObject(spec.parametersJson),
+                            parameters = parseToolSchema(spec.parametersJson),
                         )
                     },
                 ),
@@ -327,6 +327,12 @@ class GeminiProvider(
     private fun parseJsonObject(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
             ?: JsonObject(emptyMap())
+
+    private fun parseToolSchema(raw: String): JsonObject =
+        runCatching { json.parseToJsonElement(raw) as? JsonObject }
+            .getOrNull()
+            ?.takeIf { it["type"] != null }
+            ?: PERMISSIVE_TOOL_SCHEMA
 
     private fun extractErrorMessage(body: String): String? = runCatching {
         val root = json.parseToJsonElement(body) as? JsonObject ?: return null
@@ -419,3 +425,11 @@ private data class GeminiUsage(
     @SerialName("promptTokenCount") val promptTokenCount: Long? = null,
     @SerialName("candidatesTokenCount") val candidatesTokenCount: Long? = null,
 )
+
+/**
+ * Tools with a broken schema must never poison the whole request: fall back
+ * to a permissive object schema the APIs accept.
+ */
+private val PERMISSIVE_TOOL_SCHEMA: JsonObject = Json.parseToJsonElement(
+    """{"type":"object","properties":{}}""",
+) as JsonObject

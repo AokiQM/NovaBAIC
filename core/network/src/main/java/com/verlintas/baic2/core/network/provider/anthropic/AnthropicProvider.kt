@@ -310,7 +310,7 @@ class AnthropicProvider(
             AnthropicTool(
                 name = spec.name,
                 description = spec.description,
-                inputSchema = parseJsonObject(spec.parametersJson),
+                inputSchema = parseToolSchema(spec.parametersJson),
             )
         }
 
@@ -371,6 +371,12 @@ class AnthropicProvider(
     private fun parseJsonObject(raw: String): JsonObject =
         runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
             ?: JsonObject(emptyMap())
+
+    private fun parseToolSchema(raw: String): JsonObject =
+        runCatching { json.parseToJsonElement(raw) as? JsonObject }
+            .getOrNull()
+            ?.takeIf { it["type"] != null }
+            ?: PERMISSIVE_TOOL_SCHEMA
 
     private fun extractErrorMessage(body: String): String? = runCatching {
         val root = json.parseToJsonElement(body) as? JsonObject ?: return null
@@ -498,3 +504,11 @@ private data class AnthropicError(
     val message: String? = null,
     val code: Int? = null,
 )
+
+/**
+ * Tools with a broken schema must never poison the whole request: fall back
+ * to a permissive object schema the APIs accept.
+ */
+private val PERMISSIVE_TOOL_SCHEMA: JsonObject = Json.parseToJsonElement(
+    """{"type":"object","properties":{}}""",
+) as JsonObject

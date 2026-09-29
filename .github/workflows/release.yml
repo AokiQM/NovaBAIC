@@ -39,6 +39,7 @@ jobs:
         run: |
           tools/check-license-headers.sh
           tools/check-strings-sync.sh
+          python3 tools/check-tool-schemas.py
 
       - name: Check signing secrets
         id: signing

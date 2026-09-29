@@ -312,7 +312,10 @@ class OpenAiCompatibleProvider(
         }.trim()
 
     private fun parseParameters(raw: String): JsonObject =
-        runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        runCatching { json.parseToJsonElement(raw) as? JsonObject }
+            .getOrNull()
+            ?.takeIf { it["type"] != null }
+            ?: PERMISSIVE_TOOL_SCHEMA
 
     private fun extractErrorMessage(body: String): String? = runCatching {
         val root = json.parseToJsonElement(body) as? JsonObject ?: return null
@@ -428,3 +431,11 @@ private data class OpenAiChunk(
         @SerialName("completion_tokens") val completionTokens: Long? = null,
     )
 }
+
+/**
+ * Tools with a broken schema must never poison the whole request: fall back
+ * to a permissive object schema the APIs accept.
+ */
+private val PERMISSIVE_TOOL_SCHEMA: JsonObject = Json.parseToJsonElement(
+    """{"type":"object","properties":{}}""",
+) as JsonObject

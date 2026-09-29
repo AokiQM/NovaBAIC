@@ -324,4 +324,19 @@ class AnthropicProviderTest {
             .getValue("content").jsonArray
         assertEquals("text", blocks[0].jsonObject.getValue("type").jsonPrimitive.content)
     }
+
+    @Test
+    fun repairsBrokenToolSchemas() = runTest {
+        enqueueSse(sse("message_stop" to """{"type":"message_stop"}"""))
+        val tools = listOf(
+            ToolSpec(name = "broken", description = "x", parametersJson = "{\"type\":\"object\""),
+        )
+
+        provider.stream(request(tools = tools)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val schema = body.getValue("tools").jsonArray[0].jsonObject
+            .getValue("input_schema").jsonObject
+        assertEquals("object", schema.getValue("type").jsonPrimitive.content)
+    }
 }

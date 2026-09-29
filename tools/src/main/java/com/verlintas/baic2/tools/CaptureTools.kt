@@ -41,7 +41,7 @@ class ScreenRecordTool(
         description = "Record the screen as a short MP4 (video only, max 120s) and return the file " +
             "path. Uses the same screen-capture authorization as screenshots; screenshots are " +
             "paused while recording.",
-        parametersJson = """{"type":"object","properties":{"seconds":{"type":"integer","description":"1-120, default 10"}}""",
+        parametersJson = """{"type":"object","properties":{"seconds":{"type":"integer","description":"1-120, default 10"}}}""",
         readOnly = true,
         danger = DangerLevel.MEDIUM,
         parallelSafe = false,
@@ -78,7 +78,7 @@ class TranscribeAudioTool(
         name = "transcribe_audio",
         description = "Listen for a spoken utterance (up to 30s) and return its transcription. " +
             "Use for voice notes and quick dictation; ask the user to speak first.",
-        parametersJson = """{"type":"object","properties":{"seconds":{"type":"integer","description":"3-30, default 8"}}""",
+        parametersJson = """{"type":"object","properties":{"seconds":{"type":"integer","description":"3-30, default 8"}}}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = false,

@@ -130,6 +130,23 @@ class Handler(BaseHTTPRequestHandler):
                 kinds = [part.get("type") for part in content if isinstance(part, dict)]
                 sys.stderr.write(f"[mock] parts={kinds}\n")
 
+        schema_error = validate_tool_schemas(payload.get("tools"))
+        if schema_error is not None:
+            body = json.dumps(
+                {
+                    "error": {
+                        "message": schema_error,
+                        "type": "invalid_request_error",
+                    },
+                },
+            )
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
+
         if not validate_tool_history(payload.get("messages", [])):
             body = json.dumps(
                 {
@@ -338,6 +355,20 @@ class Handler(BaseHTTPRequestHandler):
         if "Summarize the conversation" in system_text:
             return "此前对话：用户询问了量子纠缠，并对 BAIC2 的流式管线做了验证。"
         return None
+
+
+def validate_tool_schemas(tools):
+    """Mimic OpenAI: every function schema must be a typed object schema."""
+    for tool in tools or []:
+        function = tool.get("function") or {}
+        parameters = function.get("parameters")
+        if not isinstance(parameters, dict) or parameters.get("type") != "object":
+            return (
+                "Invalid schema for function '%s': schema must be a JSON Schema of "
+                "'type: \"object\"', got 'type: %s'."
+                % (function.get("name"), None if parameters is None else parameters.get("type"))
+            )
+    return None
 
 
 def validate_tool_history(messages):

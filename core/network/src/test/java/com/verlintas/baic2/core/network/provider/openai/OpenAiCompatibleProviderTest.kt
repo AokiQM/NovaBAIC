@@ -428,4 +428,19 @@ class OpenAiCompatibleProviderTest {
             "reasoning models reject an explicit temperature",
         )
     }
+
+    @Test
+    fun repairsBrokenToolSchemas() = runTest {
+        enqueueSse("[DONE]")
+        val tools = listOf(
+            ToolSpec(name = "broken", description = "x", parametersJson = "{\"type\":\"object\""),
+        )
+
+        provider.stream(request(tools = tools)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val function = body.getValue("tools").jsonArray[0].jsonObject.getValue("function").jsonObject
+        val parameters = function.getValue("parameters").jsonObject
+        assertEquals("object", parameters.getValue("type").jsonPrimitive.content)
+    }
 }

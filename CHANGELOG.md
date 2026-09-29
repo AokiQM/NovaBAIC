@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.6] - 2026-09-29
+
+### 修复 Fixed
+
+- **工具模式请求必失败**：`screen_record` / `transcribe_audio` 的 parametersJson 少了一个闭合花括号（非法 JSON），导致所有带工具的模式（Chat+/Act/Max）被 provider 整单拒绝：`Invalid schema for function 'transcribe_audio' ... got 'type: null'`。已修复，并新增三层防线：
+  1. 三家 Provider 的工具 schema 解析兜底失败时退回宽松对象 schema（`{"type":"object","properties":{}}`），单个坏 schema 不再毒化整个请求
+  2. mock 服务器新增与 OpenAI 一致的 schema 校验（坏 schema 直接 400，回归可被设备测试捕获）
+  3. 新增 `tools/check-tool-schemas.py`：CI（build + release）强制校验全部 48 个工具 schema 是合法 object schema
+- 新增 2 个 provider 回归测试
+
 ## [0.1.5] - 2026-09-29
 
 ### 修复 Fixed
