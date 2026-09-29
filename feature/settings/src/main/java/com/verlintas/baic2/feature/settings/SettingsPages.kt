@@ -46,8 +46,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -557,7 +559,7 @@ fun AboutPage(
             SettingsRow(
                 title = stringResource(R.string.settings_about_repo),
                 summary = repoUrl,
-                icon = Icons.Outlined.Info,
+                icon = Icons.Outlined.Star,
                 showChevron = true,
                 onClick = { openUrl(context, repoUrl) },
             )
@@ -573,7 +575,7 @@ fun AboutPage(
         item(key = "issues") {
             SettingsRow(
                 title = stringResource(R.string.settings_about_issues),
-                icon = Icons.Outlined.Info,
+                icon = Icons.Outlined.Warning,
                 showChevron = true,
                 onClick = { openUrl(context, "$repoUrl/issues") },
             )
@@ -581,7 +583,7 @@ fun AboutPage(
         item(key = "licenses") {
             SettingsRow(
                 title = stringResource(R.string.settings_about_licenses),
-                icon = Icons.Outlined.Info,
+                icon = Icons.Outlined.Lock,
                 showChevron = true,
                 onClick = onOpenLicenses,
             )

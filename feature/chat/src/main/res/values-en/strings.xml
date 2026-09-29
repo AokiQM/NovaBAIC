@@ -103,4 +103,5 @@
     <string name="chat_menu_discard_compression">Discard compression backup</string>
     <string name="chat_compress_too_short">This conversation is short enough; nothing to compress</string>
     <string name="chat_menu_hands_free">Hands-free chat</string>
+    <string name="chat_action_copied">Copied</string>
 </resources>

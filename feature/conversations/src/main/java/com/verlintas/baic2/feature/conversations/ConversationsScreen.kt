@@ -72,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -372,7 +373,9 @@ private fun NewChatFab(onClick: () -> Unit) {
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shape = RoundedCornerShape(18.dp),
         interactionSource = interaction,
-        modifier = Modifier.scale(scale),
+        modifier = Modifier
+            .shadow(10.dp, RoundedCornerShape(18.dp))
+            .scale(scale),
         icon = {
             Icon(
                 imageVector = Icons.Outlined.Add,

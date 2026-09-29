@@ -72,6 +72,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
@@ -334,8 +335,20 @@ fun ThinkingCard(
                 text = stringResource(R.string.chat_thinking),
                 style = Baic2Mono.label,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
             )
+            if (!expanded && !streaming && text.isNotBlank()) {
+                Spacer(Modifier.width(Baic2Spacing.md))
+                Text(
+                    text = text.replace(Regex("\\s+"), " ").trim(),
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
             if (streaming) {
                 Baic2TypingDots(dotSize = 5.dp)
                 Spacer(Modifier.width(Baic2Spacing.sm))
