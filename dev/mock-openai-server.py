@@ -81,6 +81,22 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("[mock] " + fmt % args + "\n")
 
     def do_GET(self):
+        # /v1/models requires a real-looking key, like the real APIs: this
+        # catches clients that send placeholder credentials.
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ").strip() in ("", "placeholder"):
+            body = json.dumps(
+                {"error": {"message": "Invalid API key", "type": "invalid_request_error"}},
+            )
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
+        self._do_get_models()
+
+    def _do_get_models(self):
         if self.path.rstrip("/") == "/v1/models":
             body = json.dumps(
                 {"object": "list", "data": [{"id": "mock-model"}, {"id": "mock-model-pro"}]}

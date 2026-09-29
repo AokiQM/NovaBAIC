@@ -64,4 +64,5 @@
     <string name="wizard_models_more">…另有 %1$d 个，输入关键字筛选</string>
     <string name="wizard_models_no_match">没有匹配的模型</string>
     <string name="wizard_models_recommended">推荐模型（内置目录，API 未返回列表时使用）</string>
+    <string name="wizard_models_need_key">请先填写 API Key（编辑已有服务会自动使用已保存的 Key）</string>
 </resources>

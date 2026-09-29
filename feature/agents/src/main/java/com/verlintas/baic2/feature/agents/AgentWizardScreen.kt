@@ -628,6 +628,7 @@ private fun ConnectionStatusCard(
             }
 
             state.modelsError != null -> {
+                val missingKey = state.modelsError == "missing_credentials"
                 Icon(
                     imageVector = Icons.Outlined.Warning,
                     contentDescription = null,
@@ -636,13 +637,19 @@ private fun ConnectionStatusCard(
                 )
                 Spacer(Modifier.width(Baic2Spacing.md))
                 Text(
-                    text = stringResource(R.string.wizard_models_error, state.modelsError),
+                    text = if (missingKey) {
+                        stringResource(R.string.wizard_models_need_key)
+                    } else {
+                        stringResource(R.string.wizard_models_error, state.modelsError)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.wizard_retry))
+                if (!missingKey) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.wizard_retry))
+                    }
                 }
             }
 

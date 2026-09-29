@@ -38,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
@@ -120,7 +121,7 @@ class GeminiProvider(
         }
     }.flowOn(Dispatchers.IO)
 
-    override suspend fun listModels(config: ProviderConfig): List<String> {
+    override suspend fun listModels(config: ProviderConfig): List<String> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(joinUrl(config.baseUrl, "v1beta/models") + "?key=" + config.apiKey)
             .get()
@@ -136,10 +137,10 @@ class GeminiProvider(
                     mapHttpError(response.code, response.header("Retry-After"), extractErrorMessage(body)),
                 )
             }
-            val text = response.body?.string() ?: return emptyList()
+            val text = response.body?.string() ?: return@withContext emptyList()
             val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
-            val models = root?.get("models") as? kotlinx.serialization.json.JsonArray ?: return emptyList()
-            return models.mapNotNull { element ->
+            val models = root?.get("models") as? kotlinx.serialization.json.JsonArray ?: return@withContext emptyList()
+            return@withContext models.mapNotNull { element ->
                 ((element as? JsonObject)?.get("name") as? JsonPrimitive)
                     ?.content
                     ?.removePrefix("models/")
@@ -340,8 +341,14 @@ class GeminiProvider(
         (error["message"] as? JsonPrimitive)?.content
     }.getOrNull()
 
-    private fun joinUrl(baseUrl: String, path: String): String =
-        baseUrl.trimEnd('/') + "/" + path.trimStart('/')
+    private fun joinUrl(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        val effectivePath = when {
+            base.endsWith("/v1beta") && path.startsWith("v1beta/") -> path.removePrefix("v1beta/")
+            else -> path
+        }
+        return "$base/${effectivePath.trimStart('/')}"
+    }
 
     private companion object {
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()

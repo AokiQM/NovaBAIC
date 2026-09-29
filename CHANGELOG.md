@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.7] - 2026-09-29
+
+### 修复 Fixed
+
+- **无法获取模型列表**：三家 Provider 的 `listModels()` 直接在调用线程上执行阻塞网络请求（向导里跑在主线程）→ `NetworkOnMainThreadException` 被吞成 `request_failed`，所以怎么点都拉不到模型列表。现在全部在 `Dispatchers.IO` 上执行
+- **编辑已有服务时拉取模型列表 401**：编辑态 key 输入框是有意留空的，但拉取时仍发送占位符 "placeholder" 当密钥；现在自动改用已保存（解密后）的 Key。实测：编辑 mock 服务 → 拉取到 `From API · 2 models`（mock-model / mock-model-pro）
+- **Anthropic / Gemini 自定义 Base URL 带 `/v1`、`/v1beta` 后缀时路径重复**（`/v1/v1/models` → 404）：joinUrl 自动去重
+- 未填 Key 时改为本地化提示"请先填写 API Key"，不再显示 `missing_credentials` 代码串
+
 ## [0.1.6] - 2026-09-29
 
 ### 修复 Fixed

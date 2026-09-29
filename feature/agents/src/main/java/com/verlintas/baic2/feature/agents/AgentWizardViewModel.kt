@@ -306,8 +306,21 @@ class AgentWizardViewModel @Inject constructor(
         _uiState.update { it.copy(modelsLoading = true, modelsError = null) }
         viewModelScope.launch {
             try {
+                // Editing an existing agent: the field is intentionally empty,
+                // so authenticate with the stored (decrypted) key instead of
+                // sending a placeholder that 401s every fetch.
+                val storedKey = if (current.editingId != 0L) {
+                    runCatching { agentRepository.resolveConfig(current.editingId) }.getOrNull()?.apiKey
+                } else {
+                    null
+                }
+                val apiKey = current.apiKey.trim().ifBlank { storedKey.orEmpty() }
+                if (apiKey.isBlank()) {
+                    _uiState.update { it.copy(modelsLoading = false, modelsError = "missing_credentials") }
+                    return@launch
+                }
                 val fetched = providerFactory.create(current.preset.provider)
-                    .listModels(current.toConfig())
+                    .listModels(current.toConfig().copy(apiKey = apiKey))
                 val models = fetched.filter(::isLikelyChatModel).ifEmpty { fetched }.sorted()
                 _uiState.update { state ->
                     val selected = pickInitialModel(models, state.model, modelEdited)
@@ -418,7 +431,7 @@ class AgentWizardViewModel @Inject constructor(
     private fun AgentWizardUiState.toConfig() = ProviderConfig(
         provider = preset.provider,
         baseUrl = baseUrl.trim().trimEnd('/'),
-        apiKey = apiKey.trim().ifBlank { "placeholder" },
+        apiKey = apiKey.trim(),
         model = model.trim(),
     )
 }

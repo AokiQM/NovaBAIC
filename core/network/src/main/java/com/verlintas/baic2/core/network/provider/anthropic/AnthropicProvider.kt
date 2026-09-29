@@ -38,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
@@ -120,7 +121,7 @@ class AnthropicProvider(
         }
     }.flowOn(Dispatchers.IO)
 
-    override suspend fun listModels(config: ProviderConfig): List<String> {
+    override suspend fun listModels(config: ProviderConfig): List<String> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(joinUrl(config.baseUrl, "v1/models"))
             .header("x-api-key", config.apiKey)
@@ -138,10 +139,10 @@ class AnthropicProvider(
                     mapHttpError(response.code, response.header("Retry-After"), extractErrorMessage(body)),
                 )
             }
-            val text = response.body?.string() ?: return emptyList()
+            val text = response.body?.string() ?: return@withContext emptyList()
             val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
-            val data = root?.get("data") as? JsonArray ?: return emptyList()
-            return data.mapNotNull { element ->
+            val data = root?.get("data") as? JsonArray ?: return@withContext emptyList()
+            return@withContext data.mapNotNull { element ->
                 ((element as? JsonObject)?.get("id") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
             }
         } catch (e: CancellationException) {
@@ -384,8 +385,16 @@ class AnthropicProvider(
         (error["message"] as? JsonPrimitive)?.content
     }.getOrNull()
 
-    private fun joinUrl(baseUrl: String, path: String): String =
-        baseUrl.trimEnd('/') + "/" + path.trimStart('/')
+    private fun joinUrl(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        // Proxies often include /v1 in the base while we also add it.
+        val effectivePath = if (base.endsWith("/v1") && path.startsWith("v1/")) {
+            path.removePrefix("v1/")
+        } else {
+            path
+        }
+        return "$base/${effectivePath.trimStart('/')}"
+    }
 
     private class ToolBlockAccumulator(
         var id: String = "",

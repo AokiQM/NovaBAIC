@@ -57,4 +57,5 @@
     <string name="wizard_models_more">…%1$d more — type to filter</string>
     <string name="wizard_models_no_match">No matching models</string>
     <string name="wizard_models_recommended">Recommended (built-in catalog, used when the API returns no list)</string>
+    <string name="wizard_models_need_key">Enter the API key first (editing an existing service reuses the saved key)</string>
 </resources>
