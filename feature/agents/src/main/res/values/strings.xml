@@ -58,4 +58,10 @@
     <string name="wizard_next">下一步</string>
     <string name="wizard_back">上一步</string>
     <string name="wizard_saved">配置完成</string>
+    <string name="wizard_models_from_api">来自 API · %1$d 个模型</string>
+    <string name="wizard_models_retry">重新拉取模型列表</string>
+    <string name="wizard_models_search">搜索模型</string>
+    <string name="wizard_models_more">…另有 %1$d 个，输入关键字筛选</string>
+    <string name="wizard_models_no_match">没有匹配的模型</string>
+    <string name="wizard_models_recommended">推荐模型（内置目录，API 未返回列表时使用）</string>
 </resources>

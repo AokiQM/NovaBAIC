@@ -62,6 +62,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,6 +82,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -395,14 +397,128 @@ private fun ConnectionStep(state: AgentWizardUiState, viewModel: AgentWizardView
             }.orEmpty()
         }
 
-        Text(
-            text = stringResource(R.string.wizard_model_pick),
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Baic2Spacing.sm),
-        )
+        val apiModels = state.models
+        var modelFilter by rememberSaveable { mutableStateOf("") }
+        val visibleModels = remember(apiModels, modelFilter) {
+            if (modelFilter.isBlank()) {
+                apiModels
+            } else {
+                apiModels.filter { it.contains(modelFilter.trim(), ignoreCase = true) }
+            }
+        }
 
-        if (state.models.isEmpty() && !state.modelsLoading && recommended.isNotEmpty()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Baic2Spacing.sm),
+        ) {
+            Text(
+                text = if (apiModels.isEmpty() && state.modelsLoading) {
+                    stringResource(R.string.wizard_models_loading)
+                } else {
+                    stringResource(R.string.wizard_models_from_api, apiModels.size)
+                },
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (state.modelsLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(Baic2Spacing.sm))
+            }
+            IconButton(onClick = viewModel::fetchModels) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = stringResource(R.string.wizard_models_retry),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (apiModels.size > 10) {
+            OutlinedTextField(
+                value = modelFilter,
+                onValueChange = { modelFilter = it },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                placeholder = { Text(stringResource(R.string.wizard_models_search)) },
+                textStyle = Baic2Mono.body,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (visibleModels.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Baic2Spacing.xs)) {
+                visibleModels.take(40).forEach { model ->
+                    val selected = state.model.equals(model, ignoreCase = true)
+                    val shape = RoundedCornerShape(10.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(shape)
+                            .background(
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                },
+                            )
+                            .border(
+                                1.dp,
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                },
+                                shape,
+                            )
+                            .clickable { viewModel.updateModel(model) }
+                            .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = model,
+                            style = Baic2Mono.body,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (selected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+                if (visibleModels.size > 40) {
+                    Text(
+                        text = stringResource(R.string.wizard_models_more, visibleModels.size - 40),
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else if (apiModels.isNotEmpty() && visibleModels.isEmpty()) {
+            Text(
+                text = stringResource(R.string.wizard_models_no_match),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (apiModels.isEmpty() && !state.modelsLoading && recommended.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.wizard_models_recommended),
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Baic2Spacing.xs),
+            )
             Column(verticalArrangement = Arrangement.spacedBy(Baic2Spacing.xs)) {
                 recommended.forEach { entry ->
                     val selected = state.model == entry.id
@@ -454,56 +570,6 @@ private fun ConnectionStep(state: AgentWizardUiState, viewModel: AgentWizardView
                         )
                         if (selected) {
                             Spacer(Modifier.width(Baic2Spacing.sm))
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (state.models.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Baic2Spacing.xs)) {
-                state.models.take(30).forEach { model ->
-                    val selected = state.model == model
-                    val shape = RoundedCornerShape(10.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(shape)
-                            .background(
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceContainer
-                                },
-                            )
-                            .border(
-                                1.dp,
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                },
-                                shape,
-                            )
-                            .clickable { viewModel.updateModel(model) }
-                            .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = model,
-                            style = Baic2Mono.body,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (selected) {
                             Icon(
                                 imageVector = Icons.Outlined.Check,
                                 contentDescription = null,

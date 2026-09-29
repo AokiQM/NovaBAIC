@@ -511,93 +511,107 @@ fun ChatScreen(
         )
     }
 
-    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_search)) },
-            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            onClick = {
-                menuOpen = false
-                searchOpen = true
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_starred)) },
-            onClick = {
-                menuOpen = false
-                onOpenStarred()
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_export)) },
-            onClick = {
-                menuOpen = false
-                val text = viewModel.buildExportText(exportLabels)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/markdown"
-                    putExtra(Intent.EXTRA_TEXT, text)
-                }
-                context.startActivity(Intent.createChooser(intent, exportChooserTitle))
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_save_skill)) },
-            onClick = {
-                menuOpen = false
-                skillDialogOpen = true
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
-            onClick = {
-                menuOpen = false
-                if (screenReady) {
-                    viewModel.analyzeScreen(screenPrompt)
-                } else {
-                    runCatching { screenCaptureLauncher.launch(viewModel.createScreenCaptureIntent()) }
-                }
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_compress)) },
-            onClick = {
-                menuOpen = false
-                viewModel.compressContext(compressTooShortHint)
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_distill)) },
-            onClick = {
-                menuOpen = false
-                viewModel.distillMemory()
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.chat_menu_hands_free)) },
-            trailingIcon = {
-                if (handsFree) {
-                    Icon(Icons.Outlined.Check, contentDescription = null)
-                }
-            },
-            onClick = {
-                menuOpen = false
-                viewModel.setHandsFree(!handsFree)
-            },
-        )
-        if (state.compressionSnapshot != null) {
+    // Anchored explicitly: as a bare sibling the host layout placed the
+    // dropdown in the bottom-left corner instead of under the ⋮ button.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars),
+    ) {
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = Baic2Spacing.xs),
+        ) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_restore_compression)) },
+                text = { Text(stringResource(R.string.chat_menu_search)) },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 onClick = {
                     menuOpen = false
-                    viewModel.restoreCompression()
+                    searchOpen = true
                 },
             )
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_menu_discard_compression)) },
+                text = { Text(stringResource(R.string.chat_menu_starred)) },
                 onClick = {
                     menuOpen = false
-                    viewModel.discardCompression()
+                    onOpenStarred()
                 },
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_export)) },
+                onClick = {
+                    menuOpen = false
+                    val text = viewModel.buildExportText(exportLabels)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/markdown"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, exportChooserTitle))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_save_skill)) },
+                onClick = {
+                    menuOpen = false
+                    skillDialogOpen = true
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_screen_analysis)) },
+                onClick = {
+                    menuOpen = false
+                    if (screenReady) {
+                        viewModel.analyzeScreen(screenPrompt)
+                    } else {
+                        runCatching { screenCaptureLauncher.launch(viewModel.createScreenCaptureIntent()) }
+                    }
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_compress)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.compressContext(compressTooShortHint)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_distill)) },
+                onClick = {
+                    menuOpen = false
+                    viewModel.distillMemory()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_menu_hands_free)) },
+                trailingIcon = {
+                    if (handsFree) {
+                        Icon(Icons.Outlined.Check, contentDescription = null)
+                    }
+                },
+                onClick = {
+                    menuOpen = false
+                    viewModel.setHandsFree(!handsFree)
+                },
+            )
+            if (state.compressionSnapshot != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_restore_compression)) },
+                    onClick = {
+                        menuOpen = false
+                        viewModel.restoreCompression()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_discard_compression)) },
+                    onClick = {
+                        menuOpen = false
+                        viewModel.discardCompression()
+                    },
+                )
+            }
         }
     }
 

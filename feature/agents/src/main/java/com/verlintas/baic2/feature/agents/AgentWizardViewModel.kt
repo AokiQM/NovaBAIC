@@ -23,6 +23,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.core.data.repository.AgentRepository
 import com.verlintas.baic2.core.model.Agent
+import com.verlintas.baic2.core.model.ModelCatalog
 import com.verlintas.baic2.core.model.ModelEntry
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderError
@@ -31,6 +32,7 @@ import com.verlintas.baic2.core.network.provider.ProviderException
 import com.verlintas.baic2.core.network.provider.ProviderFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -141,11 +143,13 @@ class AgentWizardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AgentWizardUiState())
     val uiState: StateFlow<AgentWizardUiState> = _uiState.asStateFlow()
 
-    private var autoFetchAttempted = false
+    private var autoFetchJob: Job? = null
+    private var modelEdited = false
 
     fun startForNew() {
         _uiState.value = AgentWizardUiState()
-        autoFetchAttempted = false
+        modelEdited = false
+        scheduleAutoFetch()
     }
 
     fun startForEdit(agentId: Long) {
@@ -166,7 +170,8 @@ class AgentWizardViewModel @Inject constructor(
                 systemPrompt = agent.systemPrompt,
                 keyPrefilled = true,
             )
-            autoFetchAttempted = false
+            modelEdited = true
+            scheduleAutoFetch()
         }
     }
 
@@ -184,7 +189,8 @@ class AgentWizardViewModel @Inject constructor(
                 error = null,
             )
         }
-        autoFetchAttempted = false
+        modelEdited = false
+        scheduleAutoFetch()
     }
 
     fun updateApiKey(value: String) {
@@ -209,7 +215,8 @@ class AgentWizardViewModel @Inject constructor(
                 current.copy(apiKey = value, error = null)
             }
         }
-        autoFetchAttempted = false
+        modelEdited = detected == null && modelEdited
+        scheduleAutoFetch()
     }
 
     /** Key prefix automation: sk-ant- -> Claude, AIza -> Gemini, sk- -> OpenAI family. */
@@ -225,7 +232,15 @@ class AgentWizardViewModel @Inject constructor(
         }
     }
 
-    fun updateBaseUrl(value: String) = _uiState.update { it.copy(baseUrl = value, error = null) }
+    fun updateBaseUrl(value: String) {
+        _uiState.update { it.copy(baseUrl = value, error = null) }
+        autoFetchJob?.cancel()
+        autoFetchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(900)
+            val state = _uiState.value
+            if (hasUsableKey(state) && state.baseUrl.isNotBlank()) fetchModels()
+        }
+    }
 
     fun updateName(value: String) = _uiState.update { it.copy(name = value) }
 
@@ -242,7 +257,7 @@ class AgentWizardViewModel @Inject constructor(
                     return
                 }
                 _uiState.update { it.copy(step = WizardStep.CONNECTION, error = null) }
-                maybeAutoFetchModels()
+                scheduleAutoFetch(0)
             }
 
             WizardStep.CONNECTION -> {
@@ -271,10 +286,14 @@ class AgentWizardViewModel @Inject constructor(
 
     // --- step 2: connection & models ---
 
-    private fun maybeAutoFetchModels() {
-        if (autoFetchAttempted) return
-        autoFetchAttempted = true
-        fetchModels()
+    /** Debounced auto-pull of the account's model list whenever creds change. */
+    private fun scheduleAutoFetch(delayMs: Long = 700) {
+        autoFetchJob?.cancel()
+        autoFetchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(delayMs)
+            val state = _uiState.value
+            if (hasUsableKey(state) && state.baseUrl.isNotBlank()) fetchModels()
+        }
     }
 
     fun fetchModels() {
@@ -287,15 +306,28 @@ class AgentWizardViewModel @Inject constructor(
         _uiState.update { it.copy(modelsLoading = true, modelsError = null) }
         viewModelScope.launch {
             try {
-                val models = providerFactory.create(current.preset.provider)
+                val fetched = providerFactory.create(current.preset.provider)
                     .listModels(current.toConfig())
-                    .sorted()
+                val models = fetched.filter(::isLikelyChatModel).ifEmpty { fetched }.sorted()
                 _uiState.update { state ->
+                    val selected = pickInitialModel(models, state.model, modelEdited)
+                    val entry = ModelCatalog.entryFor(state.preset.provider, selected)
                     state.copy(
                         modelsLoading = false,
                         models = models,
                         modelsError = null,
-                        model = state.model.ifBlank { models.firstOrNull().orEmpty() },
+                        model = selected,
+                        temperature = if (!modelEdited && entry != null) {
+                            entry.temperature.toFloat()
+                        } else {
+                            state.temperature
+                        },
+                        maxTokens = if (!modelEdited && entry != null) entry.maxTokens else state.maxTokens,
+                        reasoning = if (!modelEdited && entry != null) {
+                            entry.supportsReasoning
+                        } else {
+                            state.reasoning
+                        },
                     )
                 }
             } catch (e: ProviderException) {
@@ -318,6 +350,7 @@ class AgentWizardViewModel @Inject constructor(
 
     /** Applies a curated catalog entry: model id plus its tuned defaults. */
     fun pickCatalogModel(entry: ModelEntry) {
+        modelEdited = true
         _uiState.update {
             it.copy(
                 model = entry.id,
@@ -329,7 +362,10 @@ class AgentWizardViewModel @Inject constructor(
         }
     }
 
-    fun updateModel(value: String) = _uiState.update { it.copy(model = value, error = null) }
+    fun updateModel(value: String) {
+        modelEdited = true
+        _uiState.update { it.copy(model = value, error = null) }
+    }
 
     // --- step 3: tuning ---
 
@@ -386,3 +422,32 @@ class AgentWizardViewModel @Inject constructor(
         model = model.trim(),
     )
 }
+
+/**
+ * Model lists from gateways include embeddings, TTS and image endpoints; the
+ * wizard only offers chat-capable ids (with a fallback to the raw list when
+ * the filter would hide everything).
+ */
+internal fun isLikelyChatModel(id: String): Boolean {
+    val normalized = id.lowercase()
+    return NON_CHAT_MARKERS.none { normalized.contains(it) }
+}
+
+/**
+ * Keeps the saved/manual choice when the user touched the model, otherwise
+ * prefers the model already selected when it exists on the account and falls
+ * back to the first entry the API returned.
+ */
+internal fun pickInitialModel(models: List<String>, current: String, edited: Boolean): String {
+    if (models.isEmpty()) return current
+    if (edited) return current
+    return models.firstOrNull { it.equals(current, ignoreCase = true) } ?: models.first()
+}
+
+private val NON_CHAT_MARKERS = listOf(
+    "embedding", "embed-", "bge-", "gte-", "e5-", "m3e",
+    "rerank", "whisper", "tts", "text-to-speech", "speech",
+    "transcribe", "audio", "realtime", "moderation",
+    "dall-e", "stable-diffusion", "sdxl", "flux", "upscaler",
+    "clip-", "image", "codec",
+)
