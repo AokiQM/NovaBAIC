@@ -27,6 +27,7 @@ import com.verlintas.baic2.core.model.StreamEvent
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.network.provider.BODY_LIMIT
 import com.verlintas.baic2.core.network.provider.ProviderException
+import com.verlintas.baic2.core.network.provider.ToolCallHistory
 import com.verlintas.baic2.core.network.provider.executeWithRetry
 import com.verlintas.baic2.core.network.provider.mapHttpError
 import com.verlintas.baic2.core.network.provider.mapIOException
@@ -220,7 +221,7 @@ class GeminiProvider(
             }
         }
 
-        request.messages.forEach { message ->
+        ToolCallHistory.sanitize(request.messages).forEach { message ->
             when (message.role) {
                 ChatRole.SYSTEM -> Unit
                 ChatRole.USER -> append("user", userParts(message))

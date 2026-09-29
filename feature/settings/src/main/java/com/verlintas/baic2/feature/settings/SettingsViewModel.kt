@@ -21,13 +21,18 @@ package com.verlintas.baic2.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.verlintas.baic2.core.data.repository.AgentRepository
+import com.verlintas.baic2.core.data.prefs.AppLocaleStore
 import com.verlintas.baic2.core.data.prefs.SettingsRepository
+import com.verlintas.baic2.core.data.repository.AgentRepository
+import com.verlintas.baic2.core.data.storage.AppStorage
+import com.verlintas.baic2.core.data.storage.StorageUsage
+import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.Agent
+import com.verlintas.baic2.core.model.AppLanguage
 import com.verlintas.baic2.core.model.ThemeMode
-import com.verlintas.baic2.device.api.AccessibilityBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -35,29 +40,40 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
-    val loading: Boolean = true,
     val agents: List<Agent> = emptyList(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accessibilityEnabled: Boolean = false,
+    val accent: AccentColor = AccentColor.BLUE,
+    val language: AppLanguage = AppLanguage.SYSTEM,
+    val storage: StorageUsage? = null,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
     private val settingsRepository: SettingsRepository,
-    private val accessibilityBridge: AccessibilityBridge,
+    private val localeStore: AppLocaleStore,
+    private val appStorage: AppStorage,
 ) : ViewModel() {
+
+    private val storage = MutableStateFlow<StorageUsage?>(null)
+
+    init {
+        refreshStorage()
+    }
 
     val uiState: StateFlow<SettingsUiState> = combine(
         agentRepository.observeAgents(),
         settingsRepository.themeMode,
-        accessibilityBridge.connected,
-    ) { agents, themeMode, accessibility ->
+        settingsRepository.accentColor,
+        localeStore.language,
+        storage,
+    ) { agents, themeMode, accent, language, storageUsage ->
         SettingsUiState(
-            loading = false,
             agents = agents,
             themeMode = themeMode,
-            accessibilityEnabled = accessibility,
+            accent = accent,
+            language = language,
+            storage = storageUsage,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -69,11 +85,47 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
+    fun setAccent(accent: AccentColor) {
+        viewModelScope.launch { settingsRepository.setAccentColor(accent) }
+    }
+
+    fun setLanguage(language: AppLanguage) {
+        localeStore.set(language)
+    }
+
     fun setDefaultAgent(id: Long) {
         viewModelScope.launch { agentRepository.setDefault(id) }
     }
 
     fun deleteAgent(id: Long) {
         viewModelScope.launch { agentRepository.delete(id) }
+    }
+
+    fun refreshStorage() {
+        viewModelScope.launch { storage.value = appStorage.usage() }
+    }
+
+    fun clearAttachments(onDone: () -> Unit) {
+        viewModelScope.launch {
+            appStorage.clearAttachments()
+            refreshStorage()
+            onDone()
+        }
+    }
+
+    fun clearScreenshots(onDone: () -> Unit) {
+        viewModelScope.launch {
+            appStorage.clearScreenshots()
+            refreshStorage()
+            onDone()
+        }
+    }
+
+    fun clearConversations(onDone: () -> Unit) {
+        viewModelScope.launch {
+            appStorage.clearConversations()
+            refreshStorage()
+            onDone()
+        }
     }
 }

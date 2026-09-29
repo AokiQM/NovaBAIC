@@ -19,71 +19,178 @@
 
 package com.verlintas.baic2.feature.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.verlintas.baic2.core.model.Agent
-import com.verlintas.baic2.core.model.ProviderId
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.ThemeMode
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
-import com.verlintas.baic2.feature.agents.AgentSetupSheet
+
+data class BuildInfo(
+    val versionName: String,
+    val applicationId: String,
+    val buildType: String,
+)
+
+private object SettingsRoute {
+    const val ROOT = "settings_root"
+    const val AGENTS = "settings_agents"
+    const val AGENT_WIZARD = "settings_agent_wizard?agentId={agentId}"
+    const val PERMISSIONS = "settings_permissions"
+    const val APPEARANCE = "settings_appearance"
+    const val LANGUAGE = "settings_language"
+    const val STORAGE = "settings_storage"
+    const val ABOUT = "settings_about"
+    const val LICENSES = "settings_licenses"
+    const val DEVELOPER = "settings_developer"
+
+    fun agentWizard(agentId: Long? = null) = "settings_agent_wizard?agentId=${agentId ?: -1L}"
+}
 
 @Composable
 fun SettingsScreen(
-    appVersion: String,
+    buildInfo: BuildInfo,
+    onInnerRouteChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+) {
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val onInnerRoute = backStackEntry?.destination?.route != SettingsRoute.ROOT
+
+    LaunchedEffect(onInnerRoute) { onInnerRouteChanged(onInnerRoute) }
+
+    NavHost(
+        navController = navController,
+        startDestination = SettingsRoute.ROOT,
+        enterTransition = {
+            slideInHorizontally(animationSpec = spring(stiffness = 380f)) { it / 5 } +
+                fadeIn(tween(220))
+        },
+        exitTransition = { fadeOut(tween(120)) },
+        popEnterTransition = {
+            slideInHorizontally(animationSpec = spring(stiffness = 380f)) { -it / 5 } +
+                fadeIn(tween(220))
+        },
+        popExitTransition = {
+            slideOutHorizontally(tween(200)) { it / 5 } + fadeOut(tween(120))
+        },
+        modifier = modifier.fillMaxSize(),
+    ) {
+        composable(SettingsRoute.ROOT) {
+            SettingsRoot(
+                buildInfo = buildInfo,
+                onOpenAgents = { navController.navigate(SettingsRoute.AGENTS) },
+                onOpenPermissions = { navController.navigate(SettingsRoute.PERMISSIONS) },
+                onOpenAppearance = { navController.navigate(SettingsRoute.APPEARANCE) },
+                onOpenLanguage = { navController.navigate(SettingsRoute.LANGUAGE) },
+                onOpenStorage = { navController.navigate(SettingsRoute.STORAGE) },
+                onOpenAbout = { navController.navigate(SettingsRoute.ABOUT) },
+                onOpenDeveloper = { navController.navigate(SettingsRoute.DEVELOPER) },
+            )
+        }
+        composable(SettingsRoute.AGENTS) {
+            AgentsPage(
+                onBack = { navController.popBackStack() },
+                onAdd = { navController.navigate(SettingsRoute.agentWizard()) },
+                onEdit = { id -> navController.navigate(SettingsRoute.agentWizard(id)) },
+            )
+        }
+        composable(
+            route = SettingsRoute.AGENT_WIZARD,
+            arguments = listOf(navArgument("agentId") { type = NavType.LongType }),
+        ) { entry ->
+            val agentId = entry.arguments?.getLong("agentId")?.takeIf { it >= 0 }
+            com.verlintas.baic2.feature.agents.AgentWizardScreen(
+                agentId = agentId,
+                onClose = { navController.popBackStack() },
+            )
+        }
+        composable(SettingsRoute.PERMISSIONS) {
+            PermissionsPage(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoute.APPEARANCE) {
+            AppearancePage(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoute.LANGUAGE) {
+            LanguagePage(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoute.STORAGE) {
+            StoragePage(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoute.ABOUT) {
+            AboutPage(
+                buildInfo = buildInfo,
+                onBack = { navController.popBackStack() },
+                onOpenLicenses = { navController.navigate(SettingsRoute.LICENSES) },
+            )
+        }
+        composable(SettingsRoute.LICENSES) {
+            LicensesPage(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoute.DEVELOPER) {
+            DeveloperPage(
+                buildInfo = buildInfo,
+                onBack = { navController.popBackStack() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsRoot(
+    buildInfo: BuildInfo,
+    onOpenAgents: () -> Unit,
+    onOpenPermissions: () -> Unit,
+    onOpenAppearance: () -> Unit,
+    onOpenLanguage: () -> Unit,
+    onOpenStorage: () -> Unit,
+    onOpenAbout: () -> Unit,
+    onOpenDeveloper: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var setupOpen by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = Baic2Spacing.lg,
             end = Baic2Spacing.lg,
@@ -102,267 +209,94 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "v$appVersion · local-first",
+                    text = "v${buildInfo.versionName} · ${buildInfo.buildType}",
                     style = Baic2Mono.label,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        item(key = "agents-title") {
-            SectionLabel(stringResource(R.string.settings_agents_title))
-        }
-
-        if (state.loading) {
-            items(2, key = { "agent-skeleton-$it" }) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(72.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainer),
-                )
-            }
-        } else {
-            items(state.agents, key = { it.id }) { agent ->
-                AgentRow(
-                    agent = agent,
-                    onSetDefault = { viewModel.setDefaultAgent(agent.id) },
-                    onDelete = { viewModel.deleteAgent(agent.id) },
-                    modifier = Modifier.animateItem(),
-                )
-            }
-            item(key = "agents-add") {
-                OutlinedButton(
-                    onClick = { setupOpen = true },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+        item(key = "s-services") { SettingsSectionLabel(stringResource(R.string.settings_section_services)) }
+        item(key = "agents") {
+            SettingsRow(
+                title = stringResource(R.string.settings_agents_title),
+                summary = if (state.agents.isEmpty()) {
+                    stringResource(R.string.settings_agents_none)
+                } else {
+                    stringResource(
+                        R.string.settings_agents_summary,
+                        state.agents.size,
+                        state.agents.firstOrNull { it.isDefault }?.name ?: "-",
                     )
-                    Spacer(Modifier.width(Baic2Spacing.sm))
-                    Text(stringResource(R.string.settings_agents_add))
-                }
-            }
-        }
-
-        item(key = "permissions-title") {
-            SectionLabel(stringResource(R.string.settings_permissions_title))
+                },
+                icon = Icons.Outlined.Person,
+                showChevron = true,
+                onClick = onOpenAgents,
+            )
         }
         item(key = "permissions") {
-            val shape = RoundedCornerShape(14.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                    .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_a11y_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_a11y_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = stringResource(
-                        if (state.accessibilityEnabled) R.string.settings_a11y_on
-                        else R.string.settings_a11y_off,
-                    ),
-                    style = Baic2Mono.label,
-                    color = if (state.accessibilityEnabled) {
-                        MaterialTheme.colorScheme.tertiary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-                Spacer(Modifier.width(Baic2Spacing.sm))
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        context.startActivity(
-                            android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
-                        )
-                    },
-                ) {
-                    Text(stringResource(R.string.settings_a11y_open))
-                }
-            }
+            SettingsRow(
+                title = stringResource(R.string.settings_permissions_title),
+                summary = stringResource(R.string.settings_permissions_summary),
+                icon = Icons.Outlined.Lock,
+                showChevron = true,
+                onClick = onOpenPermissions,
+            )
         }
 
-        item(key = "appearance-title") {
-            SectionLabel(stringResource(R.string.settings_appearance_title))
-        }
+        item(key = "s-appearance") { SettingsSectionLabel(stringResource(R.string.settings_section_appearance)) }
         item(key = "appearance") {
-            val shape = RoundedCornerShape(14.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                    .padding(Baic2Spacing.md),
-                horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
-            ) {
-                ThemeMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = state.themeMode == mode,
-                        onClick = { viewModel.setThemeMode(mode) },
-                        shape = RoundedCornerShape(10.dp),
-                        label = { Text(themeLabel(mode)) },
-                    )
-                }
-            }
+            SettingsRow(
+                title = stringResource(R.string.settings_appearance_title),
+                summary = "${themeLabel(state.themeMode)} · ${accentLabel(state.accent)}",
+                icon = Icons.Outlined.Star,
+                showChevron = true,
+                onClick = onOpenAppearance,
+            )
+        }
+        item(key = "language") {
+            SettingsRow(
+                title = stringResource(R.string.settings_language_title),
+                summary = languageLabel(state.language),
+                icon = Icons.Outlined.Face,
+                showChevron = true,
+                onClick = onOpenLanguage,
+            )
         }
 
-        item(key = "about-title") {
-            SectionLabel(stringResource(R.string.settings_about_title))
-        }
-        item(key = "about") {
-            val shape = RoundedCornerShape(14.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                    .padding(Baic2Spacing.lg),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(Baic2Spacing.md))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_about_tagline),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "BetterAIChat2 · v$appVersion",
-                        style = Baic2Mono.label,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-
-    if (setupOpen) {
-        AgentSetupSheet(onDismiss = { setupOpen = false })
-    }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = Baic2Mono.label,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(
-            start = Baic2Spacing.xs,
-            top = Baic2Spacing.lg,
-            bottom = Baic2Spacing.xs,
-        ),
-    )
-}
-
-@Composable
-private fun AgentRow(
-    agent: Agent,
-    onSetDefault: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(
-                width = 1.dp,
-                color = if (agent.isDefault) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        item(key = "s-data") { SettingsSectionLabel(stringResource(R.string.settings_section_data)) }
+        item(key = "storage") {
+            SettingsRow(
+                title = stringResource(R.string.settings_storage_title),
+                summary = state.storage?.let {
+                    stringResource(R.string.settings_storage_summary, formatBytes(it.totalBytes))
                 },
-                shape = shape,
-            )
-            .padding(start = Baic2Spacing.lg, end = Baic2Spacing.sm, top = Baic2Spacing.sm, bottom = Baic2Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = agent.name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "${providerLabel(agent.provider)} · ${agent.model}",
-                style = Baic2Mono.label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                icon = Icons.Outlined.Info,
+                showChevron = true,
+                onClick = onOpenStorage,
             )
         }
-        if (agent.isDefault) {
-            Icon(
-                imageVector = Icons.Outlined.Check,
-                contentDescription = stringResource(R.string.settings_agents_default),
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .size(18.dp)
-                    .clickable(onClick = onSetDefault),
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(9.dp))
-                    .clickable(onClick = onSetDefault),
+
+        item(key = "s-about") { SettingsSectionLabel(stringResource(R.string.settings_section_about)) }
+        item(key = "about") {
+            SettingsRow(
+                title = stringResource(R.string.settings_about_title),
+                summary = stringResource(R.string.settings_about_summary, buildInfo.versionName),
+                icon = Icons.Outlined.Info,
+                showChevron = true,
+                onClick = onOpenAbout,
             )
         }
-        Spacer(Modifier.width(Baic2Spacing.sm))
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Outlined.Delete,
-                contentDescription = stringResource(R.string.settings_agents_delete),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+        item(key = "developer") {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_title),
+                icon = Icons.Outlined.Build,
+                showChevron = true,
+                onClick = onOpenDeveloper,
             )
         }
     }
 }
-
-@Composable
-private fun providerLabel(provider: ProviderId): String = stringResource(
-    when (provider) {
-        ProviderId.OPENAI_COMPATIBLE -> R.string.settings_provider_openai
-        ProviderId.ANTHROPIC -> R.string.settings_provider_claude
-        ProviderId.GEMINI -> R.string.settings_provider_gemini
-    },
-)
 
 @Composable
 private fun themeLabel(mode: ThemeMode): String = stringResource(
@@ -372,3 +306,34 @@ private fun themeLabel(mode: ThemeMode): String = stringResource(
         ThemeMode.DARK -> R.string.theme_dark
     },
 )
+
+@Composable
+private fun accentLabel(accent: AccentColor): String = stringResource(
+    when (accent) {
+        AccentColor.ORANGE -> R.string.accent_orange
+        AccentColor.RED -> R.string.accent_red
+        AccentColor.PINK -> R.string.accent_pink
+        AccentColor.INDIGO -> R.string.accent_indigo
+        AccentColor.BLUE -> R.string.accent_blue
+        AccentColor.PURPLE -> R.string.accent_purple
+        AccentColor.GREEN -> R.string.accent_green
+        AccentColor.TEAL -> R.string.accent_teal
+    },
+)
+
+@Composable
+private fun languageLabel(language: com.verlintas.baic2.core.model.AppLanguage): String =
+    stringResource(
+        when (language) {
+            com.verlintas.baic2.core.model.AppLanguage.SYSTEM -> R.string.language_system
+            com.verlintas.baic2.core.model.AppLanguage.CHINESE -> R.string.language_chinese
+            com.verlintas.baic2.core.model.AppLanguage.ENGLISH -> R.string.language_english
+        },
+    )
+
+internal fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_073_741_824 -> String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1_073_741_824.0)
+    bytes >= 1_048_576 -> String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1_048_576.0)
+    bytes >= 1024 -> String.format(java.util.Locale.ROOT, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}

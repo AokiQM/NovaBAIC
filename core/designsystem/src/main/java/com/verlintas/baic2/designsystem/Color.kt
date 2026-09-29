@@ -19,9 +19,11 @@
 
 package com.verlintas.baic2.designsystem
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import com.verlintas.baic2.core.model.AccentColor
 
 // Console-inspired palette: near-black layered surfaces, low-contrast
 // outlines, one cool blue accent. Codex-like density, zero decoration.
@@ -106,3 +108,81 @@ val Baic2LightColorScheme = lightColorScheme(
     outlineVariant = Color(0xFFE0E0E6),
     scrim = Color(0xFF000000),
 )
+
+
+/** Per-accent palette: dark primaries are pastel, light primaries are deep. */
+data class AccentSpec(
+    val darkPrimary: Color,
+    val darkOnPrimary: Color,
+    val darkContainer: Color,
+    val darkOnContainer: Color,
+    val lightPrimary: Color,
+    val lightOnPrimary: Color,
+    val lightContainer: Color,
+    val lightOnContainer: Color,
+)
+
+fun accentSpec(accent: AccentColor): AccentSpec = when (accent) {
+    AccentColor.ORANGE -> AccentSpec(
+        Color(0xFFFFA07A), Color(0xFF2A120A), Color(0xFF4A2317), Color(0xFFFFDCCB),
+        Color(0xFFC2410C), Color(0xFFFFFFFF), Color(0xFFFFE0D3), Color(0xFF3A1608),
+    )
+    AccentColor.RED -> AccentSpec(
+        Color(0xFFFF8A84), Color(0xFF2A0E0E), Color(0xFF4A1B1B), Color(0xFFFFDAD7),
+        Color(0xFFC62F2F), Color(0xFFFFFFFF), Color(0xFFFFDAD7), Color(0xFF410002),
+    )
+    AccentColor.PINK -> AccentSpec(
+        Color(0xFFFF9FCE), Color(0xFF2A0E1D), Color(0xFF4A1B36), Color(0xFFFFD9EC),
+        Color(0xFFC2187E), Color(0xFFFFFFFF), Color(0xFFFFD9EC), Color(0xFF3B0025),
+    )
+    AccentColor.INDIGO -> AccentSpec(
+        Color(0xFF9FAEFF), Color(0xFF12173A), Color(0xFF1E2853), Color(0xFFDDE1FF),
+        Color(0xFF3F51B5), Color(0xFFFFFFFF), Color(0xFFDDE1FF), Color(0xFF0A1A54),
+    )
+    AccentColor.BLUE -> AccentSpec(
+        Color(0xFF7AA2F7), Color(0xFF071426), Color(0xFF1B2A4A), Color(0xFFD6E4FF),
+        Color(0xFF2E5FD0), Color(0xFFFFFFFF), Color(0xFFDCE6FF), Color(0xFF0A1B3D),
+    )
+    AccentColor.PURPLE -> AccentSpec(
+        Color(0xFFCBA6FF), Color(0xFF1F0F3A), Color(0xFF35215A), Color(0xFFEDDCFF),
+        Color(0xFF7A3FE0), Color(0xFFFFFFFF), Color(0xFFEDDCFF), Color(0xFF2A0B54),
+    )
+    AccentColor.GREEN -> AccentSpec(
+        Color(0xFF93DF9B), Color(0xFF0C2412), Color(0xFF173D22), Color(0xFFD8F0DA),
+        Color(0xFF2E7D32), Color(0xFFFFFFFF), Color(0xFFD8F0DA), Color(0xFF072C10),
+    )
+    AccentColor.TEAL -> AccentSpec(
+        Color(0xFF6FDCD0), Color(0xFF0A2320), Color(0xFF123A36), Color(0xFFD0F0EC),
+        Color(0xFF00796B), Color(0xFFFFFFFF), Color(0xFFD0F0EC), Color(0xFF00251F),
+    )
+}
+
+/** Base scheme with accent roles applied; everything else keeps Baic2 tokens. */
+fun baic2ColorScheme(dark: Boolean, accent: AccentColor): ColorScheme {
+    val spec = accentSpec(accent)
+    return if (dark) {
+        Baic2DarkColorScheme.copy(
+            primary = spec.darkPrimary,
+            onPrimary = spec.darkOnPrimary,
+            primaryContainer = spec.darkContainer,
+            onPrimaryContainer = spec.darkOnContainer,
+            tertiary = spec.darkPrimary,
+            onTertiary = spec.darkOnPrimary,
+            tertiaryContainer = spec.darkContainer,
+            onTertiaryContainer = spec.darkOnContainer,
+            surfaceTint = spec.darkPrimary,
+        )
+    } else {
+        Baic2LightColorScheme.copy(
+            primary = spec.lightPrimary,
+            onPrimary = spec.lightOnPrimary,
+            primaryContainer = spec.lightContainer,
+            onPrimaryContainer = spec.lightOnContainer,
+            tertiary = spec.lightPrimary,
+            onTertiary = spec.lightOnPrimary,
+            tertiaryContainer = spec.lightContainer,
+            onTertiaryContainer = spec.lightOnContainer,
+            surfaceTint = spec.lightPrimary,
+        )
+    }
+}

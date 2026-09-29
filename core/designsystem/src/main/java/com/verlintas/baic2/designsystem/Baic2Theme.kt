@@ -22,6 +22,7 @@ package com.verlintas.baic2.designsystem
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import com.verlintas.baic2.core.model.AccentColor
 
 /**
  * BAIC2 theme. Dark-first: dark is the primary surface language, light is a
@@ -34,10 +35,11 @@ import androidx.compose.runtime.Composable
 @Composable
 fun Baic2Theme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    accent: AccentColor = AccentColor.BLUE,
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = if (darkTheme) Baic2DarkColorScheme else Baic2LightColorScheme,
+        colorScheme = baic2ColorScheme(dark = darkTheme, accent = accent),
         shapes = Baic2Shapes,
         typography = Baic2Typography,
         content = content,

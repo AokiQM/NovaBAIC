@@ -20,4 +20,35 @@
     <string name="agent_setup_error_generic">Request failed: %1$s</string>
 
     <string name="preset_custom">Custom</string>
+    <string name="agent_setup_name">Name</string>
+    <string name="agent_setup_system_prompt_hint">e.g. You are a concise, reliable assistant</string>
+    <string name="wizard_close">Close</string>
+    <string name="wizard_title_new">Connect AI service</string>
+    <string name="wizard_title_edit">Edit service</string>
+    <string name="wizard_step_provider">Provider</string>
+    <string name="wizard_step_connection">Connection &amp; model</string>
+    <string name="wizard_step_tuning">Tuning</string>
+    <string name="wizard_step_prompt">System prompt</string>
+    <string name="wizard_key_hint">Paste the key and the provider is detected automatically</string>
+    <string name="wizard_detected">Detected: %1$s</string>
+    <string name="wizard_or_pick">Or pick a provider</string>
+    <string name="wizard_model_pick">Pick a model</string>
+    <string name="wizard_model_manual">Manual model name</string>
+    <string name="wizard_models_loading">Fetching models…</string>
+    <string name="wizard_models_error">Fetch failed: %1$s</string>
+    <string name="wizard_models_found">Connected · %1$d models</string>
+    <string name="wizard_models_idle">Tap retry to fetch the model list</string>
+    <string name="wizard_retry">Retry</string>
+    <string name="wizard_temperature">Temperature · randomness %1$d%%</string>
+    <string name="wizard_max_tokens">Max output tokens</string>
+    <string name="wizard_reasoning">Deep reasoning</string>
+    <string name="wizard_reasoning_desc">Enables reasoning on supported models</string>
+    <string name="wizard_prompt_hint">The system prompt shapes the persona; leave empty for the default</string>
+    <string name="wizard_prompt_tpl_general">You are a helpful assistant. Answer accurately and concisely.</string>
+    <string name="wizard_prompt_tpl_translate">You are a professional translator. Keep the meaning and tone; output the translation only.</string>
+    <string name="wizard_prompt_tpl_code">You are a senior engineer. Provide runnable code with brief explanations.</string>
+    <string name="wizard_prompt_tpl_concise">Keep answers very short and lead with the conclusion.</string>
+    <string name="wizard_next">Next</string>
+    <string name="wizard_back">Back</string>
+    <string name="wizard_saved">All set</string>
 </resources>

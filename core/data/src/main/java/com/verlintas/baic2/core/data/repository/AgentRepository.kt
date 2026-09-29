@@ -63,6 +63,19 @@ class AgentRepository @Inject constructor(
         id
     }
 
+    /** Full update; the API key is only rewritten when a new one is provided. */
+    suspend fun update(agent: Agent, newPlaintextApiKey: String?): Long = db.withTransaction {
+        val existing = db.agentDao().getById(agent.id) ?: error("agent ${agent.id} is missing")
+        val encrypted = newPlaintextApiKey?.takeIf { it.isNotBlank() }?.let { cipher.encrypt(it) }
+            ?: existing.encryptedApiKey
+        db.agentDao().update(mapper.agentToEntity(agent, encrypted, existing.createdAt))
+        if (agent.isDefault) {
+            db.agentDao().clearDefault()
+            db.agentDao().markDefault(agent.id)
+        }
+        agent.id
+    }
+
     suspend fun setDefault(id: Long) = db.withTransaction {
         db.agentDao().clearDefault()
         db.agentDao().markDefault(id)

@@ -19,6 +19,8 @@
 
 package com.verlintas.baic2
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,10 +31,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.verlintas.baic2.core.data.prefs.AppLocaleStore
 import com.verlintas.baic2.core.data.prefs.SettingsRepository
+import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.ThemeMode
 import com.verlintas.baic2.designsystem.Baic2Theme
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -41,12 +46,22 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    override fun attachBaseContext(newBase: Context) {
+        val language = AppLocaleStore.readFrom(newBase)
+        val tag = language.languageTag
+        super.attachBaseContext(
+            if (tag == null) newBase else newBase.withLocale(Locale.forLanguageTag(tag)),
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             val themeMode by settingsRepository.themeMode
                 .collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
+            val accent by settingsRepository.accentColor
+                .collectAsStateWithLifecycle(initialValue = AccentColor.BLUE)
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -59,9 +74,17 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !darkTheme
                 }
             }
-            Baic2Theme(darkTheme = darkTheme) {
+            Baic2Theme(darkTheme = darkTheme, accent = accent) {
                 Baic2App()
             }
         }
     }
+}
+
+private fun Context.withLocale(locale: Locale): Context {
+    Locale.setDefault(locale)
+    val configuration = Configuration(resources.configuration)
+    configuration.setLocale(locale)
+    configuration.setLayoutDirection(locale)
+    return createConfigurationContext(configuration)
 }

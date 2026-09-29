@@ -24,4 +24,99 @@
 
     <string name="settings_about_title">关于</string>
     <string name="settings_about_tagline">本地优先的 Android AI 智能体 · 密钥不出设备</string>
+
+    <string name="settings_back">返回</string>
+    <string name="settings_cancel">取消</string>
+    <string name="settings_brand_name">BetterAIChat2</string>
+
+    <string name="settings_section_services">服务与能力</string>
+    <string name="settings_agents_summary">已配置 %1$d 个服务 · 默认 %2$s</string>
+    <string name="settings_agents_none">还没有配置服务，点这里添加</string>
+    <string name="settings_agents_hint">点击服务可编辑；右侧圆点用于设为默认服务</string>
+    <string name="settings_agents_delete_confirm">删除后该服务的密钥与配置将不可恢复。</string>
+    <string name="settings_permissions_summary">自动化、屏幕、通知与运行时权限</string>
+
+    <string name="settings_permissions_hint">核心权限决定 AI 能否看屏与操作设备；运行时权限仅在对应工具被调用时使用。</string>
+    <string name="settings_permissions_core">核心能力</string>
+    <string name="settings_permissions_runtime">运行时权限</string>
+    <string name="settings_perm_capture_title">屏幕截图</string>
+    <string name="settings_perm_capture_desc">在发起屏幕分析时按次授权，用完即失效</string>
+    <string name="settings_perm_capture_action">聊天内授权</string>
+    <string name="settings_perm_notif_listener_title">通知读取</string>
+    <string name="settings_perm_notif_listener_desc">让 AI 读取通知内容与验证码（可选）</string>
+    <string name="settings_perm_usage_title">使用情况访问</string>
+    <string name="settings_perm_usage_desc">让 AI 了解前台应用与使用时长（可选）</string>
+    <string name="settings_perm_write_title">修改系统设置</string>
+    <string name="settings_perm_write_desc">亮度、音量等系统设置调节（可选）</string>
+    <string name="settings_perm_notifications_title">通知</string>
+    <string name="settings_perm_notifications_desc">任务完成与长任务进度提醒</string>
+    <string name="settings_perm_camera_title">相机</string>
+    <string name="settings_perm_camera_desc">拍照并发送给 AI</string>
+    <string name="settings_perm_mic_title">麦克风</string>
+    <string name="settings_perm_mic_desc">语音输入</string>
+    <string name="settings_perm_contacts_title">通讯录</string>
+    <string name="settings_perm_contacts_desc">搜索联系人</string>
+    <string name="settings_perm_location_title">位置</string>
+    <string name="settings_perm_location_desc">获取当前位置</string>
+    <string name="settings_perm_grant">去授权</string>
+    <string name="settings_perm_granted">已授权</string>
+
+    <string name="settings_section_appearance">外观与语言</string>
+    <string name="settings_theme_mode">主题模式</string>
+    <string name="settings_accent_color">强调色</string>
+    <string name="accent_orange">橙色</string>
+    <string name="accent_red">红色</string>
+    <string name="accent_pink">粉色</string>
+    <string name="accent_indigo">靛蓝</string>
+    <string name="accent_blue">蓝色</string>
+    <string name="accent_purple">紫色</string>
+    <string name="accent_green">绿色</string>
+    <string name="accent_teal">青色</string>
+    <string name="settings_language_title">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_system_hint">自动匹配设备语言</string>
+    <string name="language_chinese">简体中文</string>
+    <string name="language_english">English</string>
+    <string name="settings_language_hint">切换语言后界面会立即重启生效</string>
+
+    <string name="settings_section_data">数据与存储</string>
+    <string name="settings_storage_title">存储占用</string>
+    <string name="settings_storage_summary">当前占用 %1$s</string>
+    <string name="settings_storage_total">总占用</string>
+    <string name="settings_storage_refresh">刷新</string>
+    <string name="settings_storage_db">数据库</string>
+    <string name="settings_storage_attachments">附件</string>
+    <string name="settings_storage_screenshots">截图</string>
+    <string name="settings_storage_skills">技能</string>
+    <string name="settings_storage_cleanup">清理</string>
+    <string name="settings_storage_clear_attachments">清理附件</string>
+    <string name="settings_storage_clear_attachments_desc">删除所有对话中缓存的图片与文件</string>
+    <string name="settings_storage_clear_screenshots">清理截图</string>
+    <string name="settings_storage_clear_screenshots_desc">删除 AI 分析屏幕时保存的截图</string>
+    <string name="settings_storage_clear_all">清空全部对话</string>
+    <string name="settings_storage_clear_all_desc">删除全部会话、消息与任务记录</string>
+    <string name="settings_storage_confirm">此操作不可撤销，确定继续吗？</string>
+    <string name="settings_storage_confirm_yes">确定清理</string>
+
+    <string name="settings_section_about">关于</string>
+    <string name="settings_about_summary">版本 %1$s · 开源许可与更新</string>
+    <string name="settings_about_links">链接</string>
+    <string name="settings_about_repo">GitHub 仓库</string>
+    <string name="settings_about_releases">发布版本</string>
+    <string name="settings_about_issues">问题反馈</string>
+    <string name="settings_about_licenses">开源许可</string>
+    <string name="settings_about_legal">法律</string>
+    <string name="settings_about_license_summary">自由软件 · 可自由使用、修改与分发</string>
+    <string name="settings_licenses_title">开源许可</string>
+    <string name="settings_licenses_hint">BetterAIChat2 基于以下开源项目构建，感谢所有作者。</string>
+    <string name="settings_developer_title">开发者</string>
+    <string name="settings_developer_build">构建信息</string>
+    <string name="settings_developer_app_id">应用 ID</string>
+    <string name="settings_developer_version">版本</string>
+    <string name="settings_developer_author">作者</string>
+    <string name="settings_developer_email">邮箱</string>
+    <string name="settings_developer_note">BetterAIChat2 是 BetterAIChat 的继任重制版，遵循 GPL-3.0-or-later 许可。</string>
+
+    <string name="settings_perm_usage_stats_note">部分系统将使用情况访问隐藏在"更多权限"中</string>
+    <string name="settings_about_copyright">© 2026 Verlintas · BetterAIChat2 是 BetterAIChat 的继任重制版</string>
 </resources>

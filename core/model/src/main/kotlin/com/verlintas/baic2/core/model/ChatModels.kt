@@ -45,6 +45,8 @@ data class ChatMessage(
     val model: String? = null,
     val createdAt: Long = 0L,
     val starred: Boolean = false,
+    val usageInput: Long? = null,
+    val usageOutput: Long? = null,
 )
 
 @Serializable

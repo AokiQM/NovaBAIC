@@ -67,6 +67,8 @@ data class MessageEntity(
     val model: String?,
     val createdAt: Long,
     val starred: Boolean = false,
+    val usageInput: Long? = null,
+    val usageOutput: Long? = null,
 )
 
 @Entity(

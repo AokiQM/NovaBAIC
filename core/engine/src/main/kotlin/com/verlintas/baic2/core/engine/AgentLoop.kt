@@ -120,6 +120,8 @@ class AgentLoop(
             val text = StringBuilder()
             val thinking = StringBuilder()
             var toolCalls = emptyList<ToolCall>()
+            var roundUsageInput: Long? = null
+            var roundUsageOutput: Long? = null
 
             val provider = try {
                 providerFactory(config.provider)
@@ -136,7 +138,7 @@ class AgentLoop(
                 provider.stream(
                     ChatRequest(
                         config = config,
-                        systemPrompt = systemPromptFor(mode, customSystemPrompt, planContext),
+                        systemPrompt = renderSystemPrompt(mode, customSystemPrompt, planContext),
                         messages = messages,
                         tools = toolCatalog.specs(mode),
                     ),
@@ -151,8 +153,11 @@ class AgentLoop(
                             emit(AgentEvent.ThinkingDelta(event.text))
                         }
                         is StreamEvent.ToolCallsDone -> toolCalls = event.calls
-                        is StreamEvent.Usage ->
+                        is StreamEvent.Usage -> {
+                            roundUsageInput = event.promptTokens
+                            roundUsageOutput = event.completionTokens
                             emit(AgentEvent.Usage(event.promptTokens, event.completionTokens))
+                        }
                         is StreamEvent.Failed -> throw ProviderStreamFailure(event)
                         StreamEvent.Done -> Unit
                     }
@@ -177,6 +182,8 @@ class AgentLoop(
                 thinking = thinking.toString().ifBlank { null },
                 toolCalls = toolCalls,
                 model = config.model,
+                usageInput = roundUsageInput,
+                usageOutput = roundUsageOutput,
             )
             emit(AgentEvent.AssistantMessage(assistant))
 
@@ -325,34 +332,6 @@ class AgentLoop(
         return GateResult.Allow
     }
 
-    private fun systemPromptFor(mode: AppMode, custom: String, planContext: String?): String {
-        val base = when (mode) {
-            AppMode.CHAT ->
-                "You are a helpful assistant. Answer clearly and concisely. You have no tools."
-
-            AppMode.CHAT_PLUS ->
-                "You are in research mode. You may use read-only tools to inspect information. " +
-                    "Draft a short plan before acting and never attempt to modify the device."
-
-            AppMode.ACT ->
-                "You are in action mode. You can call device tools; each call is confirmed by the user first, " +
-                    "so explain what you are about to do and why. Prefer the smallest safe step."
-
-            AppMode.MAX ->
-                "You are in autonomous mode. Maintain a task plan with the plan_update tool: create it " +
-                    "before the first action, keep exactly one step marked DOING, verify each step with an " +
-                    "observation tool (screen_ocr / ui_find / device_info) and update its status immediately, " +
-                    "then mark it DONE or FAILED. Execute tools without asking, never repeat a failed call " +
-                    "with identical arguments, and summarize the outcome at the end."
-        }
-        val withPlan = if (!planContext.isNullOrBlank() && mode == AppMode.MAX) {
-            base + "\n\nCurrent plan (keep it updated via plan_update):\n" + planContext
-        } else {
-            base
-        }
-        return if (custom.isBlank()) withPlan else "$custom\n\n$withPlan"
-    }
-
     private companion object {
         const val MAX_TOOL_FAILURES = 3
     }
@@ -367,4 +346,36 @@ class AgentLoop(
 
     private class ProviderStreamFailure(val event: StreamEvent.Failed) :
         Exception(event.error.message)
+}
+
+/**
+ * The system prompt for a run. Public so the chat layer can estimate the
+ * context size before a request is built.
+ */
+fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): String {
+    val base = when (mode) {
+        AppMode.CHAT ->
+            "You are a helpful assistant. Answer clearly and concisely. You have no tools."
+
+        AppMode.CHAT_PLUS ->
+            "You are in research mode. You may use read-only tools to inspect information. " +
+                "Draft a short plan before acting and never attempt to modify the device."
+
+        AppMode.ACT ->
+            "You are in action mode. You can call device tools; each call is confirmed by the user first, " +
+                "so explain what you are about to do and why. Prefer the smallest safe step."
+
+        AppMode.MAX ->
+            "You are in autonomous mode. Maintain a task plan with the plan_update tool: create it " +
+                "before the first action, keep exactly one step marked DOING, verify each step with an " +
+                "observation tool (screen_ocr / ui_find / device_info) and update its status immediately, " +
+                "then mark it DONE or FAILED. Execute tools without asking, never repeat a failed call " +
+                "with identical arguments, and summarize the outcome at the end."
+    }
+    val withPlan = if (!planContext.isNullOrBlank() && mode == AppMode.MAX) {
+        base + "\n\nCurrent plan (keep it updated via plan_update):\n" + planContext
+    } else {
+        base
+    }
+    return if (custom.isBlank()) withPlan else "$custom\n\n$withPlan"
 }

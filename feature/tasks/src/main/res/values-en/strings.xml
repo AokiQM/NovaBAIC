@@ -9,4 +9,28 @@
     <string name="tasks_state_completed">completed</string>
     <string name="tasks_state_failed">failed</string>
     <string name="tasks_state_cancelled">cancelled</string>
+
+    <string name="tasks_filter_all">All</string>
+    <string name="tasks_filter_running">Running</string>
+    <string name="tasks_filter_completed">Completed</string>
+    <string name="tasks_filter_failed">Failed</string>
+    <string name="tasks_back">Back</string>
+    <string name="tasks_detail_title">Run detail</string>
+    <string name="tasks_delete_run">Delete record</string>
+    <string name="tasks_delete_confirm">Only this run record is deleted; the conversation and its messages stay.</string>
+    <string name="tasks_delete">Delete</string>
+    <string name="tasks_cancel">Cancel</string>
+    <string name="tasks_meta">%1$s · started %2$s</string>
+    <string name="tasks_budget_title">Run budget</string>
+    <string name="tasks_budget_rounds">Max rounds</string>
+    <string name="tasks_budget_tools">Max tool calls</string>
+    <string name="tasks_budget_wallclock">Max duration</string>
+    <string name="tasks_budget_elapsed">Elapsed %1$s</string>
+    <string name="tasks_plan_title">Task plan</string>
+    <string name="tasks_timeline_title">Execution timeline</string>
+    <string name="tasks_timeline_empty">No records for this run yet. Tap an entry to expand it.</string>
+    <string name="tasks_open_conversation">Open conversation</string>
+    <string name="tasks_role_user">You</string>
+    <string name="tasks_role_assistant">AI</string>
+    <string name="tasks_role_tool">Tool</string>
 </resources>

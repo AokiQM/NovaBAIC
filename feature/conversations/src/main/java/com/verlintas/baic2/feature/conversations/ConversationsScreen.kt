@@ -88,7 +88,9 @@ import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
 import com.verlintas.baic2.designsystem.component.Baic2Skeleton
-import com.verlintas.baic2.feature.agents.AgentSetupSheet
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.verlintas.baic2.feature.agents.AgentWizardScreen
 import com.verlintas.baic2.designsystem.component.shimmerBackground
 
 @Composable
@@ -182,7 +184,12 @@ fun ConversationsScreen(
     }
 
     if (setupOpen) {
-        AgentSetupSheet(onDismiss = { setupOpen = false })
+        Dialog(
+            onDismissRequest = { setupOpen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AgentWizardScreen(agentId = null, onClose = { setupOpen = false })
+        }
     }
 }
 

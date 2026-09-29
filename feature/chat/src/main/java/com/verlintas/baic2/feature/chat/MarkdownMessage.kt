@@ -58,6 +58,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,8 @@ sealed interface MarkdownBlock {
     }
 
     data class Code(val language: String, val code: String) : MarkdownBlock
+
+    data class Table(val header: List<String>, val rows: List<List<String>>) : MarkdownBlock
 }
 
 fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
@@ -89,8 +92,10 @@ fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
         normalLines.clear()
     }
 
-    text.lines().forEach { rawLine ->
-        val line = rawLine.trimEnd()
+    val lines = MarkdownNormalizer.normalize(text).lines()
+    var lineIndex = 0
+    while (lineIndex < lines.size) {
+        val line = lines[lineIndex].trimEnd()
         if (line.trimStart().startsWith("```")) {
             if (inCode) {
                 inCode = false
@@ -102,15 +107,37 @@ fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
                 inCode = true
                 codeLanguage = line.trim().removePrefix("```").trim()
             }
-            return@forEach
+            lineIndex++
+            continue
         }
         if (inCode) {
             code.appendLine(line)
-            return@forEach
+            lineIndex++
+            continue
         }
         if (line.isBlank()) {
             flushNormal()
-            return@forEach
+            lineIndex++
+            continue
+        }
+        if (MarkdownNormalizer.isTableRow(line) &&
+            lineIndex + 1 < lines.size &&
+            MarkdownNormalizer.isTableSeparator(lines[lineIndex + 1])
+        ) {
+            flushNormal()
+            val header = MarkdownNormalizer.splitTableRow(line)
+            val rows = mutableListOf<List<String>>()
+            var cursor = lineIndex + 2
+            while (cursor < lines.size &&
+                lines[cursor].isNotBlank() &&
+                MarkdownNormalizer.isTableRow(lines[cursor])
+            ) {
+                rows += MarkdownNormalizer.splitTableRow(lines[cursor])
+                cursor++
+            }
+            blocks += MarkdownBlock.Table(header, rows)
+            lineIndex = cursor
+            continue
         }
         val kind = classify(line)
         when (kind) {
@@ -120,6 +147,7 @@ fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
                 blocks += MarkdownBlock.Paragraph(line, kind)
             }
         }
+        lineIndex++
     }
     if (inCode) {
         blocks += MarkdownBlock.Code(codeLanguage, code.toString().trimEnd())
@@ -156,6 +184,10 @@ fun MarkdownMessage(
                     if (streaming && isLast) {
                         BlinkingCursor(modifier = Modifier.padding(top = 2.dp))
                     }
+                }
+
+                is MarkdownBlock.Table -> {
+                    MarkdownTable(block)
                 }
 
                 is MarkdownBlock.Paragraph -> {
@@ -212,6 +244,65 @@ fun MarkdownMessage(
         }
     }
 }
+
+@Composable
+private fun MarkdownTable(table: MarkdownBlock.Table) {
+    val columnCount = table.header.size.coerceIn(1, MAX_TABLE_COLUMNS)
+    val widths = List(columnCount) { column ->
+        var longest = displayWidth(table.header.getOrNull(column).orEmpty())
+        table.rows.forEach { row ->
+            longest = maxOf(longest, displayWidth(row.getOrNull(column).orEmpty()))
+        }
+        longest.coerceIn(4, 28)
+    }
+    val shape = RoundedCornerShape(10.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f), shape),
+    ) {
+        Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            Row(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                table.header.take(columnCount).forEachIndexed { index, cell ->
+                    TableCell(cell, widths[index], header = true)
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            table.rows.forEach { row ->
+                Row {
+                    widths.indices.forEach { index ->
+                        TableCell(row.getOrNull(index).orEmpty(), widths[index])
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableCell(text: String, widthChars: Int, header: Boolean = false) {
+    Text(
+        text = inlineMarkdown(text),
+        style = if (header) {
+            Baic2Mono.label.copy(fontWeight = FontWeight.SemiBold)
+        } else {
+            Baic2Mono.label
+        },
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 4,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .width((widthChars * 7.5f).dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}
+
+private fun displayWidth(value: String): Int =
+    value.sumOf { character -> if (character.code > 0x2E7F) 2 else 1 }
+
+private const val MAX_TABLE_COLUMNS = 8
 
 @Composable
 private fun paragraphStyle(kind: MarkdownBlock.Paragraph.Kind) = when (kind) {

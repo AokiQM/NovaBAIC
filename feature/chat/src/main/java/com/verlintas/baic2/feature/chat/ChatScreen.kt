@@ -40,6 +40,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -53,11 +54,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -100,6 +102,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -265,28 +268,60 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(
-        state.messages.size,
-        state.streamingText.length,
-        state.streamingThinking.length,
-    ) {
-        if (searchOpen) return@LaunchedEffect
-        val target = listState.layoutInfo.totalItemsCount - 1
-        if (target >= 0 && !listState.isScrollInProgress) {
-            runCatching { listState.animateScrollToItem(target) }
+    // Layout-driven bottom follow: react to layout growth instead of polling.
+    // Programmatic scrolls also set isScrollInProgress, so user intent is read
+    // from DragInteraction; "pinned" means the last item is fully visible.
+    var wasAtBottom by remember { mutableStateOf(true) }
+    var forceFollow by remember { mutableStateOf(false) }
+
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) {
+                wasAtBottom = false
+                forceFollow = false
+            }
         }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { scrolling ->
+                if (!scrolling) {
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull { it.index == info.totalItemsCount - 1 }
+                    val pinned = last != null && last.offset >= 0 &&
+                        last.offset + last.size <= info.viewportEndOffset + 1
+                    if (pinned) wasAtBottom = true
+                }
+            }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo }
+            .collect { info ->
+                val total = info.totalItemsCount
+                if (total == 0 || searchOpen) return@collect
+                if (!forceFollow && !wasAtBottom) return@collect
+                if (listState.isScrollInProgress) return@collect
+                val last = info.visibleItemsInfo.lastOrNull { it.index == total - 1 }
+                if (last == null || last.offset + last.size > info.viewportEndOffset + 2) {
+                    runCatching { listState.scrollToItem(total - 1, Int.MAX_VALUE) }
+                }
+            }
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(
+                WindowInsets.ime.union(WindowInsets.navigationBars),
+            ),
     ) {
         ChatTopBar(
             title = state.title.ifBlank { stringResource(R.string.chat_untitled) },
             mode = state.mode,
             running = state.isRunning,
             usageLabel = usageLabel(state),
+            usageLevel = usageLevel(state),
             searchOpen = searchOpen,
             searchQuery = searchQuery,
             matchPosition = if (matches.isEmpty()) 0 else matchIndex + 1,
@@ -432,6 +467,7 @@ fun ChatScreen(
             onSend = {
                 val text = input
                 input = ""
+                forceFollow = true
                 viewModel.send(text)
             },
             onStop = viewModel::stop,
@@ -608,13 +644,23 @@ fun ChatScreen(
 }
 
 private fun usageLabel(state: ChatUiState): String? {
-    val used = state.usagePromptTokens ?: return null
-    val window = state.contextWindow
-    return if (window != null) {
-        "${formatTokens(used)}/${formatTokens(window)}"
+    val used = state.contextUsedTokens ?: return null
+    val window = state.contextWindowTokens
+    val prefix = if (state.contextEstimated) "~" else ""
+    return if (window != null && window > 0) {
+        val percent = (used * 100 / window).coerceIn(0, 999)
+        "$prefix${formatTokens(used)}/${formatTokens(window)} · $percent%"
     } else {
-        "${formatTokens(used)}"
+        "$prefix${formatTokens(used)}"
     }
+}
+
+/** Percent of the context window in use, or null when the window is unknown. */
+private fun usageLevel(state: ChatUiState): Int? {
+    val used = state.contextUsedTokens ?: return null
+    val window = state.contextWindowTokens ?: return null
+    if (window <= 0) return null
+    return (used * 100 / window).coerceIn(0, 999).toInt()
 }
 
 private fun formatTokens(tokens: Long): String = when {
@@ -629,6 +675,7 @@ private fun ChatTopBar(
     mode: AppMode,
     running: Boolean,
     usageLabel: String?,
+    usageLevel: Int?,
     searchOpen: Boolean,
     searchQuery: String,
     matchPosition: Int,
@@ -727,10 +774,16 @@ private fun ChatTopBar(
                     modifier = Modifier.weight(1f),
                 )
                 usageLabel?.let { label ->
+                    val usageColor = when {
+                        usageLevel == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        usageLevel >= 90 -> MaterialTheme.colorScheme.error
+                        usageLevel >= 70 -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                     Text(
                         text = label,
                         style = Baic2Mono.label,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = usageColor.copy(alpha = 0.85f),
                         modifier = Modifier.padding(end = Baic2Spacing.sm),
                     )
                 }
@@ -898,8 +951,6 @@ private fun InputBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .imePadding()
-            .navigationBarsPadding()
             .padding(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.sm),
     ) {
         if (pendingAttachments.isNotEmpty()) {

@@ -109,6 +109,7 @@ import com.verlintas.baic2.feature.chat.ChatScreen
 import com.verlintas.baic2.feature.chat.StarredScreen
 import com.verlintas.baic2.feature.conversations.ConversationsScreen
 import com.verlintas.baic2.feature.library.LibraryScreen
+import com.verlintas.baic2.feature.settings.BuildInfo
 import com.verlintas.baic2.feature.settings.SettingsScreen
 import com.verlintas.baic2.feature.tasks.TasksScreen
 
@@ -134,12 +135,17 @@ fun Baic2App() {
     var destination by rememberSaveable { mutableStateOf(Baic2Destination.Chats) }
     var dockOpen by rememberSaveable { mutableStateOf(false) }
     var pendingConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var settingsInnerRoute by rememberSaveable { mutableStateOf(false) }
+    var tasksInnerRoute by rememberSaveable { mutableStateOf(false) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val onInnerRoute = backStackEntry?.destination?.route in setOf(ROUTE_CHAT, ROUTE_STARRED)
+    val chatInnerRoute = backStackEntry?.destination?.route in setOf(ROUTE_CHAT, ROUTE_STARRED)
+    val innerRoute = chatInnerRoute ||
+        (destination == Baic2Destination.Settings && settingsInnerRoute) ||
+        (destination == Baic2Destination.Tasks && tasksInnerRoute)
 
-    LaunchedEffect(onInnerRoute) {
-        if (onInnerRoute) dockOpen = false
+    LaunchedEffect(innerRoute) {
+        if (innerRoute) dockOpen = false
     }
 
     BackHandler(enabled = dockOpen) { dockOpen = false }
@@ -173,18 +179,26 @@ fun Baic2App() {
                         pendingConversationId = id
                         destination = Baic2Destination.Chats
                     },
+                    onInnerRouteChanged = { tasksInnerRoute = it },
                 )
                 Baic2Destination.Library -> LibraryScreen()
-                Baic2Destination.Settings -> SettingsScreen(appVersion = BuildConfig.VERSION_NAME)
+                Baic2Destination.Settings -> SettingsScreen(
+                    buildInfo = BuildInfo(
+                        versionName = BuildConfig.VERSION_NAME,
+                        applicationId = BuildConfig.APPLICATION_ID,
+                        buildType = BuildConfig.BUILD_TYPE,
+                    ),
+                    onInnerRouteChanged = { settingsInnerRoute = it },
+                )
             }
         }
 
-        DockScrim(visible = dockOpen && !onInnerRoute, onDismiss = { dockOpen = false })
+        DockScrim(visible = dockOpen && !innerRoute, onDismiss = { dockOpen = false })
 
         // The dock (and its label) would collide with inner-screen top bars,
         // so it steps aside while a conversation or the starred list is open.
         AnimatedVisibility(
-            visible = !onInnerRoute,
+            visible = !innerRoute,
             enter = fadeIn(tween(durationMillis = 160)) +
                 scaleIn(initialScale = 0.9f, animationSpec = Baic2Motion.spatialFast()),
             exit = fadeOut(tween(durationMillis = 120)) +
@@ -387,26 +401,19 @@ private fun AnimatedVisibilityScope.DockPanel(
     current: Baic2Destination,
     onSelect: (Baic2Destination) -> Unit,
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
 
     Column(
         modifier = Modifier
             .padding(top = Baic2Spacing.sm)
-            .widthIn(max = 300.dp)
-            .fillMaxWidth(0.84f)
+            .widthIn(max = 280.dp)
+            .fillMaxWidth(0.8f)
             .shadow(elevation = 18.dp, shape = shape, clip = false)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(width = 1.dp, color = MaterialTheme.colorScheme.outlineVariant, shape = shape)
-            .padding(Baic2Spacing.sm),
+            .padding(Baic2Spacing.xs),
     ) {
-        DockHeader()
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-            modifier = Modifier.padding(vertical = Baic2Spacing.sm),
-        )
-
         Baic2Destination.entries.forEachIndexed { index, dest ->
             DockItem(
                 destination = dest,
@@ -416,66 +423,17 @@ private fun AnimatedVisibilityScope.DockPanel(
                     enter = fadeIn(
                         animationSpec = tween(
                             durationMillis = 180,
-                            delayMillis = index * 45,
+                            delayMillis = index * 40,
                         ),
                     ) + slideInVertically(
                         animationSpec = tween(
-                            durationMillis = 220,
-                            delayMillis = index * 45,
+                            durationMillis = 200,
+                            delayMillis = index * 40,
                         ),
                         initialOffsetY = { -it / 3 },
                     ),
                     exit = fadeOut(tween(durationMillis = 90)),
                 ),
-            )
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-            modifier = Modifier.padding(vertical = Baic2Spacing.sm),
-        )
-
-        Text(
-            text = stringResource(R.string.dock_footer),
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier.padding(horizontal = Baic2Spacing.sm, vertical = Baic2Spacing.xs),
-        )
-    }
-}
-
-@Composable
-private fun DockHeader() {
-    Row(
-        modifier = Modifier.padding(horizontal = Baic2Spacing.sm, vertical = Baic2Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "B2",
-                style = Baic2Mono.label,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Spacer(Modifier.width(Baic2Spacing.sm))
-        Column {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "v${BuildConfig.VERSION_NAME} · ${stringResource(R.string.dock_channel)}",
-                style = Baic2Mono.label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

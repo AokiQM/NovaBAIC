@@ -35,7 +35,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AutomationEntity::class,
         McpServerEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -81,6 +81,13 @@ abstract class Baic2Database : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT '[]'",
                 )
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE messages ADD COLUMN usageInput INTEGER")
+                db.execSQL("ALTER TABLE messages ADD COLUMN usageOutput INTEGER")
             }
         }
 

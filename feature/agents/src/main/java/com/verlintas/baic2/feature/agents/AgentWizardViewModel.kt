@@ -1,0 +1,388 @@
+/*
+ * Copyright (C) 2026 Verlintas
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of BetterAIChat2.
+ *
+ * BetterAIChat2 is free software: you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later
+ * version.
+ *
+ * BetterAIChat2 is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * BetterAIChat2. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.verlintas.baic2.feature.agents
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.verlintas.baic2.core.data.repository.AgentRepository
+import com.verlintas.baic2.core.model.Agent
+import com.verlintas.baic2.core.model.ModelEntry
+import com.verlintas.baic2.core.model.ProviderConfig
+import com.verlintas.baic2.core.model.ProviderError
+import com.verlintas.baic2.core.model.ProviderId
+import com.verlintas.baic2.core.network.provider.ProviderException
+import com.verlintas.baic2.core.network.provider.ProviderFactory
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/** A provider service preset; labels live in the UI layer. */
+enum class AgentPreset(
+    val id: String,
+    val provider: ProviderId,
+    val baseUrl: String,
+    val model: String,
+    val defaultName: String,
+    val family: String?,
+) {
+    DEEPSEEK(
+        "deepseek",
+        ProviderId.OPENAI_COMPATIBLE,
+        "https://api.deepseek.com/v1",
+        "deepseek-chat",
+        "DeepSeek",
+        "deepseek",
+    ),
+    OPENAI("openai", ProviderId.OPENAI_COMPATIBLE, "https://api.openai.com/v1", "gpt-4o-mini", "OpenAI", "openai"),
+    SILICONFLOW(
+        "siliconflow",
+        ProviderId.OPENAI_COMPATIBLE,
+        "https://api.siliconflow.cn/v1",
+        "deepseek-ai/DeepSeek-V3",
+        "SiliconFlow",
+        "deepseek",
+    ),
+    MOONSHOT(
+        "moonshot",
+        ProviderId.OPENAI_COMPATIBLE,
+        "https://api.moonshot.cn/v1",
+        "moonshot-v1-8k",
+        "Kimi",
+        "moonshot",
+    ),
+    QWEN(
+        "qwen",
+        ProviderId.OPENAI_COMPATIBLE,
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen-plus",
+        "Qwen",
+        "qwen",
+    ),
+    CLAUDE("claude", ProviderId.ANTHROPIC, "https://api.anthropic.com", "claude-sonnet-4-5", "Claude", "anthropic"),
+    GEMINI(
+        "gemini",
+        ProviderId.GEMINI,
+        "https://generativelanguage.googleapis.com",
+        "gemini-2.5-flash",
+        "Gemini",
+        "gemini",
+    ),
+    CUSTOM("custom", ProviderId.OPENAI_COMPATIBLE, "", "", "", null),
+}
+
+enum class WizardStep {
+    PROVIDER,
+    CONNECTION,
+    TUNING,
+    PROMPT,
+}
+
+data class AgentWizardUiState(
+    val editingId: Long = 0L,
+    val step: WizardStep = WizardStep.PROVIDER,
+    val preset: AgentPreset = AgentPreset.DEEPSEEK,
+    val name: String = AgentPreset.DEEPSEEK.defaultName,
+    val baseUrl: String = AgentPreset.DEEPSEEK.baseUrl,
+    val apiKey: String = "",
+    val keyPrefilled: Boolean = false,
+    val detectedByKey: Boolean = false,
+    val model: String = AgentPreset.DEEPSEEK.model,
+    val models: List<String> = emptyList(),
+    val modelsLoading: Boolean = false,
+    val modelsError: String? = null,
+    val temperature: Float = 0.7f,
+    val maxTokens: Int? = null,
+    val reasoning: Boolean = false,
+    val systemPrompt: String = "",
+    val saving: Boolean = false,
+    val saved: Boolean = false,
+    val error: SetupError? = null,
+)
+
+sealed interface SetupError {
+    data object MissingKey : SetupError
+
+    data object MissingUrl : SetupError
+
+    data object MissingModel : SetupError
+
+    data object KeyStore : SetupError
+
+    data class Request(val kind: ProviderError.Kind, val detail: String) : SetupError
+}
+
+@HiltViewModel
+class AgentWizardViewModel @Inject constructor(
+    private val agentRepository: AgentRepository,
+    private val providerFactory: ProviderFactory,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(AgentWizardUiState())
+    val uiState: StateFlow<AgentWizardUiState> = _uiState.asStateFlow()
+
+    private var autoFetchAttempted = false
+
+    fun startForNew() {
+        _uiState.value = AgentWizardUiState()
+        autoFetchAttempted = false
+    }
+
+    fun startForEdit(agentId: Long) {
+        viewModelScope.launch {
+            val agent = agentRepository.getAgent(agentId) ?: return@launch
+            val preset = AgentPreset.entries.firstOrNull {
+                it.provider == agent.provider && it.baseUrl == agent.baseUrl
+            } ?: AgentPreset.CUSTOM
+            _uiState.value = AgentWizardUiState(
+                editingId = agent.id,
+                preset = preset,
+                name = agent.name,
+                baseUrl = agent.baseUrl,
+                model = agent.model,
+                temperature = agent.temperature.toFloat(),
+                maxTokens = agent.maxTokens,
+                reasoning = agent.reasoning,
+                systemPrompt = agent.systemPrompt,
+                keyPrefilled = true,
+            )
+            autoFetchAttempted = false
+        }
+    }
+
+    // --- step 1: provider & key ---
+
+    fun selectPreset(preset: AgentPreset) {
+        _uiState.update { current ->
+            current.copy(
+                preset = preset,
+                name = preset.defaultName.ifBlank { current.name },
+                baseUrl = preset.baseUrl.ifBlank { current.baseUrl },
+                model = preset.model.ifBlank { current.model },
+                models = emptyList(),
+                modelsError = null,
+                error = null,
+            )
+        }
+        autoFetchAttempted = false
+    }
+
+    fun updateApiKey(value: String) {
+        val detected = detectPreset(value)
+        _uiState.update { current ->
+            if (detected != null) {
+                current.copy(
+                    apiKey = value,
+                    preset = detected,
+                    detectedByKey = true,
+                    baseUrl = detected.baseUrl,
+                    name = if (current.editingId == 0L) detected.defaultName else current.name,
+                    model = if (current.model.isBlank() || current.detectedByKey) {
+                        detected.model
+                    } else {
+                        current.model
+                    },
+                    models = emptyList(),
+                    error = null,
+                )
+            } else {
+                current.copy(apiKey = value, error = null)
+            }
+        }
+        autoFetchAttempted = false
+    }
+
+    /** Key prefix automation: sk-ant- -> Claude, AIza -> Gemini, sk- -> OpenAI family. */
+    private fun detectPreset(key: String): AgentPreset? {
+        val trimmed = key.trim()
+        return when {
+            trimmed.startsWith("sk-ant-") -> AgentPreset.CLAUDE
+            trimmed.startsWith("AIza") -> AgentPreset.GEMINI
+            trimmed.startsWith("sk-or-") -> AgentPreset.OPENAI
+            trimmed.startsWith("sk-") && _uiState.value.preset.provider != ProviderId.OPENAI_COMPATIBLE ->
+                AgentPreset.DEEPSEEK
+            else -> null
+        }
+    }
+
+    fun updateBaseUrl(value: String) = _uiState.update { it.copy(baseUrl = value, error = null) }
+
+    fun updateName(value: String) = _uiState.update { it.copy(name = value) }
+
+    fun next() {
+        val current = _uiState.value
+        when (current.step) {
+            WizardStep.PROVIDER -> {
+                if (current.baseUrl.isBlank()) {
+                    _uiState.update { it.copy(error = SetupError.MissingUrl) }
+                    return
+                }
+                if (current.apiKey.isBlank() && !current.keyPrefilled) {
+                    _uiState.update { it.copy(error = SetupError.MissingKey) }
+                    return
+                }
+                _uiState.update { it.copy(step = WizardStep.CONNECTION, error = null) }
+                maybeAutoFetchModels()
+            }
+
+            WizardStep.CONNECTION -> {
+                if (current.model.isBlank()) {
+                    _uiState.update { it.copy(error = SetupError.MissingModel) }
+                    return
+                }
+                _uiState.update { it.copy(step = WizardStep.TUNING, error = null) }
+            }
+
+            WizardStep.TUNING -> _uiState.update { it.copy(step = WizardStep.PROMPT, error = null) }
+
+            WizardStep.PROMPT -> save()
+        }
+    }
+
+    fun back() {
+        val previous = when (_uiState.value.step) {
+            WizardStep.PROVIDER -> null
+            WizardStep.CONNECTION -> WizardStep.PROVIDER
+            WizardStep.TUNING -> WizardStep.CONNECTION
+            WizardStep.PROMPT -> WizardStep.TUNING
+        }
+        if (previous != null) _uiState.update { it.copy(step = previous, error = null) }
+    }
+
+    // --- step 2: connection & models ---
+
+    private fun maybeAutoFetchModels() {
+        if (autoFetchAttempted) return
+        autoFetchAttempted = true
+        fetchModels()
+    }
+
+    fun fetchModels() {
+        val current = _uiState.value
+        if (current.modelsLoading) return
+        if (current.baseUrl.isBlank() || !hasUsableKey(current)) {
+            _uiState.update { it.copy(modelsError = "missing_credentials") }
+            return
+        }
+        _uiState.update { it.copy(modelsLoading = true, modelsError = null) }
+        viewModelScope.launch {
+            try {
+                val models = providerFactory.create(current.preset.provider)
+                    .listModels(current.toConfig())
+                    .sorted()
+                _uiState.update { state ->
+                    state.copy(
+                        modelsLoading = false,
+                        models = models,
+                        modelsError = null,
+                        model = state.model.ifBlank { models.firstOrNull().orEmpty() },
+                    )
+                }
+            } catch (e: ProviderException) {
+                _uiState.update {
+                    it.copy(
+                        modelsLoading = false,
+                        modelsError = e.error.message,
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(modelsLoading = false, modelsError = e.message ?: "request_failed")
+                }
+            }
+        }
+    }
+
+    private fun hasUsableKey(state: AgentWizardUiState): Boolean =
+        state.apiKey.isNotBlank() || state.keyPrefilled
+
+    /** Applies a curated catalog entry: model id plus its tuned defaults. */
+    fun pickCatalogModel(entry: ModelEntry) {
+        _uiState.update {
+            it.copy(
+                model = entry.id,
+                temperature = entry.temperature.toFloat(),
+                maxTokens = entry.maxTokens,
+                reasoning = entry.supportsReasoning,
+                error = null,
+            )
+        }
+    }
+
+    fun updateModel(value: String) = _uiState.update { it.copy(model = value, error = null) }
+
+    // --- step 3: tuning ---
+
+    fun updateTemperature(value: Float) = _uiState.update { it.copy(temperature = value) }
+
+    fun updateMaxTokens(value: String) {
+        val parsed = value.filter { it.isDigit() }.takeIf { it.isNotBlank() }?.toIntOrNull()
+        _uiState.update { it.copy(maxTokens = parsed) }
+    }
+
+    fun updateReasoning(value: Boolean) = _uiState.update { it.copy(reasoning = value) }
+
+    // --- step 4: prompt & save ---
+
+    fun updateSystemPrompt(value: String) = _uiState.update { it.copy(systemPrompt = value) }
+
+    private fun save() {
+        val current = _uiState.value
+        if (current.model.isBlank()) {
+            _uiState.update { it.copy(error = SetupError.MissingModel) }
+            return
+        }
+        _uiState.update { it.copy(saving = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val agent = Agent(
+                    id = current.editingId,
+                    name = current.name.ifBlank { current.model },
+                    provider = current.preset.provider,
+                    baseUrl = current.baseUrl.trim().trimEnd('/'),
+                    model = current.model.trim(),
+                    temperature = current.temperature.toDouble(),
+                    maxTokens = current.maxTokens,
+                    reasoning = current.reasoning,
+                    systemPrompt = current.systemPrompt.trim(),
+                    isDefault = current.editingId == 0L,
+                )
+                if (current.editingId == 0L) {
+                    agentRepository.save(agent, current.apiKey.trim())
+                } else {
+                    agentRepository.update(agent, current.apiKey.trim().takeIf { it.isNotBlank() })
+                }
+                _uiState.update { it.copy(saving = false, saved = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(saving = false, error = SetupError.KeyStore) }
+            }
+        }
+    }
+
+    private fun AgentWizardUiState.toConfig() = ProviderConfig(
+        provider = preset.provider,
+        baseUrl = baseUrl.trim().trimEnd('/'),
+        apiKey = apiKey.trim().ifBlank { "placeholder" },
+        model = model.trim(),
+    )
+}

@@ -24,6 +24,7 @@ import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.RunEntity
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.Run
 import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.RunSummary
 import javax.inject.Inject
@@ -39,6 +40,11 @@ class RunRepository @Inject constructor(
 
     fun observeSummaries(): Flow<List<RunSummary>> =
         db.runDao().observeSummaries().map { rows -> rows.map(mapper::runSummaryToModel) }
+
+    fun observeRun(runId: Long): Flow<Run?> =
+        db.runDao().observeById(runId).map { entity -> entity?.let(mapper::runToModel) }
+
+    suspend fun delete(runId: Long) = db.runDao().deleteById(runId)
 
     suspend fun start(conversationId: Long, mode: AppMode): Long {
         val now = System.currentTimeMillis()

@@ -112,6 +112,26 @@ class Handler(BaseHTTPRequestHandler):
                 kinds = [part.get("type") for part in content if isinstance(part, dict)]
                 sys.stderr.write(f"[mock] parts={kinds}\n")
 
+        if not validate_tool_history(payload.get("messages", [])):
+            body = json.dumps(
+                {
+                    "error": {
+                        "message": (
+                            "An assistant message with 'tool_calls' must be followed by tool "
+                            "messages responding to each 'tool_call_id'. (insufficient tool "
+                            "messages following tool_calls message)"
+                        ),
+                        "type": "invalid_request_error",
+                    },
+                },
+            )
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
+
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -231,6 +251,15 @@ class Handler(BaseHTTPRequestHandler):
             answer = f"工具执行完成，返回结果是：\n\n> {tool_results[-1]}"
         if answer is None:
             answer = self._aux_answer(system_text)
+        if answer is None and "table" in user_text.lower():
+            answer = (
+                "这是表格测试：\n\n"
+                "| 名称 | 价格 | 备注 |\n"
+                "| --- | --- | --- |\n"
+                "| 苹果 | 3.5 | 红富士 |\n"
+                "| 香蕉 | 2 | 进口 |\n\n"
+                "表格结束。"
+            )
         if answer is None:
             answer = (
                 f"你好，我是 BAIC2 本地 mock 服务器。\n\n"
@@ -267,6 +296,30 @@ class Handler(BaseHTTPRequestHandler):
         if "Summarize the conversation" in system_text:
             return "此前对话：用户询问了量子纠缠，并对 BAIC2 的流式管线做了验证。"
         return None
+
+
+def validate_tool_history(messages):
+    """Mimic OpenAI: every tool_call must be answered before the next non-tool message."""
+    index = 0
+    while index < len(messages):
+        message = messages[index]
+        if message.get("role") == "tool":
+            return False
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            expected = [call.get("id") for call in message["tool_calls"]]
+            seen = set()
+            cursor = index + 1
+            while cursor < len(messages) and messages[cursor].get("role") == "tool":
+                call_id = messages[cursor].get("tool_call_id")
+                if call_id in expected and call_id not in seen:
+                    seen.add(call_id)
+                cursor += 1
+            if set(expected) != seen:
+                return False
+            index = cursor
+            continue
+        index += 1
+    return True
 
 
 def _chunks(text, size):

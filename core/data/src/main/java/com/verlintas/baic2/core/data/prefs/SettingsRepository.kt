@@ -23,6 +23,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.verlintas.baic2.core.model.AccentColor
 import com.verlintas.baic2.core.model.ThemeMode
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,7 +49,18 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    val accentColor: Flow<AccentColor> = dataStore.data.map { prefs ->
+        AccentColor.fromId(prefs[ACCENT_COLOR])
+    }
+
+    suspend fun setAccentColor(accent: AccentColor) {
+        dataStore.edit { prefs ->
+            prefs[ACCENT_COLOR] = accent.id
+        }
+    }
+
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val ACCENT_COLOR = stringPreferencesKey("accent_color")
     }
 }

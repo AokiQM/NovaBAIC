@@ -34,16 +34,22 @@ import com.verlintas.baic2.core.engine.AgentFailure
 import com.verlintas.baic2.core.engine.AgentLoop
 import com.verlintas.baic2.core.engine.AuxiliaryTasks
 import com.verlintas.baic2.core.engine.ConfirmationQueue
+import com.verlintas.baic2.core.engine.ToolCatalog
+import com.verlintas.baic2.core.engine.renderSystemPrompt
+import com.verlintas.baic2.core.model.Agent
 import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.ModelCatalog
 import com.verlintas.baic2.core.model.ModelContextWindows
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.ProviderConfig
+import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.RunState
+import com.verlintas.baic2.core.model.TokenEstimator
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.device.api.RunNotifier
@@ -84,8 +90,9 @@ data class ChatUiState(
     val streamingThinking: String = "",
     val isRunning: Boolean = false,
     val error: ChatError? = null,
-    val usagePromptTokens: Long? = null,
-    val contextWindow: Long? = null,
+    val contextUsedTokens: Long? = null,
+    val contextWindowTokens: Long? = null,
+    val contextEstimated: Boolean = false,
     val auxBusy: Boolean = false,
     val pendingAttachments: List<Attachment> = emptyList(),
     val plan: Plan? = null,
@@ -128,6 +135,7 @@ class ChatViewModel @Inject constructor(
     private val runRepository: RunRepository,
     private val memoryRepository: MemoryRepository,
     private val agentLoop: AgentLoop,
+    private val toolCatalog: ToolCatalog,
     private val auxiliaryTasks: AuxiliaryTasks,
     private val attachmentProcessor: AttachmentProcessor,
     private val speechOutput: SpeechOutput,
@@ -145,7 +153,6 @@ class ChatViewModel @Inject constructor(
     private val streaming = MutableStateFlow(StreamingState())
     private val running = MutableStateFlow(false)
     private val error = MutableStateFlow<ChatError?>(null)
-    private val usage = MutableStateFlow<Long?>(null)
     private val auxBusy = MutableStateFlow(false)
     private val pendingAttachments = MutableStateFlow<List<Attachment>>(emptyList())
     private val attachmentError = MutableStateFlow<AttachmentError?>(null)
@@ -153,6 +160,12 @@ class ChatViewModel @Inject constructor(
     private val notice = MutableStateFlow<String?>(null)
 
     val notices: StateFlow<String?> = notice.asStateFlow()
+
+    private data class SessionInfo(
+        val isRunning: Boolean,
+        val error: ChatError?,
+        val agents: List<Agent>,
+    )
 
     private data class ViewExtras(
         val auxBusy: Boolean,
@@ -167,8 +180,8 @@ class ChatViewModel @Inject constructor(
         conversationRepository.observeConversation(conversationId),
         conversationRepository.observeMessages(conversationId),
         streaming,
-        combine(running, error, usage) { isRunning, currentError, usageTokens ->
-            Triple(isRunning, currentError, usageTokens)
+        combine(running, error, agentRepository.observeAgents()) { isRunning, currentError, agents ->
+            SessionInfo(isRunning, currentError, agents)
         },
         combine(
             auxBusy,
@@ -178,17 +191,31 @@ class ChatViewModel @Inject constructor(
         ) { busy, attachments, confirmRequest, plan ->
             ViewExtras(busy, attachments, confirmRequest, plan)
         },
-    ) { conversation, messages, stream, (isRunning, currentError, usageTokens), extras ->
+    ) { conversation, messages, stream, session, extras ->
+        val mode = conversation?.mode ?: AppMode.CHAT
+        val agent = session.agents.firstOrNull { it.id == conversation?.agentId }
+            ?: session.agents.firstOrNull { it.isDefault }
+        val estimated = TokenEstimator.estimate(
+            messages = messages,
+            systemPrompt = renderSystemPrompt(mode, agent?.systemPrompt.orEmpty(), extras.plan?.render()),
+            toolSpecs = toolCatalog.specs(mode),
+            streamingText = stream.text,
+        )
+        val reported = messages.asReversed()
+            .firstOrNull { it.usageInput != null }
+            ?.usageInput
+            ?.takeIf { it > 0 }
         ChatUiState(
             title = conversation?.title.orEmpty(),
-            mode = conversation?.mode ?: AppMode.CHAT,
+            mode = mode,
             messages = messages,
             streamingText = stream.text,
             streamingThinking = stream.thinking,
-            isRunning = isRunning,
-            error = currentError,
-            usagePromptTokens = usageTokens,
-            contextWindow = ModelContextWindows.forModel(conversationModel(messages)),
+            isRunning = session.isRunning,
+            error = session.error,
+            contextUsedTokens = maxOf(reported ?: 0L, estimated).takeIf { it > 0 },
+            contextWindowTokens = contextWindowFor(agent?.provider, agent?.model ?: conversationModel(messages)),
+            contextEstimated = reported == null || estimated > reported,
             auxBusy = extras.auxBusy,
             pendingAttachments = extras.pendingAttachments,
             plan = extras.plan,
@@ -242,6 +269,10 @@ class ChatViewModel @Inject constructor(
 
     private fun conversationModel(messages: List<ChatMessage>): String =
         messages.lastOrNull { it.model != null }?.model.orEmpty()
+
+    private fun contextWindowFor(provider: ProviderId?, model: String): Long? =
+        ModelCatalog.entryFor(provider ?: ProviderId.OPENAI_COMPATIBLE, model)?.contextWindow
+            ?: ModelContextWindows.forModel(model)
 
     fun send(text: String) {
         val trimmed = text.trim()
@@ -547,9 +578,19 @@ class ChatViewModel @Inject constructor(
                         assistantMessageId?.let { id ->
                             conversationRepository.updateToolCalls(id, pendingCalls)
                         }
+                        conversationRepository.append(
+                            ChatMessage(
+                                conversationId = conversationId,
+                                role = ChatRole.TOOL,
+                                content = event.call.result.orEmpty(),
+                                toolCallId = event.call.id,
+                                toolName = event.call.name,
+                                createdAt = System.currentTimeMillis(),
+                            ),
+                        )
                     }
 
-                    is AgentEvent.Usage -> usage.value = event.promptTokens ?: usage.value
+                    is AgentEvent.Usage -> Unit
 
                     AgentEvent.Completed -> runRepository.finish(runId, RunState.COMPLETED)
 
@@ -705,8 +746,22 @@ class ChatViewModel @Inject constructor(
 
     private suspend fun maybeAutoCompress(config: ProviderConfig) {
         if (autoCompressAttempted) return
-        val window = ModelContextWindows.forModel(config.model) ?: return
-        val used = usage.value ?: return
+        val window = ModelCatalog.entryFor(config.provider, config.model)?.contextWindow
+            ?: ModelContextWindows.forModel(config.model)
+            ?: return
+        val messages = conversationRepository.getMessages(conversationId)
+        val mode = conversationRepository.get(conversationId)?.mode ?: AppMode.CHAT
+        val estimated = TokenEstimator.estimate(
+            messages = messages,
+            systemPrompt = renderSystemPrompt(
+                mode,
+                "",
+                planRepository.getPlan(conversationId)?.render(),
+            ),
+            toolSpecs = toolCatalog.specs(mode),
+        )
+        val reported = messages.asReversed().firstOrNull { it.usageInput != null }?.usageInput ?: 0L
+        val used = maxOf(reported, estimated)
         if (used < window * AUTO_COMPRESS_THRESHOLD) return
         autoCompressAttempted = true
         runCompression(config)

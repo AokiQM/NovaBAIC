@@ -27,4 +27,35 @@
     <string name="preset_claude" translatable="false">Claude</string>
     <string name="preset_gemini" translatable="false">Gemini</string>
     <string name="preset_custom">自定义</string>
+    <string name="agent_setup_name">名称</string>
+    <string name="agent_setup_system_prompt_hint">例如：你是一个简洁、可靠的中文助手</string>
+    <string name="wizard_close">关闭</string>
+    <string name="wizard_title_new">连接 AI 服务</string>
+    <string name="wizard_title_edit">编辑服务</string>
+    <string name="wizard_step_provider">选择服务商</string>
+    <string name="wizard_step_connection">连接并选择模型</string>
+    <string name="wizard_step_tuning">参数</string>
+    <string name="wizard_step_prompt">系统提示词</string>
+    <string name="wizard_key_hint">粘贴 API Key 可自动识别服务商</string>
+    <string name="wizard_detected">已自动识别：%1$s</string>
+    <string name="wizard_or_pick">或手动选择服务商</string>
+    <string name="wizard_model_pick">选择模型</string>
+    <string name="wizard_model_manual">手动输入模型名</string>
+    <string name="wizard_models_loading">正在拉取模型列表…</string>
+    <string name="wizard_models_error">拉取失败：%1$s</string>
+    <string name="wizard_models_found">已连接 · %1$d 个模型</string>
+    <string name="wizard_models_idle">点击重试以拉取模型列表</string>
+    <string name="wizard_retry">重试</string>
+    <string name="wizard_temperature">温度 · 回答随机性 %1$d%%</string>
+    <string name="wizard_max_tokens">最大输出 Tokens</string>
+    <string name="wizard_reasoning">深度思考</string>
+    <string name="wizard_reasoning_desc">对支持的模型开启推理模式</string>
+    <string name="wizard_prompt_hint">系统提示词决定 AI 的角色与风格，可留空使用默认</string>
+    <string name="wizard_prompt_tpl_general">你是一个乐于助人的 AI 助手，回答准确、简洁。</string>
+    <string name="wizard_prompt_tpl_translate">你是一名专业翻译，保持原意与语气，只输出译文。</string>
+    <string name="wizard_prompt_tpl_code">你是一名资深工程师，给出可运行的代码与简明解释。</string>
+    <string name="wizard_prompt_tpl_concise">回答务必简短，直接给出结论。</string>
+    <string name="wizard_next">下一步</string>
+    <string name="wizard_back">上一步</string>
+    <string name="wizard_saved">配置完成</string>
 </resources>

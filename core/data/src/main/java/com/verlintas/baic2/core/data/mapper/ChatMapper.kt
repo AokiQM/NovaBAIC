@@ -113,6 +113,8 @@ class ChatMapper @Inject constructor(private val json: Json) {
         model = entity.model,
         createdAt = entity.createdAt,
         starred = entity.starred,
+        usageInput = entity.usageInput,
+        usageOutput = entity.usageOutput,
     )
 
     fun messageToEntity(message: ChatMessage): MessageEntity = MessageEntity(
@@ -128,6 +130,8 @@ class ChatMapper @Inject constructor(private val json: Json) {
         model = message.model,
         createdAt = message.createdAt,
         starred = message.starred,
+        usageInput = message.usageInput,
+        usageOutput = message.usageOutput,
     )
 
     /** Ephemeral base64 payloads are never persisted. */

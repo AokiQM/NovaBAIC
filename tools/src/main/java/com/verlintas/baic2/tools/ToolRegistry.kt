@@ -73,15 +73,22 @@ class DeviceToolRunner @Inject constructor(
     override suspend fun run(call: ToolCall, run: ToolRunContext): ToolResult {
         val tool = registry.tool(call.name)
             ?: return ToolResult.Failure("Unknown tool '${call.name}'. Use one of: ${registry.toolNames.joinToString()}")
-        val arguments = runCatching {
-            json.parseToJsonElement(call.argumentsJson) as? JsonObject
-        }.getOrNull() ?: JsonObject(emptyMap())
-        return try {
-            tool.execute(arguments, context.copy(run = run))
+        val arguments = ArgumentHealer.parse(call.argumentsJson) ?: JsonObject(emptyMap())
+        val healed = ArgumentHealer.heal(arguments, tool.spec.parametersJson)
+        val result = try {
+            tool.execute(healed.arguments, context.copy(run = run))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             ToolResult.Failure("${call.name} crashed: ${e.message ?: e.javaClass.simpleName}")
+        }
+        return when {
+            healed.notes.isEmpty() -> result
+            result is ToolResult.Success ->
+                ToolResult.Success("${result.output}\n[arguments auto-repaired: ${healed.notes.joinToString()}]")
+            result is ToolResult.Failure ->
+                ToolResult.Failure("${result.reason} (arguments auto-repaired: ${healed.notes.joinToString()})")
+            else -> result
         }
     }
 }

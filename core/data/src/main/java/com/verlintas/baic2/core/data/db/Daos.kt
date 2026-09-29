@@ -171,6 +171,18 @@ interface RunDao {
     @Query("SELECT * FROM runs WHERE conversationId = :conversationId ORDER BY id DESC LIMIT 1")
     suspend fun latestForConversation(conversationId: Long): RunEntity?
 
+    @Query("SELECT * FROM runs WHERE id = :id")
+    fun observeById(id: Long): Flow<RunEntity?>
+
+    @Query("SELECT * FROM runs WHERE id = :id")
+    suspend fun getById(id: Long): RunEntity?
+
+    @Query("DELETE FROM runs WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM runs WHERE conversationId = :conversationId")
+    suspend fun deleteForConversation(conversationId: Long)
+
     @Query(
         """
         SELECT r.id AS id, r.conversationId AS conversationId, c.title AS conversationTitle,

@@ -233,6 +233,42 @@ class OpenAiCompatibleProviderTest {
     }
 
     @Test
+    fun repairsDanglingToolCallsBeforeSending() = runTest {
+        enqueueSse("[DONE]")
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "weather?"),
+            ChatMessage(
+                id = 2,
+                conversationId = 1,
+                role = ChatRole.ASSISTANT,
+                content = "checking",
+                toolCalls = listOf(
+                    com.verlintas.baic2.core.model.ToolCall(
+                        id = "call_1",
+                        name = "get_weather",
+                        argumentsJson = "{}",
+                        result = "sunny",
+                    ),
+                ),
+                createdAt = 1_000,
+            ),
+            ChatMessage(role = ChatRole.USER, content = "and tomorrow?"),
+        )
+
+        provider.stream(request(messages = history)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val messages = body.getValue("messages").jsonArray
+        assertEquals(
+            listOf("system", "user", "assistant", "tool", "user"),
+            messages.map { it.jsonObject.getValue("role").jsonPrimitive.content },
+        )
+        val tool = messages[3].jsonObject
+        assertEquals("call_1", tool.getValue("tool_call_id").jsonPrimitive.content)
+        assertEquals("sunny", tool.getValue("content").jsonPrimitive.content)
+    }
+
+    @Test
     fun listModelsParsesIds() = runTest {
         server.enqueue(
             MockResponse()

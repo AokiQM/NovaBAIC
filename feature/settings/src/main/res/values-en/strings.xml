@@ -24,4 +24,99 @@
 
     <string name="settings_about_title">About</string>
     <string name="settings_about_tagline">Local-first Android AI agent · keys stay on device</string>
+
+    <string name="settings_back">Back</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_brand_name">BetterAIChat2</string>
+
+    <string name="settings_section_services">Services &amp; capabilities</string>
+    <string name="settings_agents_summary">%1$d services · default %2$s</string>
+    <string name="settings_agents_none">No service configured yet, tap to add one</string>
+    <string name="settings_agents_hint">Tap a service to edit; use the dot on the right to set it as default</string>
+    <string name="settings_agents_delete_confirm">The key and configuration of this service will be permanently removed.</string>
+    <string name="settings_permissions_summary">Automation, screen, notifications and runtime permissions</string>
+
+    <string name="settings_permissions_hint">Core permissions decide whether the AI can see and operate the device; runtime permissions are only used when the matching tool runs.</string>
+    <string name="settings_permissions_core">Core capabilities</string>
+    <string name="settings_permissions_runtime">Runtime permissions</string>
+    <string name="settings_perm_capture_title">Screen capture</string>
+    <string name="settings_perm_capture_desc">Granted per screen-analysis session and revoked afterwards</string>
+    <string name="settings_perm_capture_action">Grant in chat</string>
+    <string name="settings_perm_notif_listener_title">Notification access</string>
+    <string name="settings_perm_notif_listener_desc">Let the AI read notifications and verification codes (optional)</string>
+    <string name="settings_perm_usage_title">Usage access</string>
+    <string name="settings_perm_usage_desc">Let the AI know the foreground app and usage time (optional)</string>
+    <string name="settings_perm_write_title">Modify system settings</string>
+    <string name="settings_perm_write_desc">Adjust brightness, volume and other system settings (optional)</string>
+    <string name="settings_perm_notifications_title">Notifications</string>
+    <string name="settings_perm_notifications_desc">Task completion and long-task progress alerts</string>
+    <string name="settings_perm_camera_title">Camera</string>
+    <string name="settings_perm_camera_desc">Take photos and send them to the AI</string>
+    <string name="settings_perm_mic_title">Microphone</string>
+    <string name="settings_perm_mic_desc">Voice input</string>
+    <string name="settings_perm_contacts_title">Contacts</string>
+    <string name="settings_perm_contacts_desc">Search contacts</string>
+    <string name="settings_perm_location_title">Location</string>
+    <string name="settings_perm_location_desc">Get the current location</string>
+    <string name="settings_perm_grant">Grant</string>
+    <string name="settings_perm_granted">Granted</string>
+
+    <string name="settings_section_appearance">Appearance &amp; language</string>
+    <string name="settings_theme_mode">Theme</string>
+    <string name="settings_accent_color">Accent color</string>
+    <string name="accent_orange">Orange</string>
+    <string name="accent_red">Red</string>
+    <string name="accent_pink">Pink</string>
+    <string name="accent_indigo">Indigo</string>
+    <string name="accent_blue">Blue</string>
+    <string name="accent_purple">Purple</string>
+    <string name="accent_green">Green</string>
+    <string name="accent_teal">Teal</string>
+    <string name="settings_language_title">Language</string>
+    <string name="language_system">Follow system</string>
+    <string name="language_system_hint">Match the device language</string>
+    <string name="language_chinese">简体中文</string>
+    <string name="language_english">English</string>
+    <string name="settings_language_hint">The UI restarts immediately after switching</string>
+
+    <string name="settings_section_data">Data &amp; storage</string>
+    <string name="settings_storage_title">Storage usage</string>
+    <string name="settings_storage_summary">%1$s used</string>
+    <string name="settings_storage_total">Total</string>
+    <string name="settings_storage_refresh">Refresh</string>
+    <string name="settings_storage_db">Database</string>
+    <string name="settings_storage_attachments">Attachments</string>
+    <string name="settings_storage_screenshots">Screenshots</string>
+    <string name="settings_storage_skills">Skills</string>
+    <string name="settings_storage_cleanup">Cleanup</string>
+    <string name="settings_storage_clear_attachments">Clear attachments</string>
+    <string name="settings_storage_clear_attachments_desc">Delete cached images and files from all conversations</string>
+    <string name="settings_storage_clear_screenshots">Clear screenshots</string>
+    <string name="settings_storage_clear_screenshots_desc">Delete screenshots saved during screen analysis</string>
+    <string name="settings_storage_clear_all">Delete all conversations</string>
+    <string name="settings_storage_clear_all_desc">Remove every conversation, message and task record</string>
+    <string name="settings_storage_confirm">This cannot be undone. Continue?</string>
+    <string name="settings_storage_confirm_yes">Delete</string>
+
+    <string name="settings_section_about">About</string>
+    <string name="settings_about_summary">Version %1$s · licenses and updates</string>
+    <string name="settings_about_links">Links</string>
+    <string name="settings_about_repo">GitHub repository</string>
+    <string name="settings_about_releases">Releases</string>
+    <string name="settings_about_issues">Report an issue</string>
+    <string name="settings_about_licenses">Open-source licenses</string>
+    <string name="settings_about_legal">Legal</string>
+    <string name="settings_about_license_summary">Free software · use, modify and redistribute freely</string>
+    <string name="settings_licenses_title">Open-source licenses</string>
+    <string name="settings_licenses_hint">BetterAIChat2 is built on these open-source projects. Thanks to every author.</string>
+    <string name="settings_developer_title">Developer</string>
+    <string name="settings_developer_build">Build info</string>
+    <string name="settings_developer_app_id">Application ID</string>
+    <string name="settings_developer_version">Version</string>
+    <string name="settings_developer_author">Author</string>
+    <string name="settings_developer_email">Email</string>
+    <string name="settings_developer_note">BetterAIChat2 is the successor rewrite of BetterAIChat, licensed under GPL-3.0-or-later.</string>
+
+    <string name="settings_perm_usage_stats_note">Some systems hide usage access under "More permissions"</string>
+    <string name="settings_about_copyright">© 2026 Verlintas · BetterAIChat2 is the successor rewrite of BetterAIChat</string>
 </resources>
