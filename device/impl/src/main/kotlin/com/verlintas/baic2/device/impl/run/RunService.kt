@@ -53,10 +53,11 @@ class RunService : Service() {
             else -> {
                 ensureChannel()
                 val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty()
+                val runId = intent?.getLongExtra(EXTRA_RUN_ID, -1L)?.takeIf { it >= 0L }
                 ServiceCompat.startForeground(
                     this,
                     NOTIFICATION_ID,
-                    buildNotification(title),
+                    buildNotification(title, runId),
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                     } else {
@@ -72,7 +73,7 @@ class RunService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(title: String): android.app.Notification {
+    private fun buildNotification(title: String, runId: Long?): android.app.Notification {
         val stopIntent = PendingIntent.getService(
             this,
             1,
@@ -80,10 +81,12 @@ class RunService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val openIntent = packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runId != null) launch.putExtra(EXTRA_OPEN_RUN_ID, runId)
             PendingIntent.getActivity(
                 this,
                 2,
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                launch,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
         }
@@ -115,14 +118,20 @@ class RunService : Service() {
     companion object {
         const val ACTION_STOP = "com.verlintas.baic2.run.STOP"
         const val EXTRA_TITLE = "title"
+        const val EXTRA_RUN_ID = "run_id"
+
+        /** Read by MainActivity to deep-link into the Tasks run detail. */
+        const val EXTRA_OPEN_RUN_ID = "open_run_id"
+
         private const val CHANNEL_ID = "baic2_runs"
         private const val NOTIFICATION_ID = 43
 
-        fun start(context: Context, title: String) {
+        fun start(context: Context, title: String, runId: Long?) {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, RunService::class.java)
                     .putExtra(EXTRA_TITLE, title)
+                    .putExtra(EXTRA_RUN_ID, runId ?: -1L)
                     .setAction("com.verlintas.baic2.run.START"),
             )
         }

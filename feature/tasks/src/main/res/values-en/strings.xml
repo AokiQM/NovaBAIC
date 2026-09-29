@@ -33,4 +33,7 @@
     <string name="tasks_role_user">You</string>
     <string name="tasks_role_assistant">AI</string>
     <string name="tasks_role_tool">Tool</string>
+    <string name="tasks_impact_title">Impact summary</string>
+    <string name="tasks_stop_run">Stop run</string>
+    <string name="tasks_retry_run">Retry</string>
 </resources>

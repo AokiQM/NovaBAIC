@@ -24,9 +24,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.core.data.repository.ConversationRepository
 import com.verlintas.baic2.core.data.repository.PlanRepository
+import com.verlintas.baic2.core.data.repository.RunControlBus
 import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
+import com.verlintas.baic2.core.model.ImpactSummarizer
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.Run
 import com.verlintas.baic2.core.model.RunState
@@ -56,6 +58,7 @@ data class RunDetailState(
     val conversationTitle: String,
     val plan: Plan?,
     val messages: List<ChatMessage>,
+    val impact: List<String>,
 )
 
 @HiltViewModel
@@ -104,6 +107,7 @@ class TasksViewModel @Inject constructor(
 class RunDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val runRepository: RunRepository,
+    private val runControlBus: RunControlBus,
     planRepository: PlanRepository,
     conversationRepository: ConversationRepository,
 ) : ViewModel() {
@@ -120,11 +124,13 @@ class RunDetailViewModel @Inject constructor(
                     planRepository.observePlan(run.conversationId),
                     conversationRepository.observeMessages(run.conversationId),
                 ) { conversation, plan, messages ->
+                    val runMessages = messagesForRun(run, messages)
                     RunDetailState(
                         run = run,
                         conversationTitle = conversation?.title.orEmpty(),
                         plan = plan,
-                        messages = messagesForRun(run, messages),
+                        messages = runMessages,
+                        impact = ImpactSummarizer.summarize(runMessages),
                     )
                 }
             }
@@ -140,6 +146,11 @@ class RunDetailViewModel @Inject constructor(
             runRepository.delete(runId)
             onDone()
         }
+    }
+
+    /** Asks the chat screen that owns this run to cancel it. */
+    fun stopRun(conversationId: Long) {
+        runControlBus.requestStop(conversationId)
     }
 }
 

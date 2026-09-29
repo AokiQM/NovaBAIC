@@ -94,6 +94,8 @@ data class RunEntity(
     val state: String,
     val startedAt: Long,
     val updatedAt: Long,
+    val roundsUsed: Int = 0,
+    val toolCallsUsed: Int = 0,
 )
 
 data class ConversationSummary(

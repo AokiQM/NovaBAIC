@@ -187,8 +187,11 @@ interface RunDao {
     @Insert
     suspend fun insert(entity: RunEntity): Long
 
-    @Query("UPDATE runs SET state = :state, updatedAt = :now WHERE id = :id")
-    suspend fun updateState(id: Long, state: String, now: Long)
+    @Query(
+        "UPDATE runs SET state = :state, roundsUsed = :rounds, toolCallsUsed = :toolCalls, " +
+            "updatedAt = :now WHERE id = :id",
+    )
+    suspend fun finish(id: Long, state: String, rounds: Int, toolCalls: Int, now: Long)
 
     @Query("SELECT * FROM runs WHERE conversationId = :conversationId ORDER BY id DESC LIMIT 1")
     suspend fun latestForConversation(conversationId: Long): RunEntity?

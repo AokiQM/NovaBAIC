@@ -59,7 +59,12 @@ class RunRepository @Inject constructor(
         )
     }
 
-    suspend fun finish(runId: Long, state: RunState) = db.withTransaction {
-        db.runDao().updateState(runId, state.name, System.currentTimeMillis())
+    suspend fun finish(
+        runId: Long,
+        state: RunState,
+        roundsUsed: Int = 0,
+        toolCallsUsed: Int = 0,
+    ) = db.withTransaction {
+        db.runDao().finish(runId, state.name, roundsUsed, toolCallsUsed, System.currentTimeMillis())
     }
 }

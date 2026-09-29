@@ -131,10 +131,14 @@ private enum class Baic2Destination(
 }
 
 @Composable
-fun Baic2App() {
+fun Baic2App(
+    initialRunId: Long? = null,
+    onRunDeepLinkConsumed: () -> Unit = {},
+) {
     var destination by rememberSaveable { mutableStateOf(Baic2Destination.Chats) }
     var dockOpen by rememberSaveable { mutableStateOf(false) }
     var pendingConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingRetryConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
     var settingsInnerRoute by rememberSaveable { mutableStateOf(false) }
     var tasksInnerRoute by rememberSaveable { mutableStateOf(false) }
     val navController = rememberNavController()
@@ -146,6 +150,11 @@ fun Baic2App() {
 
     LaunchedEffect(innerRoute) {
         if (innerRoute) dockOpen = false
+    }
+
+    // Notification tap on a running task opens its run detail.
+    LaunchedEffect(initialRunId) {
+        if (initialRunId != null) destination = Baic2Destination.Tasks
     }
 
     BackHandler(enabled = dockOpen) { dockOpen = false }
@@ -172,6 +181,8 @@ fun Baic2App() {
                     navController = navController,
                     pendingConversationId = pendingConversationId,
                     onPendingConsumed = { pendingConversationId = null },
+                    retryConversationId = pendingRetryConversationId,
+                    onRetryConsumed = { pendingRetryConversationId = null },
                 )
 
                 Baic2Destination.Tasks -> TasksScreen(
@@ -179,7 +190,13 @@ fun Baic2App() {
                         pendingConversationId = id
                         destination = Baic2Destination.Chats
                     },
+                    onRetryConversation = { id ->
+                        pendingRetryConversationId = id
+                        destination = Baic2Destination.Chats
+                    },
                     onInnerRouteChanged = { tasksInnerRoute = it },
+                    initialRunId = initialRunId,
+                    onInitialRunConsumed = onRunDeepLinkConsumed,
                 )
                 Baic2Destination.Library -> LibraryScreen()
                 Baic2Destination.Settings -> SettingsScreen(
@@ -223,9 +240,11 @@ private fun ChatsZone(
     navController: NavHostController,
     pendingConversationId: Long?,
     onPendingConsumed: () -> Unit,
+    retryConversationId: Long?,
+    onRetryConsumed: () -> Unit,
 ) {
-    LaunchedEffect(pendingConversationId) {
-        val id = pendingConversationId ?: return@LaunchedEffect
+    LaunchedEffect(pendingConversationId, retryConversationId) {
+        val id = pendingConversationId ?: retryConversationId ?: return@LaunchedEffect
         navController.navigate("chat/$id")
         onPendingConsumed()
     }
@@ -244,10 +263,13 @@ private fun ChatsZone(
             arguments = listOf(
                 navArgument(ChatViewModelArgs.CONVERSATION_ID) { type = NavType.LongType },
             ),
-        ) {
+        ) { entry ->
+            val conversationId = entry.arguments?.getLong(ChatViewModelArgs.CONVERSATION_ID)
             ChatScreen(
                 onBack = { navController.popBackStack() },
                 onOpenStarred = { navController.navigate(ROUTE_STARRED) },
+                retryRequested = retryConversationId != null && retryConversationId == conversationId,
+                onRetryHandled = onRetryConsumed,
             )
         }
         composable(ROUTE_STARRED) {

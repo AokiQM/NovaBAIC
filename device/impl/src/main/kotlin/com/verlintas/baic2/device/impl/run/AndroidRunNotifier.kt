@@ -34,8 +34,8 @@ class AndroidRunNotifier @Inject constructor(
         RunControl.stopHandler = handler
     }
 
-    override fun startRunning(title: String) {
-        RunService.start(context, title)
+    override fun startRunning(title: String, runId: Long?) {
+        RunService.start(context, title, runId)
     }
 
     override fun stopRunning() {

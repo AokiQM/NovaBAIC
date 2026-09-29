@@ -52,4 +52,6 @@ data class Run(
     val state: RunState = RunState.RUNNING,
     val startedAt: Long,
     val updatedAt: Long,
+    val roundsUsed: Int = 0,
+    val toolCallsUsed: Int = 0,
 )

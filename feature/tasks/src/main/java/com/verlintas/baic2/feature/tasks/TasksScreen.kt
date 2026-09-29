@@ -123,13 +123,21 @@ private object TasksRoute {
 fun TasksScreen(
     onOpenConversation: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onRetryConversation: (Long) -> Unit = {},
     onInnerRouteChanged: (Boolean) -> Unit = {},
+    initialRunId: Long? = null,
+    onInitialRunConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val onInnerRoute = backStackEntry?.destination?.route != TasksRoute.ROOT
 
     LaunchedEffect(onInnerRoute) { onInnerRouteChanged(onInnerRoute) }
+    LaunchedEffect(initialRunId) {
+        val id = initialRunId ?: return@LaunchedEffect
+        navController.navigate(TasksRoute.run(id))
+        onInitialRunConsumed()
+    }
 
     NavHost(
         navController = navController,
@@ -158,6 +166,7 @@ fun TasksScreen(
             RunDetailPage(
                 onBack = { navController.popBackStack() },
                 onOpenConversation = onOpenConversation,
+                onRetry = onRetryConversation,
             )
         }
     }
@@ -342,6 +351,7 @@ private fun RunRow(
 private fun RunDetailPage(
     onBack: () -> Unit,
     onOpenConversation: (Long) -> Unit,
+    onRetry: (Long) -> Unit,
     viewModel: RunDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.detail.collectAsStateWithLifecycle()
@@ -386,6 +396,8 @@ private fun RunDetailPage(
             RunDetailContent(
                 detail = detail,
                 onOpenConversation = { onOpenConversation(detail.run.conversationId) },
+                onStop = { viewModel.stopRun(detail.run.conversationId) },
+                onRetry = { onRetry(detail.run.conversationId) },
             )
         }
     }
@@ -418,6 +430,8 @@ private fun RunDetailPage(
 private fun RunDetailContent(
     detail: RunDetailState,
     onOpenConversation: () -> Unit,
+    onStop: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     val run = detail.run
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -491,28 +505,46 @@ private fun RunDetailContent(
             DetailCard {
                 MonoLabel(stringResource(R.string.tasks_budget_title))
                 Spacer(Modifier.height(Baic2Spacing.sm))
-                BudgetLine(stringResource(R.string.tasks_budget_rounds), budget.maxRounds.toString())
-                BudgetLine(stringResource(R.string.tasks_budget_tools), budget.maxToolCalls.toString())
                 BudgetLine(
-                    stringResource(R.string.tasks_budget_wallclock),
-                    durationLabel(budget.maxWallClockMs),
+                    label = stringResource(R.string.tasks_budget_rounds),
+                    used = run.roundsUsed.toLong(),
+                    max = budget.maxRounds.toLong(),
+                )
+                BudgetLine(
+                    label = stringResource(R.string.tasks_budget_tools),
+                    used = run.toolCallsUsed.toLong(),
+                    max = budget.maxToolCalls.toLong(),
+                )
+                BudgetLine(
+                    label = stringResource(R.string.tasks_budget_wallclock),
+                    usedLabel = durationLabel(elapsed),
+                    maxLabel = durationLabel(budget.maxWallClockMs),
+                    fraction = elapsed.toFloat() / budget.maxWallClockMs,
                 )
                 if (run.state == RunState.RUNNING) {
-                    Spacer(Modifier.height(Baic2Spacing.sm))
-                    val fraction = (elapsed.toFloat() / budget.maxWallClockMs).coerceIn(0f, 1f)
-                    LinearProgressIndicator(
-                        progress = { fraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                    )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Baic2Spacing.xs))
                     Text(
                         text = stringResource(R.string.tasks_budget_elapsed, durationLabel(elapsed)),
                         style = Baic2Mono.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+
+        if (detail.impact.isNotEmpty()) {
+            item(key = "impact") {
+                DetailCard {
+                    MonoLabel(stringResource(R.string.tasks_impact_title))
+                    Spacer(Modifier.height(Baic2Spacing.sm))
+                    detail.impact.forEach { line ->
+                        Text(
+                            text = "• $line",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(vertical = 2.dp),
+                        )
+                    }
                 }
             }
         }
@@ -581,14 +613,38 @@ private fun RunDetailContent(
         }
 
         item(key = "open") {
-            Button(
-                onClick = onOpenConversation,
-                shape = RoundedCornerShape(14.dp),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Baic2Spacing.md),
             ) {
-                Text(stringResource(R.string.tasks_open_conversation))
+                if (run.state == RunState.RUNNING) {
+                    OutlinedButton(
+                        onClick = onStop,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.tasks_stop_run))
+                    }
+                }
+                if (run.state == RunState.FAILED || run.state == RunState.CANCELLED) {
+                    OutlinedButton(
+                        onClick = onRetry,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Text(stringResource(R.string.tasks_retry_run))
+                    }
+                }
+                Button(
+                    onClick = onOpenConversation,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.tasks_open_conversation))
+                }
             }
         }
     }
@@ -755,19 +811,49 @@ private fun MonoLabel(
 }
 
 @Composable
-private fun BudgetLine(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 2.dp)) {
-        Text(
-            text = label,
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+private fun BudgetLine(
+    label: String,
+    used: Long = -1L,
+    max: Long = -1L,
+    usedLabel: String? = null,
+    maxLabel: String? = null,
+    fraction: Float? = null,
+) {
+    val ratio = fraction ?: if (max > 0 && used >= 0) used.toFloat() / max else 0f
+    val color = when {
+        ratio >= 0.9f -> MaterialTheme.colorScheme.error
+        ratio >= 0.7f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Column(modifier = Modifier.padding(vertical = 3.dp)) {
+        Row {
+            Text(
+                text = label,
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = when {
+                    usedLabel != null && maxLabel != null -> "$usedLabel / $maxLabel"
+                    used >= 0 && max >= 0 -> "$used / $max"
+                    else -> ""
+                },
+                style = Baic2Mono.label,
+                color = color,
+            )
+        }
+        if (max > 0 || fraction != null) {
+            Spacer(Modifier.height(3.dp))
+            LinearProgressIndicator(
+                progress = { ratio.coerceIn(0f, 1f) },
+                color = color,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+            )
+        }
     }
 }
 

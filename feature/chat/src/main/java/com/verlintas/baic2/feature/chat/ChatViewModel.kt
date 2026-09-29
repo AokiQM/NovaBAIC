@@ -28,6 +28,7 @@ import com.verlintas.baic2.core.data.repository.ApiKeyUnavailableException
 import com.verlintas.baic2.core.data.repository.ConversationRepository
 import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.data.repository.PlanRepository
+import com.verlintas.baic2.core.data.repository.RunControlBus
 import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.core.engine.AgentEvent
 import com.verlintas.baic2.core.engine.AgentFailure
@@ -138,6 +139,7 @@ class ChatViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val agentRepository: AgentRepository,
     private val runRepository: RunRepository,
+    private val runControlBus: RunControlBus,
     private val memoryRepository: MemoryRepository,
     private val agentLoop: AgentLoop,
     private val toolCatalog: ToolCatalog,
@@ -257,6 +259,11 @@ class ChatViewModel @Inject constructor(
             confirmationQueue.requests.collect { call -> confirmation.value = call }
         }
         runNotifier.setStopHandler { runJob?.cancel() }
+        viewModelScope.launch {
+            runControlBus.stops.collect { target ->
+                if (target == conversationId) runJob?.cancel()
+            }
+        }
     }
 
     fun dismissNotice() {
@@ -603,7 +610,7 @@ class ChatViewModel @Inject constructor(
             null
         }
         if (agentic) {
-            runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" })
+            runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" }, runId)
         }
 
         running.value = true
@@ -612,6 +619,8 @@ class ChatViewModel @Inject constructor(
         var assistantMessageId: Long? = null
         var pendingCalls: List<ToolCall> = emptyList()
         var failed = false
+        var roundsUsed = 0
+        var toolCallsUsed = 0
 
         try {
             agentLoop.run(
@@ -625,6 +634,7 @@ class ChatViewModel @Inject constructor(
                 when (event) {
                     is AgentEvent.RoundStarted -> {
                         if (event.round > 1) streaming.value = StreamingState()
+                        roundsUsed = maxOf(roundsUsed, event.round)
                         pendingCalls = emptyList()
                     }
 
@@ -660,6 +670,7 @@ class ChatViewModel @Inject constructor(
                     }
 
                     is AgentEvent.ToolCallFinished -> {
+                        toolCallsUsed++
                         pendingCalls = pendingCalls.map { call ->
                             if (call.id == event.call.id) event.call else call
                         }
@@ -680,12 +691,14 @@ class ChatViewModel @Inject constructor(
 
                     is AgentEvent.Usage -> Unit
 
-                    AgentEvent.Completed -> runId?.let { runRepository.finish(it, RunState.COMPLETED) }
+                    AgentEvent.Completed -> runId?.let {
+                        runRepository.finish(it, RunState.COMPLETED, roundsUsed, toolCallsUsed)
+                    }
 
                     is AgentEvent.Failed -> {
                         failed = true
                         error.value = event.error.toChatError()
-                        runId?.let { runRepository.finish(it, RunState.FAILED) }
+                        runId?.let { runRepository.finish(it, RunState.FAILED, roundsUsed, toolCallsUsed) }
                     }
                 }
             }
@@ -704,13 +717,13 @@ class ChatViewModel @Inject constructor(
                     )
                 }
                 rejectPendingToolCalls()
-                runId?.let { runRepository.finish(it, RunState.CANCELLED) }
+                runId?.let { runRepository.finish(it, RunState.CANCELLED, roundsUsed, toolCallsUsed) }
             }
             throw e
         } catch (e: Exception) {
             failed = true
             error.value = ChatError(ChatError.Kind.INTERNAL, e.message)
-            runId?.let { runRepository.finish(it, RunState.FAILED) }
+            runId?.let { runRepository.finish(it, RunState.FAILED, roundsUsed, toolCallsUsed) }
         } finally {
             running.value = false
             streaming.value = StreamingState()

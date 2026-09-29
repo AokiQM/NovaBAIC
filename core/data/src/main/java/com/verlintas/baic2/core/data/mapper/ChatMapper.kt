@@ -178,6 +178,8 @@ class ChatMapper @Inject constructor(private val json: Json) {
         state = enumOf(entity.state, RunState.RUNNING),
         startedAt = entity.startedAt,
         updatedAt = entity.updatedAt,
+        roundsUsed = entity.roundsUsed,
+        toolCallsUsed = entity.toolCallsUsed,
     )
 
     fun runSummaryToModel(row: RunSummaryRow): RunSummary = RunSummary(

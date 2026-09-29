@@ -142,10 +142,19 @@ fun ChatScreen(
     onBack: () -> Unit,
     onOpenStarred: () -> Unit,
     modifier: Modifier = Modifier,
+    retryRequested: Boolean = false,
+    onRetryHandled: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Arrived from the Tasks center with "retry": re-run the failed turn once.
+    LaunchedEffect(retryRequested) {
+        if (!retryRequested) return@LaunchedEffect
+        if (!state.isRunning) viewModel.retryLast()
+        onRetryHandled()
+    }
     var input by rememberSaveable { mutableStateOf("") }
     var modePickerOpen by rememberSaveable { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }

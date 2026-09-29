@@ -17,18 +17,25 @@
  * BetterAIChat2. If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.verlintas.baic2.device.api
+package com.verlintas.baic2.core.data.repository
+
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * Foreground-service progress for an active agent run: keeps the process
- * alive in the background and offers a stop action in the notification.
+ * Cross-screen stop requests: the Tasks center can cancel a run that lives in
+ * a chat screen's ViewModel without owning that ViewModel.
  */
-interface RunNotifier {
-    /** Handler invoked when the user taps stop in the notification. */
-    fun setStopHandler(handler: (() -> Unit)?)
+@Singleton
+class RunControlBus @Inject constructor() {
 
-    /** [runId] lets the notification deep-link into the run detail. */
-    fun startRunning(title: String, runId: Long? = null)
+    private val _stops = MutableSharedFlow<Long>(extraBufferCapacity = 8)
+    val stops: SharedFlow<Long> = _stops.asSharedFlow()
 
-    fun stopRunning()
+    fun requestStop(conversationId: Long) {
+        _stops.tryEmit(conversationId)
+    }
 }

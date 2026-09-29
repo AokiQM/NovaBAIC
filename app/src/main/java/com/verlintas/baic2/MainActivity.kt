@@ -54,9 +54,12 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val pendingRunId = androidx.compose.runtime.mutableStateOf<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        pendingRunId.value = intent?.getLongExtra(EXTRA_OPEN_RUN_ID, -1L)?.takeIf { it >= 0L }
         setContent {
             val themeMode by settingsRepository.themeMode
                 .collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
@@ -75,9 +78,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Baic2Theme(darkTheme = darkTheme, accent = accent) {
-                Baic2App()
+                Baic2App(
+                    initialRunId = pendingRunId.value,
+                    onRunDeepLinkConsumed = { pendingRunId.value = null },
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingRunId.value = intent.getLongExtra(EXTRA_OPEN_RUN_ID, -1L).takeIf { it >= 0L }
     }
 }
 
@@ -88,3 +100,6 @@ private fun Context.withLocale(locale: Locale): Context {
     configuration.setLayoutDirection(locale)
     return createConfigurationContext(configuration)
 }
+
+/** Mirrors RunService.EXTRA_OPEN_RUN_ID (device:impl cannot see app classes). */
+private const val EXTRA_OPEN_RUN_ID = "open_run_id"

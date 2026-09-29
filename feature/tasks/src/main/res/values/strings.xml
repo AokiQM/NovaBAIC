@@ -33,4 +33,7 @@
     <string name="tasks_role_user">你</string>
     <string name="tasks_role_assistant">AI</string>
     <string name="tasks_role_tool">工具</string>
+    <string name="tasks_impact_title">影响摘要</string>
+    <string name="tasks_stop_run">停止运行</string>
+    <string name="tasks_retry_run">重试</string>
 </resources>
