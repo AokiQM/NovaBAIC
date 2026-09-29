@@ -66,11 +66,11 @@ class OpenAiCompatibleProviderTest {
         server.shutdown()
     }
 
-    private fun config(reasoning: Boolean = false) = ProviderConfig(
+    private fun config(reasoning: Boolean = false, model: String = "test-model") = ProviderConfig(
         provider = ProviderId.OPENAI_COMPATIBLE,
         baseUrl = server.url("/v1").toString().trimEnd('/'),
         apiKey = "sk-test",
-        model = "test-model",
+        model = model,
         reasoning = reasoning,
     )
 
@@ -78,8 +78,9 @@ class OpenAiCompatibleProviderTest {
         messages: List<ChatMessage> = listOf(ChatMessage(role = ChatRole.USER, content = "hi")),
         tools: List<ToolSpec> = emptyList(),
         reasoning: Boolean = false,
+        model: String = "test-model",
     ) = ChatRequest(
-        config = config(reasoning),
+        config = config(reasoning, model),
         systemPrompt = "be nice",
         messages = messages,
         tools = tools,
@@ -442,5 +443,21 @@ class OpenAiCompatibleProviderTest {
         val function = body.getValue("tools").jsonArray[0].jsonObject.getValue("function").jsonObject
         val parameters = function.getValue("parameters").jsonObject
         assertEquals("object", parameters.getValue("type").jsonPrimitive.content)
+    }
+
+    @Test
+    fun sendsReasoningEffortOnlyForOpenAiReasoningFamilies() = runTest {
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = true, model = "o3-mini")).toList()
+        val reasoningBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(
+            "high",
+            reasoningBody.getValue("reasoning_effort").jsonPrimitive.content,
+        )
+
+        enqueueSse("[DONE]")
+        provider.stream(request(reasoning = true, model = "deepseek-reasoner")).toList()
+        val otherBody = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertTrue(otherBody["reasoning_effort"] == null, "non-OpenAI models must not receive it")
     }
 }

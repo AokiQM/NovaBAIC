@@ -248,6 +248,9 @@ class OpenAiCompatibleProvider(
                 ),
             )
         }
+        val model = request.config.model.lowercase()
+        val openAiReasoningFamily = model.startsWith("o1") || model.startsWith("o3") ||
+            model.startsWith("o4") || model.startsWith("gpt-5") || model.startsWith("gpt-6")
         return WireRequest(
             model = request.config.model,
             // Reasoning models (o-series, gpt-5…) reject a temperature.
@@ -256,6 +259,9 @@ class OpenAiCompatibleProvider(
             messages = messages,
             tools = tools,
             streamOptions = WireStreamOptions(),
+            // Only OpenAI reasoning families accept this field; other
+            // compatible endpoints (DeepSeek, Qwen…) would reject it.
+            reasoningEffort = if (request.config.reasoning && openAiReasoningFamily) "high" else null,
         )
     }
 
@@ -354,6 +360,7 @@ private data class WireRequest(
     val messages: List<WireMessage>,
     val tools: List<WireTool>? = null,
     @SerialName("stream_options") val streamOptions: WireStreamOptions? = null,
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
 )
 
 @Serializable

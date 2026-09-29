@@ -339,4 +339,35 @@ class AnthropicProviderTest {
             .getValue("input_schema").jsonObject
         assertEquals("object", schema.getValue("type").jsonPrimitive.content)
     }
+
+    @Test
+    fun replaysThinkingOnlyForTheFinalAssistantTurn() = runTest {
+        enqueueSse(sse("message_stop" to """{"type":"message_stop"}"""))
+        val history = listOf(
+            ChatMessage(role = ChatRole.USER, content = "first"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "answer one",
+                thinking = "old thinking",
+                thinkingSignature = "sig-old",
+            ),
+            ChatMessage(role = ChatRole.USER, content = "second"),
+            ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "answer two",
+                thinking = "new thinking",
+                thinkingSignature = "sig-new",
+            ),
+        )
+
+        provider.stream(request(messages = history, reasoning = true)).toList()
+
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val messages = body.getValue("messages").jsonArray
+        val firstBlocks = messages[1].jsonObject.getValue("content").jsonArray
+        assertEquals("text", firstBlocks[0].jsonObject.getValue("type").jsonPrimitive.content)
+        val lastBlocks = messages[3].jsonObject.getValue("content").jsonArray
+        assertEquals("thinking", lastBlocks[0].jsonObject.getValue("type").jsonPrimitive.content)
+        assertEquals("sig-new", lastBlocks[0].jsonObject.getValue("signature").jsonPrimitive.content)
+    }
 }

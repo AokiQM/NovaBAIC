@@ -284,6 +284,9 @@ class GeminiProvider(
             generationConfig = GeminiGenerationConfig(
                 temperature = request.config.temperature,
                 maxOutputTokens = request.config.maxTokens,
+                // Implicit CoT: let 2.5+ models reason internally and stream
+                // the thinking channel to the app instead of the answer.
+                thinkingConfig = if (request.config.reasoning) GeminiThinkingConfig() else null,
             ),
         )
     }
@@ -413,6 +416,13 @@ private data class GeminiFunctionDeclaration(
 private data class GeminiGenerationConfig(
     val temperature: Double,
     @SerialName("maxOutputTokens") val maxOutputTokens: Int? = null,
+    @SerialName("thinkingConfig") val thinkingConfig: GeminiThinkingConfig? = null,
+)
+
+@Serializable
+private data class GeminiThinkingConfig(
+    @SerialName("includeThoughts") @kotlinx.serialization.EncodeDefault
+    val includeThoughts: Boolean = true,
 )
 
 @Serializable

@@ -48,8 +48,8 @@
     <string name="wizard_retry">重试</string>
     <string name="wizard_temperature">温度 · 回答随机性 %1$d%%</string>
     <string name="wizard_max_tokens">最大输出 Tokens</string>
-    <string name="wizard_reasoning">深度思考</string>
-    <string name="wizard_reasoning_desc">对支持的模型开启推理模式</string>
+    <string name="wizard_reasoning">深度思考（隐式思维链）</string>
+    <string name="wizard_reasoning_desc">分析在隐藏推理通道中进行：省 token 且更准；回答只给结论与结果</string>
     <string name="wizard_prompt_hint">系统提示词决定 AI 的角色与风格，可留空使用默认</string>
     <string name="wizard_prompt_tpl_general">你是一个乐于助人的 AI 助手，回答准确、简洁。</string>
     <string name="wizard_prompt_tpl_translate">你是一名专业翻译，保持原意与语气，只输出译文。</string>

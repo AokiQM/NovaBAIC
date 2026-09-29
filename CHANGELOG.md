@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.9] - 2026-09-29
+
+采纳隐式思维链（Implicit CoT）：让分析发生在模型隐藏推理通道里，而不是把逐步推理写进可见回答——文献与实测显示可把生成 token 降低约 10–30 倍，同时准确率较显式 CoT 提升约 12–20%。
+
+### 优化 Changed
+
+- **全模式隐式 CoT 策略**：系统提示词统一加入 "Reasoning policy: think silently"——分析只走内部推理通道（有则用、无则静默），可见回答只给结论/动作/结果，禁止复述题目与口水话（设备实测：请求中的 system 提示词已生效）
+- **三家 Provider 的推理通道对齐**：
+  - OpenAI 兼容：开启深度思考且模型属于 o 系 / gpt-5 / gpt-6 时发送 `reasoning_effort: high`（其它兼容端点不发送，避免 400）
+  - Gemini 2.5+：开启深度思考时发送 `thinkingConfig.includeThoughts`，思考走隐藏通道并流式回传给 App 展示
+  - Anthropic：thinking 块仅回传最后一个助手回合（API 只校验该回合，历史里回传纯属浪费上下文）
+- **上下文更省**：上述改动叠加后，长对话中推理模型历史不再携带冗余思维文本，配合 CoT 卡片展示（思考 N 秒/实时秒数）体验不变
+- 新增 3 个 Provider 回归测试（OpenAI effort 家族判断、Anthropic 末回合 thinking、Gemini thinkingConfig）
+
 ## [0.1.8] - 2026-09-29
 
 ### 修复 Fixed

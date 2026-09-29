@@ -393,5 +393,13 @@ fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): Str
     } else {
         base
     }
-    return if (custom.isBlank()) withPlan else "$custom\n\n$withPlan"
+    // Implicit chain-of-thought: analysis happens in the hidden reasoning
+    // channel (or silently), never as visible step-by-step prose. This cuts
+    // output tokens by an order of magnitude and keeps answers dense.
+    val policy = "Reasoning policy: think silently. Do the analysis in your internal " +
+        "reasoning channel (when available) and never narrate step-by-step thinking in the " +
+        "visible reply. Answer with conclusions, actions and results only - concise, dense, " +
+        "no filler, no restating the question."
+    val composed = "$policy\n\n$withPlan"
+    return if (custom.isBlank()) composed else "$custom\n\n$composed"
 }

@@ -63,18 +63,20 @@ class GeminiProviderTest {
         server.shutdown()
     }
 
-    private fun config() = ProviderConfig(
+    private fun config(reasoning: Boolean = false) = ProviderConfig(
         provider = ProviderId.GEMINI,
         baseUrl = server.url("").toString().trimEnd('/'),
         apiKey = "AIza-test",
         model = "gemini-test",
+        reasoning = reasoning,
     )
 
     private fun request(
         messages: List<ChatMessage> = listOf(ChatMessage(role = ChatRole.USER, content = "hi")),
         tools: List<ToolSpec> = emptyList(),
+        reasoning: Boolean = false,
     ) = ChatRequest(
-        config = config(),
+        config = config(reasoning),
         systemPrompt = "be nice",
         messages = messages,
         tools = tools,
@@ -272,6 +274,19 @@ class GeminiProviderTest {
         assertEquals(
             "thought-sig-1",
             modelParts[0].jsonObject.getValue("thoughtSignature").jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun requestsThoughtStreamWhileReasoning() = runTest {
+        enqueueSse()
+        provider.stream(request(reasoning = true)).toList()
+        val body = json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val config = body.getValue("generationConfig").jsonObject
+        assertEquals(
+            "true",
+            config.getValue("thinkingConfig").jsonObject
+                .getValue("includeThoughts").jsonPrimitive.content,
         )
     }
 }

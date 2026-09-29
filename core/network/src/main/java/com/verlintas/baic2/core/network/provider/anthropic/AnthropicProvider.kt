@@ -256,15 +256,19 @@ class AnthropicProvider(
             }
         }
 
-        ToolCallHistory.sanitize(request.messages).forEach { message ->
+        val sanitized = ToolCallHistory.sanitize(request.messages)
+        val lastAssistantIndex = sanitized.indexOfLast { it.role == ChatRole.ASSISTANT }
+        sanitized.forEachIndexed { index, message ->
             when (message.role) {
                 ChatRole.SYSTEM -> Unit
                 ChatRole.USER -> append("user", userBlocks(message))
                 ChatRole.ASSISTANT -> {
                     val blocks = buildList {
                         // Extended thinking must be replayed verbatim (with its
-                        // signature) as the first block while thinking is on.
-                        if (request.config.reasoning) {
+                        // signature) as the first block while thinking is on -
+                        // but only for the final assistant turn: earlier one
+                        // are ignored by the API and would waste context.
+                        if (request.config.reasoning && index == lastAssistantIndex) {
                             val signature = message.thinkingSignature
                             val thinkingText = message.thinking
                             if (!signature.isNullOrBlank() && !thinkingText.isNullOrBlank()) {

@@ -41,8 +41,8 @@
     <string name="wizard_retry">Retry</string>
     <string name="wizard_temperature">Temperature · randomness %1$d%%</string>
     <string name="wizard_max_tokens">Max output tokens</string>
-    <string name="wizard_reasoning">Deep reasoning</string>
-    <string name="wizard_reasoning_desc">Enables reasoning on supported models</string>
+    <string name="wizard_reasoning">Deep reasoning (implicit CoT)</string>
+    <string name="wizard_reasoning_desc">Analysis stays in the hidden reasoning channel — fewer tokens, better answers; the reply gives conclusions only</string>
     <string name="wizard_prompt_hint">The system prompt shapes the persona; leave empty for the default</string>
     <string name="wizard_prompt_tpl_general">You are a helpful assistant. Answer accurately and concisely.</string>
     <string name="wizard_prompt_tpl_translate">You are a professional translator. Keep the meaning and tone; output the translation only.</string>
