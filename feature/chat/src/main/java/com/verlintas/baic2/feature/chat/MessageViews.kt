@@ -85,7 +85,8 @@ import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Motion
 import com.verlintas.baic2.designsystem.Baic2Spacing
-import com.verlintas.baic2.designsystem.component.Baic2TypingDots
+import com.verlintas.baic2.designsystem.component.ThinkingOrb
+import com.verlintas.baic2.designsystem.component.shimmerTextBrush
 
 @Composable
 fun MessageRow(
@@ -351,9 +352,13 @@ fun ThinkingCard(
                         stringResource(R.string.chat_thought_for, (durationMs / 1000).coerceAtLeast(1))
                     else -> stringResource(R.string.chat_thinking)
                 },
-                style = Baic2Mono.label,
+                style = if (streaming) {
+                    Baic2Mono.label.copy(brush = shimmerTextBrush())
+                } else {
+                    Baic2Mono.label
+                },
                 color = if (streaming) {
-                    MaterialTheme.colorScheme.primary
+                    Color.Unspecified
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
@@ -372,7 +377,7 @@ fun ThinkingCard(
                 Spacer(Modifier.weight(1f))
             }
             if (streaming) {
-                Baic2TypingDots(dotSize = 5.dp)
+                ThinkingOrb(size = 14.dp)
                 Spacer(Modifier.width(Baic2Spacing.sm))
             }
             Icon(

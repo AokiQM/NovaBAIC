@@ -303,7 +303,7 @@ data class RunBudget(val maxRounds: Int, val maxToolCalls: Int, val maxWallClock
     companion object {
         fun forMode(mode: AppMode) = when (mode) {
             AppMode.CHAT      -> RunBudget(1,   0,   120_000)
-            AppMode.CHAT_PLUS -> RunBudget(6,   12,  300_000)
+            AppMode.CHAT_PLUS -> RunBudget(8,   25,  600_000)
             AppMode.ACT       -> RunBudget(12,  32,  600_000)
             AppMode.MAX       -> RunBudget(60,  160, 3_600_000)
         }
@@ -913,6 +913,8 @@ Deep links: the run notification attaches `open_run_id`; `MainActivity` mirrors 
 - The **mode chip** animates color (220 ms) and plays a spring "pop" on change; mode picker sheet explains each mode.
 - Input bar: attachments (max 4 images), file import, screen analysis, mic, morphing send/stop, attachment chips, error banners.
 - Menu actions: search (with prev/next), starred, export, **save as skill**, screen analysis, compress, distill memory, hands-free, and restore/discard compression.
+- **Aurora ambience** (`core/designsystem/.../Aurora.kt`): procedural gradient light plus twinkling particles (`AuroraSurface`, `ThinkingOrb`, `shimmerTextBrush`) for the thinking card, welcome panel, Tasks header, About hero and the MAX chip. The MAX chip adds a switch glint with a sparkle burst and keeps a breathing halo while active. All of it checks `ANIMATOR_DURATION_SCALE` and falls back to a static frame.
+- **MAX completion report**: when a MAX run ends, the ViewModel stores a `RunCompletion` (title / rounds / tool calls / duration) that the chat renders as a dialog. If `AppVisibility.foreground` is false, `RunNotifier.notifyFinished` posts a notification on the dedicated `baic2_runs_done` channel instead (tap deep-links to the run detail).
 
 ### 18.3 Design system
 

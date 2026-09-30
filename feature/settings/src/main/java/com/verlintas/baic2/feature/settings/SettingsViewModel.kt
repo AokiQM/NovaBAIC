@@ -25,6 +25,7 @@ import com.verlintas.baic2.core.data.prefs.AppLocaleStore
 import com.verlintas.baic2.core.data.prefs.SettingsRepository
 import com.verlintas.baic2.core.data.repository.AgentRepository
 import com.verlintas.baic2.core.data.repository.ConversationRepository
+import com.verlintas.baic2.core.data.repository.RunRepository
 import com.verlintas.baic2.core.data.storage.AppStorage
 import com.verlintas.baic2.core.data.storage.StorageUsage
 import com.verlintas.baic2.core.model.AccentColor
@@ -54,6 +55,10 @@ data class SettingsUiState(
 data class UsageStats(
     val conversations: Int,
     val messages: Int,
+    val runs: Int,
+    val toolCalls: Int,
+    val tokensIn: Long,
+    val tokensOut: Long,
 )
 
 sealed interface UpdateState {
@@ -71,6 +76,7 @@ class SettingsViewModel @Inject constructor(
     private val localeStore: AppLocaleStore,
     private val appStorage: AppStorage,
     private val conversationRepository: ConversationRepository,
+    private val runRepository: RunRepository,
 ) : ViewModel() {
 
     private val storage = MutableStateFlow<StorageUsage?>(null)
@@ -101,9 +107,14 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshStats() {
         viewModelScope.launch {
+            val (tokensIn, tokensOut) = conversationRepository.tokenTotals()
             stats.value = UsageStats(
                 conversations = conversationRepository.conversationCount(),
                 messages = conversationRepository.messageCount(),
+                runs = runRepository.count(),
+                toolCalls = runRepository.totalToolCalls(),
+                tokensIn = tokensIn,
+                tokensOut = tokensOut,
             )
         }
     }

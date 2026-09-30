@@ -30,7 +30,7 @@ data class RunBudget(
     companion object {
         fun forMode(mode: AppMode): RunBudget = when (mode) {
             AppMode.CHAT -> RunBudget(maxRounds = 1, maxToolCalls = 0, maxWallClockMs = 120_000)
-            AppMode.CHAT_PLUS -> RunBudget(maxRounds = 6, maxToolCalls = 12, maxWallClockMs = 300_000)
+            AppMode.CHAT_PLUS -> RunBudget(maxRounds = 8, maxToolCalls = 25, maxWallClockMs = 600_000)
             AppMode.ACT -> RunBudget(maxRounds = 12, maxToolCalls = 32, maxWallClockMs = 600_000)
             AppMode.MAX -> RunBudget(maxRounds = 60, maxToolCalls = 160, maxWallClockMs = 3_600_000)
         }

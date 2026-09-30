@@ -44,7 +44,7 @@ class ReadNotificationsTool : DeviceTool {
     override val spec = ToolSpec(
         name = "read_notifications",
         description = "Read recent notifications (needs notification-listener access).",
-        parametersJson = """{"type":"object","properties":{"limit":{"type":"integer"},"hours":{"type":"integer","description":"look-back window, default 12"},"app":{"type":"string","description":"package substring filter"}}}""",
+        parametersJson = """{"type":"object","properties":{"limit":{"type":"integer"},"hours":{"type":"integer","description":"look-back window, default 12"},"app":{"type":"string","description":"package substring filter"},"query":{"type":"string","description":"keyword filter on title/text"}}}""",
         readOnly = true,
         danger = DangerLevel.MEDIUM,
         parallelSafe = true,
@@ -64,9 +64,20 @@ class ReadNotificationsTool : DeviceTool {
         val limit = ((arguments["limit"] as? JsonPrimitive)?.intOrNull ?: 20).coerceIn(1, 50)
         val hours = ((arguments["hours"] as? JsonPrimitive)?.intOrNull ?: 12).coerceIn(1, 72)
         val app = (arguments["app"] as? JsonPrimitive)?.contentOrNull
+        val query = (arguments["query"] as? JsonPrimitive)?.contentOrNull
+            ?.trim()?.takeIf { it.isNotBlank() }
         val since = System.currentTimeMillis() - hours * 3_600_000L
         val items = NotificationCache.snapshot(limit, since, app)
-        if (items.isEmpty()) return ToolResult.Success("No recent notifications.")
+            .filter { item ->
+                query == null ||
+                    item.title.contains(query, ignoreCase = true) ||
+                    item.text.contains(query, ignoreCase = true)
+            }
+        if (items.isEmpty()) {
+            return ToolResult.Success(
+                if (query == null) "No recent notifications." else "No notifications match '$query'.",
+            )
+        }
         val format = SimpleDateFormat("HH:mm", Locale.getDefault())
         return ToolResult.Success(
             buildString {

@@ -39,6 +39,7 @@ import com.verlintas.baic2.core.engine.ToolCatalog
 import com.verlintas.baic2.core.engine.renderSystemPrompt
 import com.verlintas.baic2.core.model.Agent
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.AppVisibility
 import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
@@ -79,8 +80,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
 
 data class StreamingState(
     val text: String = "",
@@ -170,6 +169,23 @@ class ChatViewModel @Inject constructor(
 
     val notices: StateFlow<String?> = notice.asStateFlow()
 
+    /** Popup shown when a MAX run finishes or is interrupted. */
+    data class RunCompletion(
+        val completed: Boolean,
+        val title: String,
+        val reason: String,
+        val rounds: Int,
+        val toolCalls: Int,
+        val durationMs: Long,
+    )
+
+    private val _runCompletion = MutableStateFlow<RunCompletion?>(null)
+    val runCompletion: StateFlow<RunCompletion?> = _runCompletion.asStateFlow()
+
+    fun dismissRunCompletion() {
+        _runCompletion.value = null
+    }
+
     /** Hands-free loop toggle (settle -> listen -> auto-send). */
     val handsFree: StateFlow<Boolean> = settingsRepository.handsFreeVoice.stateIn(
         scope = viewModelScope,
@@ -253,6 +269,7 @@ class ChatViewModel @Inject constructor(
     private var runJob: Job? = null
     private var titleGenerated = false
     private var autoCompressAttempted = false
+    private var lastDistilledAssistantCount = 0
 
     init {
         viewModelScope.launch {
@@ -511,13 +528,16 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Extracts durable user facts from the recent conversation. */
-    fun distillMemory() {
+    fun distillMemory(savedTemplate: String, noneLabel: String) {
         if (running.value || auxBusy.value) return
         viewModelScope.launch {
             val config = resolveConfig() ?: return@launch
             auxBusy.value = true
             try {
-                runDistillation(config)
+                val added = runDistillation(config)
+                if (added >= 0) {
+                    notice.value = if (added > 0) savedTemplate.format(added) else noneLabel
+                }
             } finally {
                 auxBusy.value = false
             }
@@ -612,6 +632,7 @@ class ChatViewModel @Inject constructor(
         if (agentic) {
             runNotifier.startRunning(conversation.title.ifBlank { "BAIC2" }, runId)
         }
+        _runCompletion.value = null
 
         running.value = true
         error.value = null
@@ -621,6 +642,7 @@ class ChatViewModel @Inject constructor(
         var failed = false
         var roundsUsed = 0
         var toolCallsUsed = 0
+        val runStartedAt = System.currentTimeMillis()
 
         try {
             agentLoop.run(
@@ -691,14 +713,38 @@ class ChatViewModel @Inject constructor(
 
                     is AgentEvent.Usage -> Unit
 
-                    AgentEvent.Completed -> runId?.let {
-                        runRepository.finish(it, RunState.COMPLETED, roundsUsed, toolCallsUsed)
+                    AgentEvent.Completed -> runId?.let { id ->
+                        runRepository.finish(id, RunState.COMPLETED, roundsUsed, toolCallsUsed)
+                        if (conversation.mode == AppMode.MAX) {
+                            announceRunEnd(
+                                completed = true,
+                                reason = "",
+                                title = conversation.title,
+                                rounds = roundsUsed,
+                                toolCalls = toolCallsUsed,
+                                durationMs = System.currentTimeMillis() - runStartedAt,
+                                runId = id,
+                            )
+                        }
                     }
 
                     is AgentEvent.Failed -> {
                         failed = true
                         error.value = event.error.toChatError()
-                        runId?.let { runRepository.finish(it, RunState.FAILED, roundsUsed, toolCallsUsed) }
+                        runId?.let { id ->
+                            runRepository.finish(id, RunState.FAILED, roundsUsed, toolCallsUsed)
+                            if (conversation.mode == AppMode.MAX) {
+                                announceRunEnd(
+                                    completed = false,
+                                    reason = event.error.message,
+                                    title = conversation.title,
+                                    rounds = roundsUsed,
+                                    toolCalls = toolCallsUsed,
+                                    durationMs = System.currentTimeMillis() - runStartedAt,
+                                    runId = id,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -741,6 +787,32 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * MAX is autonomous: tell the user how it ended, with an in-app dialog
+     * when they are around and a system notification when they are not.
+     */
+    private fun announceRunEnd(
+        completed: Boolean,
+        reason: String,
+        title: String,
+        rounds: Int,
+        toolCalls: Int,
+        durationMs: Long,
+        runId: Long,
+    ) {
+        _runCompletion.value = RunCompletion(
+            completed = completed,
+            title = title.ifBlank { "MAX" },
+            reason = reason,
+            rounds = rounds,
+            toolCalls = toolCalls,
+            durationMs = durationMs,
+        )
+        if (!AppVisibility.foreground) {
+            runNotifier.notifyFinished(title.ifBlank { "BAIC2" }, completed, runId)
+        }
+    }
+
+    /**
      * Images are only materialized for the newest user turn; older image and
      * file attachments are replaced by a short marker so history stays cheap
      * (the assistant already answered them).
@@ -766,7 +838,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private suspend fun withMemories(history: List<ChatMessage>): List<ChatMessage> {
-        val memories = memoryRepository.list(MemoryKind.MEMORY)
+        val memories = memoryRepository.list(MemoryKind.MEMORY).takeLast(MAX_MEMORIES_IN_PROMPT)
         if (memories.isEmpty()) return history
         val system = ChatMessage(
             role = ChatRole.SYSTEM,
@@ -807,15 +879,20 @@ class ChatViewModel @Inject constructor(
     private suspend fun maybeDistillAutomatically(config: ProviderConfig) {
         val messages = conversationRepository.getMessages(conversationId)
         val assistantCount = messages.count { it.role == ChatRole.ASSISTANT }
-        if (assistantCount == 0 || assistantCount % DISTILL_EVERY_MESSAGES != 0) return
-        runDistillation(config)
+        // A single agentic turn can add many assistant rows, so a modulo check
+        // would jump past exact multiples and never fire; keep a high-water mark.
+        if (assistantCount - lastDistilledAssistantCount < DISTILL_EVERY_MESSAGES) return
+        if (runDistillation(config) >= 0) {
+            lastDistilledAssistantCount = assistantCount
+        }
     }
 
-    private suspend fun runDistillation(config: ProviderConfig) {
+    /** Returns the number of new facts saved, or -1 when the request failed. */
+    private suspend fun runDistillation(config: ProviderConfig): Int {
         val messages = conversationRepository.getMessages(conversationId)
             .filter { it.role == ChatRole.USER || (it.role == ChatRole.ASSISTANT && it.content.isNotBlank()) }
             .takeLast(30)
-        if (messages.isEmpty()) return
+        if (messages.isEmpty()) return -1
         val raw = runCatching {
             auxiliaryTasks.complete(
                 config = config,
@@ -824,25 +901,14 @@ class ChatViewModel @Inject constructor(
                 maxTokens = 300,
                 temperature = 0.2,
             )
-        }.getOrNull() ?: return
-        parseMemoryList(raw).forEach { fact ->
-            memoryRepository.add(MemoryKind.MEMORY, fact, conversationId)
+        }.getOrNull() ?: return -1
+        var added = 0
+        AuxiliaryTasks.parseFactList(raw).forEach { fact ->
+            if (memoryRepository.add(MemoryKind.MEMORY, fact, conversationId)) {
+                added++
+            }
         }
-    }
-
-    private fun parseMemoryList(raw: String): List<String> {
-        val trimmed = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val fromJson = runCatching {
-            (json.parseToJsonElement(trimmed) as? JsonArray)
-                ?.mapNotNull { (it as? JsonPrimitive)?.content }
-        }.getOrNull()
-        return (fromJson ?: trimmed.lineSequence()
-            .map { it.trim().trimStart('-', '*', '•').trim() }
-            .filter { it.isNotBlank() && it != "[]" }
-            .toList())
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .take(5)
+        return added
     }
 
     private suspend fun maybeAutoCompress(config: ProviderConfig) {
@@ -974,6 +1040,7 @@ class ChatViewModel @Inject constructor(
             "application/x-yaml",
         )
         private const val DISTILL_EVERY_MESSAGES = 10
+        private const val MAX_MEMORIES_IN_PROMPT = 60
         private const val AUTO_COMPRESS_THRESHOLD = 0.85
         private const val MAX_IMAGE_ATTACHMENTS = 4
     }

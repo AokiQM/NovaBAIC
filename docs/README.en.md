@@ -86,6 +86,7 @@ Things to try (`Act` / `Max` mode):
 ### Chat & models
 
 - Streaming replies, a thinking card (live seconds / "Thought for Ns" auto-collapse), Markdown rendering (headings, code blocks, tables, lists, quotes), stop and retry
+- Ambience: aurora gradients and twinkling particles (thinking orb, shimmering "Thinking" label, welcome / Tasks / About backdrops, the MAX chip's ambient glow and switch glint), plus tactile press feedback everywhere; honours the system "remove animations" setting
 - Three protocol adapters: OpenAI-compatible, Anthropic Messages, and Google Gemini; unified retries, error classification, and rate-limit handling
 - Attachments: images (vision models), text files, Word / Excel / PDF (parsed on-device; PDFs are rasterized and OCR'd)
 - Voice input, hands-free conversation, message reading (TTS), and an audio-transcription tool
@@ -99,7 +100,7 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 | Mode | Semantics |
 | --- | --- |
 | `Chat` | Plain conversation, no tools |
-| `Chat+` | Conversation + read-only tools + planning |
+| `Chat+` | Conversation + read-only tools + planning (8 rounds / 25 tool calls) |
 | `Act` | Executes tools, confirming each call |
 | `Max` | Autonomous runs: persistent Run records, budgets (60 rounds / 160 tool calls / 60 minutes), runs in background |
 
@@ -117,7 +118,7 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 
 **Content & web**
 
-`files` (browse / search / read) · `file_write` · `download_file` · `web_search` (six engines in parallel) · `web_read` (article extraction + paging) · `fetch_rss` · `get_weather` · `generate_qr` / `decode_qr` · `ocr_file`
+`files` (browse / search / read, incl. `grep` text search) · `file_write` · `download_file` · `web_search` (six engines in parallel, with `freshness` / `engines`) · `web_read` (article extraction + paging) · `fetch_rss` · `get_weather` · `generate_qr` / `decode_qr` · `ocr_file`
 
 **Personal assistant**
 
@@ -140,6 +141,7 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 ### Tasks & runs
 
 - Tasks run center: run records with state / mode / duration / real token usage; tap to jump to the conversation
+- **MAX completion report**: when a MAX run finishes or is interrupted you get an in-app summary dialog; in the background it becomes a system notification that deep-links to the run
 - Run control: retry on failure, stop while running, impact summary, and completion notifications that deep-link to the run detail
 - Background runs: a foreground service keeps long tasks alive; stop from the notification
 

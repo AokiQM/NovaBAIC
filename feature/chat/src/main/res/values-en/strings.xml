@@ -99,6 +99,13 @@
     <string name="chat_skill_save">Save</string>
     <string name="chat_skill_saved">Skill saved: %1$s (see Library → Skills)</string>
     <string name="chat_skill_none">No completed tool sequence to record</string>
+    <string name="chat_memory_saved">Saved %1$d new memories (see Library → Memory)</string>
+    <string name="chat_memory_none">No new durable facts to save</string>
+    <string name="chat_run_done_title">MAX run completed</string>
+    <string name="chat_run_stopped_title">MAX run interrupted</string>
+    <string name="chat_run_done_body">“%1$s” finished · %2$d rounds · %3$d tool call(s) · %4$s</string>
+    <string name="chat_run_stopped_body">“%1$s” was interrupted: %2$s</string>
+    <string name="chat_run_dismiss">Got it</string>
     <string name="chat_menu_restore_compression">Restore pre-compression history</string>
     <string name="chat_menu_discard_compression">Discard compression backup</string>
     <string name="chat_compress_too_short">This conversation is short enough; nothing to compress</string>

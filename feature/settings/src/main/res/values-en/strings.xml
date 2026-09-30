@@ -134,6 +134,10 @@
     <string name="settings_about_stats_title">Statistics</string>
     <string name="settings_about_stats_conversations">Conversations</string>
     <string name="settings_about_stats_messages">Messages</string>
+    <string name="settings_about_stats_runs">Runs</string>
+    <string name="settings_about_stats_tool_calls">Tool calls</string>
+    <string name="settings_about_stats_tokens_in">Tokens in</string>
+    <string name="settings_about_stats_tokens_out">Tokens out</string>
     <string name="settings_about_share">Share app</string>
     <string name="settings_about_share_chooser">Share BetterAIChat2</string>
     <string name="settings_developer_runtime">Runtime</string>

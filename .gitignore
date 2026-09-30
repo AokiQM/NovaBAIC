@@ -32,3 +32,6 @@ captures/
 keystore_pass.txt
 secrets.properties
 keystore.properties
+
+# Reference-only asset the owner dropped in for design study
+/Coupon Reveal.json

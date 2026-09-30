@@ -46,6 +46,10 @@ class RunRepository @Inject constructor(
 
     suspend fun delete(runId: Long) = db.runDao().deleteById(runId)
 
+    suspend fun count(): Int = db.runDao().countAll()
+
+    suspend fun totalToolCalls(): Int = db.runDao().totalToolCalls()
+
     /**
      * A run lives in the app process, so after a cold start nothing can still
      * be running: mark leftover RUNNING rows as cancelled for Tasks.

@@ -172,6 +172,12 @@ interface MessageDao {
 
     @Query("SELECT COUNT(*) FROM messages")
     suspend fun countAll(): Int
+
+    @Query("SELECT COALESCE(SUM(usageInput), 0) FROM messages")
+    suspend fun totalInputTokens(): Long
+
+    @Query("SELECT COALESCE(SUM(usageOutput), 0) FROM messages")
+    suspend fun totalOutputTokens(): Long
 }
 
 @Dao
@@ -256,6 +262,12 @@ interface RunDao {
 
     @Query("DELETE FROM runs WHERE conversationId = :conversationId")
     suspend fun deleteForConversation(conversationId: Long)
+
+    @Query("SELECT COUNT(*) FROM runs")
+    suspend fun countAll(): Int
+
+    @Query("SELECT COALESCE(SUM(toolCallsUsed), 0) FROM runs")
+    suspend fun totalToolCalls(): Int
 
     @Query(
         """

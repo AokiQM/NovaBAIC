@@ -28,6 +28,9 @@ import com.verlintas.baic2.core.model.ProviderError
 import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.StreamEvent
 import kotlinx.coroutines.flow.collect
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 
 class AuxiliaryFailure(val error: ProviderError) : Exception(error.message)
 
@@ -93,5 +96,50 @@ class AuxiliaryTasks(
                 }
                 "$role: ${message.content.take(perMessageLimit)}"
             }
+
+        /**
+         * Parses a model reply into at most five durable-fact strings. Accepts a
+         * clean JSON array, a fenced array, or an array wrapped in prose. A reply
+         * that only *looks* like JSON yields no facts (never junk lines), while
+         * plain bullet lists still work as the documented fallback.
+         */
+        fun parseFactList(raw: String): List<String> {
+            val trimmed = raw.trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+            extractJsonArray(trimmed)?.let { facts ->
+                return facts.map { it.trim() }.filter { it.isNotBlank() }.take(MAX_FACTS)
+            }
+            // Broken JSON must not become "facts": bail instead of line-parsing it.
+            if (trimmed.startsWith("[") || trimmed.startsWith("{")) return emptyList()
+            return trimmed.lineSequence()
+                .map { it.trim().trimStart('-', '*', '•').trim().trim('"', '\'') }
+                .filter { line ->
+                    line.isNotBlank() &&
+                        line != "[]" &&
+                        !line.startsWith("{") &&
+                        !line.startsWith("[") &&
+                        !line.endsWith(":")
+                }
+                .take(MAX_FACTS)
+                .toList()
+        }
+
+        private fun extractJsonArray(text: String): List<String>? {
+            val start = text.indexOf('[')
+            val end = text.lastIndexOf(']')
+            if (start < 0 || end <= start) return null
+            return runCatching {
+                val element = Json.parseToJsonElement(text.substring(start, end + 1))
+                (element as? JsonArray)
+                    ?.mapNotNull { item ->
+                        (item as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    }
+            }.getOrNull()
+        }
+
+        private const val MAX_FACTS = 5
     }
 }

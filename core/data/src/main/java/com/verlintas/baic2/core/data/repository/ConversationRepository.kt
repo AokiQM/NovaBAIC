@@ -67,6 +67,10 @@ class ConversationRepository @Inject constructor(
 
     suspend fun messageCount(): Int = db.messageDao().countAll()
 
+    /** Provider-reported token totals across all persisted messages. */
+    suspend fun tokenTotals(): Pair<Long, Long> =
+        db.messageDao().totalInputTokens() to db.messageDao().totalOutputTokens()
+
     suspend fun create(agentId: Long?, mode: AppMode, title: String): Long {
         val now = System.currentTimeMillis()
         return db.conversationDao().insert(

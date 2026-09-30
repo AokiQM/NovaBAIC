@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -158,9 +159,11 @@ class WebSearchTool @Inject constructor(
         name = "web_search",
         description = "Search the web across multiple engines; results are merged, deduplicated " +
             "and ranked by relevance. Optionally reads the full text of the top results " +
-            "(read_top). `query` may be an array of up to 3 queries for comparisons; " +
-            "`refresh` bypasses the 5-minute cache.",
-        parametersJson = """{"type":"object","properties":{"query":{"description":"One query string or an array of up to 3 queries"},"max_results":{"type":"integer","description":"1-12, default 8"},"read_top":{"type":"integer","description":"read the full text of the top N results, 0-3, default 1"},"refresh":{"type":"boolean","description":"bypass the 5-minute cache"}},"required":["query"]}""",
+            "(read_top). `query` may be an array of up to 3 queries for comparisons. " +
+            "Use `freshness` for time-sensitive news and `engines` to restrict or widen " +
+            "the engine set (e.g. \"bing,baidu\" for local results). Site: and quotes are " +
+            "passed through to the engines.",
+        parametersJson = """{"type":"object","properties":{"query":{"description":"One query string or an array of up to 3 queries"},"max_results":{"type":"integer","description":"1-15, default 10"},"read_top":{"type":"integer","description":"read the full text of the top N results, 0-3, default 1"},"freshness":{"type":"string","enum":["any","day","week","month","year"],"description":"prefer recent results where the engine supports it"},"engines":{"type":"string","description":"comma-separated subset of ddg-lite,ddg,bing,baidu,mojeek,360"},"refresh":{"type":"boolean","description":"bypass the 5-minute cache"}},"required":["query"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -169,14 +172,19 @@ class WebSearchTool @Inject constructor(
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
         val queries = parseQueries(arguments)
         if (queries.isEmpty()) return ToolResult.Failure("Missing 'query' argument")
-        val maxResults = ((arguments["max_results"] as? JsonPrimitive)?.intOrNull ?: 8).coerceIn(1, 12)
+        val maxResults = ((arguments["max_results"] as? JsonPrimitive)?.intOrNull ?: 10)
+            .coerceIn(1, 15)
         val readTop = ((arguments["read_top"] as? JsonPrimitive)?.intOrNull ?: 1).coerceIn(0, 3)
         val refresh = (arguments["refresh"] as? JsonPrimitive)?.booleanOrNull ?: false
+        val freshness = (arguments["freshness"] as? JsonPrimitive)?.contentOrNull
+            ?.lowercase()?.takeIf { it in FRESHNESS_VALUES } ?: "any"
+        val engines = parseEngines(arguments["engines"])
 
-        val cacheKey = queries.joinToString("|") + "|$maxResults|$readTop"
+        val cacheKey = queries.joinToString("|") +
+            "|$maxResults|$readTop|$freshness|${engines.sorted().joinToString(",")}"
         if (!refresh) SearchCache.get(cacheKey)?.let { return ToolResult.Success(it) }
 
-        val (hits, diagnostics) = runEngines(queries, (maxResults * 2).coerceAtMost(24))
+        val (hits, diagnostics) = runEngines(queries, (maxResults * 2).coerceAtMost(30), engines, freshness)
         if (hits.isEmpty()) {
             return ToolResult.Failure("No results for ${queries.joinToString()} ($diagnostics)")
         }
@@ -184,7 +192,9 @@ class WebSearchTool @Inject constructor(
         val deduped = SearchPipeline.dedupe(ranked).take(maxResults)
 
         val text = buildString {
-            append("Results for ").append(queries.joinToString(" | ") { "'$it'" }).append(":\n")
+            append("Results for ").append(queries.joinToString(" | ") { "'$it'" })
+            if (freshness != "any") append(" (freshness: ").append(freshness).append(')')
+            append(":\n")
             deduped.forEachIndexed { index, hit ->
                 append('\n').append(index + 1).append(". ").append(hit.title).append('\n')
                 append("   ").append(hit.url).append('\n')
@@ -214,16 +224,43 @@ class WebSearchTool @Inject constructor(
         return raw.map { it.trim() }.filter { it.isNotBlank() }.distinct().take(3)
     }
 
-    private suspend fun runEngines(queries: List<String>, perQuery: Int): Pair<List<SearchHit>, String> =
+    /** Splits the optional engine filter; unknown names fall back to all engines. */
+    private fun parseEngines(element: JsonElement?): Set<String> {
+        val requested = ((element as? JsonPrimitive)?.contentOrNull ?: return ALL_ENGINES)
+            .split(',')
+            .map { it.trim().lowercase() }
+            .filter { it in ALL_ENGINES }
+            .toSet()
+        return requested.ifEmpty { ALL_ENGINES }
+    }
+
+    private suspend fun runEngines(
+        queries: List<String>,
+        perQuery: Int,
+        engines: Set<String>,
+        freshness: String,
+    ): Pair<List<SearchHit>, String> =
         supervisorScope {
             val jobs = buildList {
                 queries.forEach { query ->
-                    add("ddg-lite" to async { searchDuckDuckGoLite(query, perQuery) })
-                    add("ddg" to async { searchDuckDuckGo(query, perQuery) })
-                    add("bing" to async { searchBing(query, perQuery) })
-                    add("baidu" to async { searchBaidu(query, perQuery) })
-                    add("mojeek" to async { searchMojeek(query, perQuery) })
-                    add("360" to async { search360(query, perQuery) })
+                    if ("ddg-lite" in engines) {
+                        add("ddg-lite" to async { searchDuckDuckGoLite(query, perQuery, freshness) })
+                    }
+                    if ("ddg" in engines) {
+                        add("ddg" to async { searchDuckDuckGo(query, perQuery, freshness) })
+                    }
+                    if ("bing" in engines) {
+                        add("bing" to async { searchBing(query, perQuery, freshness) })
+                    }
+                    if ("baidu" in engines) {
+                        add("baidu" to async { searchBaidu(query, perQuery) })
+                    }
+                    if ("mojeek" in engines) {
+                        add("mojeek" to async { searchMojeek(query, perQuery) })
+                    }
+                    if ("360" in engines) {
+                        add("360" to async { search360(query, perQuery) })
+                    }
                 }
             }
             data class EngineTally(var count: Int = 0, var error: String? = null)
@@ -277,8 +314,9 @@ class WebSearchTool @Inject constructor(
             if (chunks.isEmpty()) "" else "\n\nTop result bodies:" + chunks.joinToString("\n")
         }
 
-    private fun searchDuckDuckGoLite(query: String, limit: Int): List<SearchHit> {
-        val url = "https://lite.duckduckgo.com/lite/?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+    private fun searchDuckDuckGoLite(query: String, limit: Int, freshness: String = "any"): List<SearchHit> {
+        val url = "https://lite.duckduckgo.com/lite/?q=" +
+            java.net.URLEncoder.encode(query, "UTF-8") + freshnessParam("ddg", freshness)
         val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
         val doc = Jsoup.parse(html, url)
         return doc.select("a.result-link").mapNotNull { anchor ->
@@ -289,8 +327,9 @@ class WebSearchTool @Inject constructor(
         }.take(limit)
     }
 
-    private fun searchDuckDuckGo(query: String, limit: Int): List<SearchHit> {
-        val url = "https://html.duckduckgo.com/html/?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+    private fun searchDuckDuckGo(query: String, limit: Int, freshness: String = "any"): List<SearchHit> {
+        val url = "https://html.duckduckgo.com/html/?q=" +
+            java.net.URLEncoder.encode(query, "UTF-8") + freshnessParam("ddg", freshness)
         val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
         val doc = Jsoup.parse(html, url)
         return doc.select("div.result, div.web-result").mapNotNull { result ->
@@ -300,8 +339,9 @@ class WebSearchTool @Inject constructor(
         }.take(limit)
     }
 
-    private fun searchBing(query: String, limit: Int): List<SearchHit> {
-        val url = "https://www.bing.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8")
+    private fun searchBing(query: String, limit: Int, freshness: String = "any"): List<SearchHit> {
+        val url = "https://www.bing.com/search?q=" +
+            java.net.URLEncoder.encode(query, "UTF-8") + freshnessParam("bing", freshness)
         val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
         val doc = Jsoup.parse(html, url)
         return doc.select("li.b_algo").mapNotNull { item ->
@@ -374,7 +414,33 @@ class WebSearchTool @Inject constructor(
         return null
     }
 
+    /** Time filter for the engines that support one; others keep the plain query. */
+    private fun freshnessParam(engine: String, freshness: String): String {
+        if (freshness == "any") return ""
+        return when (engine) {
+            "ddg" -> "&df=" + when (freshness) {
+                "day" -> "d"
+                "week" -> "w"
+                "month" -> "m"
+                else -> "y"
+            }
+
+            "bing" -> {
+                val code = when (freshness) {
+                    "day" -> "ez1"
+                    "week" -> "ez2"
+                    else -> "ez3"
+                }
+                "&filters=" + java.net.URLEncoder.encode("ex1:\"$code\"", "UTF-8")
+            }
+
+            else -> ""
+        }
+    }
+
     private companion object {
+        val ALL_ENGINES = setOf("ddg-lite", "ddg", "bing", "baidu", "mojeek", "360")
+        val FRESHNESS_VALUES = setOf("any", "day", "week", "month", "year")
         const val ENGINE_TIMEOUT_MS = 8_000L
         const val READ_ATTEMPTS = 6
         const val BODY_BUDGET = 5_000
@@ -391,7 +457,7 @@ class WebReadTool @Inject constructor(
         description = "Fetch a web page and return its readable article text (boilerplate stripped). " +
             "Long pages are paged: pass 'offset' from the '(more: …)' hint to continue instead of " +
             "re-fetching.",
-        parametersJson = """{"type":"object","properties":{"url":{"type":"string"},"offset":{"type":"integer","description":"character offset to continue from, default 0"},"max_chars":{"type":"integer","description":"page size, 500-12000, default 6000"}},"required":["url"]}""",
+        parametersJson = """{"type":"object","properties":{"url":{"type":"string"},"offset":{"type":"integer","description":"character offset to continue from, default 0"},"max_chars":{"type":"integer","description":"page size, 500-24000, default 8000"}},"required":["url"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -401,8 +467,8 @@ class WebReadTool @Inject constructor(
         val url = (arguments["url"] as? JsonPrimitive)?.content?.trim()
             ?: return ToolResult.Failure("Missing 'url' argument")
         val offset = ((arguments["offset"] as? JsonPrimitive)?.intOrNull ?: 0).coerceAtLeast(0)
-        val maxChars = ((arguments["max_chars"] as? JsonPrimitive)?.intOrNull ?: 6_000)
-            .coerceIn(500, 12_000)
+        val maxChars = ((arguments["max_chars"] as? JsonPrimitive)?.intOrNull ?: 8_000)
+            .coerceIn(500, 24_000)
 
         val html = fetcher.fetch(url).getOrElse { failure ->
             return ToolResult.Failure("Fetch failed: ${failure.message}")

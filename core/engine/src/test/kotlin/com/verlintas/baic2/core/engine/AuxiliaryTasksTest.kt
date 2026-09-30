@@ -104,4 +104,62 @@ class AuxiliaryTasksTest {
         assertTrue(rendered.contains("ASSISTANT: aaaaaaaaaa"))
         assertTrue(rendered.contains("TOOL:get_weather:"))
     }
+
+    @Test
+    fun parseFactListAcceptsCleanAndFencedArrays() {
+        assertEquals(
+            listOf("likes dark themes", "builds BAIC2"),
+            AuxiliaryTasks.parseFactList("""["likes dark themes", "builds BAIC2"]"""),
+        )
+        assertEquals(
+            listOf("likes dark themes"),
+            AuxiliaryTasks.parseFactList("```json\n[\"likes dark themes\"]\n```"),
+        )
+    }
+
+    @Test
+    fun parseFactListExtractsArrayFromProse() {
+        assertEquals(
+            listOf("prefers teal", "uses a Pixel"),
+            AuxiliaryTasks.parseFactList("Sure! [\"prefers teal\", \"uses a Pixel\"] let me know."),
+        )
+    }
+
+    @Test
+    fun parseFactListRejectsGarbageInsteadOfSavingJunk() {
+        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("[broken json"))
+        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("{not json at all"))
+        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("[]"))
+        assertEquals(emptyList(), AuxiliaryTasks.parseFactList(""))
+    }
+
+    @Test
+    fun parseFactListUnwrapsObjectWrappedArrays() {
+        assertEquals(
+            listOf("a", "b"),
+            AuxiliaryTasks.parseFactList("""{"facts": ["a", "b"]}"""),
+        )
+    }
+
+    @Test
+    fun parseFactListFallsBackToBulletsAndFiltersNoise() {
+        val raw = """
+            Here are the durable facts:
+            - likes dark themes
+            * builds BAIC2
+            • prefers teal
+            {"oops": true}
+        """.trimIndent()
+
+        assertEquals(
+            listOf("likes dark themes", "builds BAIC2", "prefers teal"),
+            AuxiliaryTasks.parseFactList(raw),
+        )
+    }
+
+    @Test
+    fun parseFactListCapsAtFiveFacts() {
+        val many = (1..9).joinToString(prefix = "[", postfix = "]") { "\"fact $it\"" }
+        assertEquals(5, AuxiliaryTasks.parseFactList(many).size)
+    }
 }

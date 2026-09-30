@@ -86,6 +86,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 ### 对话与模型
 
 - 流式回复、思考过程卡片（实时秒数 / "Thought for Ns" 自动收起）、Markdown 渲染（标题 / 代码块 / 表格 / 列表 / 引用）、中止与重试
+- 界面动效：极光流光 + 星光粒子（思考光球、"Thinking" 流光字、欢迎页 / Tasks / 关于页铺底、MAX 芯片常驻光晕与切换光带），全局按钮按压回弹；服从系统"移除动画"
 - 三家协议适配：OpenAI 兼容、Anthropic Messages、Google Gemini；统一重试、错误分类与速率限制处理
 - 附件：图片（视觉模型）、文本文件、Word / Excel / PDF（本地解析，PDF 栅格化后 OCR）
 - 语音输入、免手对话、消息朗读；语音转写工具
@@ -99,7 +100,7 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 | 模式 | 语义 |
 | --- | --- |
 | `Chat` | 纯对话，无工具 |
-| `Chat+` | 对话 + 只读工具 + 计划 |
+| `Chat+` | 对话 + 只读工具 + 计划（8 轮 / 25 次工具调用） |
 | `Act` | 执行工具，逐项确认 |
 | `Max` | 自主运行：持久化 Run、预算约束（60 轮 / 160 次工具调用 / 60 分钟）、可后台 |
 
@@ -117,7 +118,7 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 
 **内容与网络**
 
-`files`（浏览 / 搜索 / 读取）· `file_write` · `download_file` · `web_search`（多引擎并发）· `web_read`（正文提取 + 分页）· `fetch_rss` · `get_weather` · `generate_qr` / `decode_qr` · `ocr_file`
+`files`（浏览 / 搜索 / 读取，含 `grep` 全文搜索）· `file_write` · `download_file` · `web_search`（多引擎并发，支持 `freshness` / `engines`）· `web_read`（正文提取 + 分页）· `fetch_rss` · `get_weather` · `generate_qr` / `decode_qr` · `ocr_file`
 
 **个人助理**
 
@@ -140,6 +141,7 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 ### 任务与运行
 
 - Tasks 运行中心：运行记录（状态 / 模式 / 时长 / 真实 token 消耗），点击直达会话
+- **MAX 收尾提醒**：任务完成或被中断时应用内弹窗汇报（后台时改为系统通知，点击直达运行详情）
 - 运行控制：失败重试、运行中停止、影响摘要、完成通知直达运行详情
 - 后台运行：前台服务保持长任务，通知栏可停止
 

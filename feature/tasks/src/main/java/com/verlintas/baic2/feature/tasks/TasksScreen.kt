@@ -34,6 +34,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -115,7 +116,10 @@ import com.verlintas.baic2.core.model.nextScheduledTrigger
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.Baic2EmptyState
+import com.verlintas.baic2.designsystem.component.AuroraSurface
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
+import com.verlintas.baic2.designsystem.component.ThinkingOrb
+import com.verlintas.baic2.designsystem.component.pressScale
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.Add
@@ -220,23 +224,46 @@ private fun TasksListPage(
             verticalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
         ) {
             item(key = "header") {
-                Column {
-                    Text(
-                        text = stringResource(R.string.feature_tasks_title),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                val headerShape = RoundedCornerShape(18.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(headerShape)
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f),
+                            headerShape,
+                        ),
+                ) {
+                    AuroraSurface(
+                        modifier = Modifier.matchParentSize(),
+                        shape = headerShape,
+                        particleCount = 14,
+                        intensity = 0.5f,
                     )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = if (section == 0) {
-                            stringResource(R.string.tasks_subtitle, state.totalCount)
-                        } else {
-                            stringResource(R.string.tasks_schedule_subtitle, scheduled.size)
-                        },
-                        style = Baic2Mono.label,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(
+                        modifier = Modifier.padding(
+                            horizontal = Baic2Spacing.lg,
+                            vertical = Baic2Spacing.lg,
+                        ),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.feature_tasks_title),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = if (section == 0) {
+                                stringResource(R.string.tasks_subtitle, state.totalCount)
+                            } else {
+                                stringResource(R.string.tasks_schedule_subtitle, scheduled.size)
+                            },
+                            style = Baic2Mono.label,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
@@ -245,21 +272,32 @@ private fun TasksListPage(
                     horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val runsInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = section == 0,
                         onClick = { section = 0 },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = runsInteraction,
+                        modifier = Modifier.pressScale(runsInteraction, pressedScale = 0.94f),
                         label = { Text(stringResource(R.string.tasks_tab_runs)) },
                     )
+                    val scheduledInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = section == 1,
                         onClick = { section = 1 },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = scheduledInteraction,
+                        modifier = Modifier.pressScale(scheduledInteraction, pressedScale = 0.94f),
                         label = { Text(stringResource(R.string.tasks_tab_scheduled)) },
                     )
                     if (section == 1) {
                         Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { editorTask = null; editorOpen = true }) {
+                        val addInteraction = remember { MutableInteractionSource() }
+                        IconButton(
+                            onClick = { editorTask = null; editorOpen = true },
+                            interactionSource = addInteraction,
+                            modifier = Modifier.pressScale(addInteraction),
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.Add,
                                 contentDescription = stringResource(R.string.tasks_schedule_add),
@@ -299,16 +337,22 @@ private fun TasksListPage(
                     horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm),
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                 ) {
+                    val allInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = state.filter == TaskFilter.ALL,
                         onClick = { viewModel.setFilter(TaskFilter.ALL) },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = allInteraction,
+                        modifier = Modifier.pressScale(allInteraction, pressedScale = 0.94f),
                         label = { Text(stringResource(R.string.tasks_filter_all)) },
                     )
+                    val runningInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = state.filter == TaskFilter.RUNNING,
                         onClick = { viewModel.setFilter(TaskFilter.RUNNING) },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = runningInteraction,
+                        modifier = Modifier.pressScale(runningInteraction, pressedScale = 0.94f),
                         label = {
                             Text(
                                 if (state.runningCount > 0) {
@@ -319,16 +363,22 @@ private fun TasksListPage(
                             )
                         },
                     )
+                    val completedInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = state.filter == TaskFilter.COMPLETED,
                         onClick = { viewModel.setFilter(TaskFilter.COMPLETED) },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = completedInteraction,
+                        modifier = Modifier.pressScale(completedInteraction, pressedScale = 0.94f),
                         label = { Text(stringResource(R.string.tasks_filter_completed)) },
                     )
+                    val failedInteraction = remember { MutableInteractionSource() }
                     FilterChip(
                         selected = state.filter == TaskFilter.FAILED,
                         onClick = { viewModel.setFilter(TaskFilter.FAILED) },
                         shape = RoundedCornerShape(10.dp),
+                        interactionSource = failedInteraction,
+                        modifier = Modifier.pressScale(failedInteraction, pressedScale = 0.94f),
                         label = { Text(stringResource(R.string.tasks_filter_failed)) },
                     )
                 }
@@ -363,13 +413,15 @@ private fun RunRow(
 ) {
     val shape = RoundedCornerShape(14.dp)
     val stateColor = stateColor(run.state)
+    val cardInteraction = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .pressScale(cardInteraction, pressedScale = 0.985f)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = cardInteraction, indication = null, onClick = onClick)
             .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -397,12 +449,16 @@ private fun RunRow(
         }
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(stateColor),
-            )
+            if (run.state == RunState.RUNNING) {
+                ThinkingOrb(size = 12.dp)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(stateColor),
+                )
+            }
             Spacer(Modifier.width(Baic2Spacing.sm))
             Text(
                 text = stateLabel(run.state),
@@ -982,6 +1038,7 @@ private fun ScheduledTaskRow(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(14.dp)
+    val editInteraction = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -994,7 +1051,8 @@ private fun ScheduledTaskRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onEdit),
+                .pressScale(editInteraction, pressedScale = 0.98f)
+                .clickable(interactionSource = editInteraction, indication = null, onClick = onEdit),
         ) {
             Text(
                 text = task.name,
@@ -1037,7 +1095,12 @@ private fun ScheduledTaskRow(
                 )
             }
         }
-        IconButton(onClick = onRunNow) {
+        val runInteraction = remember { MutableInteractionSource() }
+        IconButton(
+            onClick = onRunNow,
+            interactionSource = runInteraction,
+            modifier = Modifier.pressScale(runInteraction),
+        ) {
             Icon(
                 imageVector = Icons.Outlined.PlayArrow,
                 contentDescription = stringResource(R.string.tasks_schedule_run_now),
@@ -1045,7 +1108,12 @@ private fun ScheduledTaskRow(
                 modifier = Modifier.size(18.dp),
             )
         }
-        IconButton(onClick = onDelete) {
+        val deleteInteraction = remember { MutableInteractionSource() }
+        IconButton(
+            onClick = onDelete,
+            interactionSource = deleteInteraction,
+            modifier = Modifier.pressScale(deleteInteraction),
+        ) {
             Icon(
                 imageVector = Icons.Outlined.Delete,
                 contentDescription = stringResource(R.string.tasks_delete),

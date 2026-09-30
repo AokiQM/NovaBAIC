@@ -161,8 +161,9 @@ class FileReadTool : DeviceTool {
         name = "files",
         description = "Work with files in Downloads/Documents: action=list (optional 'query' filter, " +
             "scope=downloads|documents|all), action=read ('name', optional offset/limit characters), " +
-            "action=info ('name'). Reads are paged and report total size.",
-        parametersJson = """{"type":"object","properties":{"action":{"type":"string","enum":["list","read","info"]},"name":{"type":"string","description":"file name for read/info"},"query":{"type":"string","description":"name filter for list"},"scope":{"type":"string","enum":["downloads","documents","all"]},"offset":{"type":"integer","description":"character offset for read"},"limit":{"type":"integer","description":"characters to read, default 8000"}},"required":["action"]}""",
+            "action=info ('name'), action=grep ('query' text pattern across recent text files, " +
+            "optional 'name' filter, 'limit' matches). Reads are paged and report total size.",
+        parametersJson = """{"type":"object","properties":{"action":{"type":"string","enum":["list","read","info","grep"]},"name":{"type":"string","description":"file name for read/info, or a name filter for grep"},"query":{"type":"string","description":"name filter for list; text pattern for grep"},"scope":{"type":"string","enum":["downloads","documents","all"]},"offset":{"type":"integer","description":"character offset for read"},"limit":{"type":"integer","description":"characters for read; max matches for grep"}},"required":["action"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -175,7 +176,8 @@ class FileReadTool : DeviceTool {
             "list" -> list(context, arguments)
             "read" -> read(context, arguments)
             "info" -> info(context, arguments)
-            else -> ToolResult.Failure("Unknown action '$action'. Use list|read|info.")
+            "grep" -> grep(context, arguments)
+            else -> ToolResult.Failure("Unknown action '$action'. Use list|read|info|grep.")
         }
     }
 
@@ -236,8 +238,107 @@ class FileReadTool : DeviceTool {
         )
     }
 
-    private fun info(context: ToolContext, arguments: JsonObject): ToolResult {
-        val name = (arguments["name"] as? JsonPrimitive)?.content?.trim()
+    /**
+     * Text search across the most recently modified text-like files: the
+     * read-only answer to "where did I write that?". Bounded on purpose —
+     * at most 60 files and 512 KB per file.
+     */
+    private fun grep(context: ToolContext, arguments: JsonObject): ToolResult {
+        val pattern = (arguments["query"] as? JsonPrimitive)?.content?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: return ToolResult.Failure("Missing 'query' pattern for grep")
+        if (!hasPublicFilesAccess(context.appContext)) return filesAccessFailure()
+        val scope = (arguments["scope"] as? JsonPrimitive)?.content?.lowercase() ?: "all"
+        val nameFilter = (arguments["name"] as? JsonPrimitive)?.content?.lowercase()
+            ?.takeIf { it.isNotBlank() }
+        val maxMatches = ((arguments["limit"] as? JsonPrimitive)?.intOrNull ?: 20).coerceIn(1, 50)
+        val needle = pattern.lowercase()
+
+        val candidates = scopesFor(scope).flatMap { folder ->
+            queryPublicTargets(context, folder, nameFilter, GREP_MAX_FILES)
+        }.filter { (_, name) ->
+            name.substringAfterLast('.', "").lowercase() in GREP_TEXT_EXTENSIONS
+        }.take(GREP_MAX_FILES)
+        if (candidates.isEmpty()) {
+            return ToolResult.Success(
+                "No text files to search${nameFilter?.let { " matching '$it'" } ?: ""} in " +
+                    scopesFor(scope).joinToString("/") + ".",
+            )
+        }
+
+        val matches = mutableListOf<String>()
+        var scanned = 0
+        for ((uri, name) in candidates) {
+            if (matches.size >= maxMatches) break
+            scanned++
+            val text = readCapped(context, uri, GREP_FILE_BYTES)?.takeIf { !it.contains('\u0000') }
+                ?: continue
+            text.lineSequence().forEachIndexed { index, line ->
+                if (matches.size < maxMatches && line.lowercase().contains(needle)) {
+                    matches += "$name:${index + 1}: ${line.trim().take(200)}"
+                }
+            }
+        }
+        if (matches.isEmpty()) {
+            return ToolResult.Success("No matches for '$pattern' in $scanned scanned files.")
+        }
+        return ToolResult.Success(
+            buildString {
+                append("Matches for '").append(pattern).append("' (").append(scanned)
+                    .append(" files scanned):\n")
+                matches.forEach { append('\n').append("- ").append(it) }
+                if (matches.size >= maxMatches) {
+                    append("\n…(more may exist; raise 'limit' or narrow 'name')")
+                }
+            },
+        )
+    }
+
+    private fun queryPublicTargets(
+        context: ToolContext,
+        folder: String,
+        filter: String?,
+        limit: Int,
+    ): List<Pair<Uri, String>> {
+        val collection = MediaStore.Files.getContentUri("external")
+        val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            "(${MediaStore.MediaColumns.RELATIVE_PATH} = ?" +
+                " OR ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?)"
+        } else {
+            "${MediaStore.MediaColumns.DATA} LIKE ?"
+        }
+        return runCatching {
+            context.appContext.contentResolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME),
+                selection,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    arrayOf("$folder/", "$folder/%")
+                } else {
+                    arrayOf("%/$folder/%")
+                },
+                "${MediaStore.MediaColumns.DATE_MODIFIED} DESC",
+            )?.use { cursor ->
+                buildList {
+                    while (cursor.moveToNext() && size < limit) {
+                        val name = cursor.getString(1) ?: continue
+                        if (filter != null && !name.lowercase().contains(filter)) continue
+                        add(Uri.withAppendedPath(collection, cursor.getLong(0).toString()) to name)
+                    }
+                }
+            }
+        }.getOrNull().orEmpty()
+    }
+
+    private fun readCapped(context: ToolContext, uri: Uri, cap: Int): String? = runCatching {
+        context.appContext.contentResolver.openInputStream(uri)?.use { stream ->
+            val buffer = ByteArray(cap)
+            val read = stream.read(buffer)
+            if (read <= 0) "" else String(buffer, 0, read, Charsets.UTF_8)
+        }
+    }.getOrNull()
+
+    private fun info(context: ToolContext, arguments: JsonObject): ToolResult {        val name = (arguments["name"] as? JsonPrimitive)?.content?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: return ToolResult.Failure("Missing 'name'")
         val scope = (arguments["scope"] as? JsonPrimitive)?.content?.lowercase() ?: "downloads"
@@ -338,6 +439,16 @@ class FileReadTool : DeviceTool {
             "size: ${size / 1024} KB\nmime: $mime\nmodified: $modified"
         }
     }.getOrNull()
+
+    private companion object {
+        const val GREP_MAX_FILES = 60
+        const val GREP_FILE_BYTES = 512_000
+        val GREP_TEXT_EXTENSIONS = setOf(
+            "txt", "md", "markdown", "json", "csv", "tsv", "log", "xml", "yaml", "yml",
+            "html", "htm", "css", "js", "ts", "kt", "java", "py", "sh", "ini", "conf",
+            "srt", "vtt",
+        )
+    }
 }
 
 /**

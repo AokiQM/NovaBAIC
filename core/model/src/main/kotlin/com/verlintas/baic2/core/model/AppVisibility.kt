@@ -17,24 +17,14 @@
  * BetterAIChat2. If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.verlintas.baic2.device.api
+package com.verlintas.baic2.core.model
 
 /**
- * Foreground-service progress for an active agent run: keeps the process
- * alive in the background and offers a stop action in the notification.
+ * Whether the app currently has a visible foreground activity. Runs that end
+ * while this is false fall back to a system notification instead of an
+ * in-app dialog so the user still learns the outcome.
  */
-interface RunNotifier {
-    /** Handler invoked when the user taps stop in the notification. */
-    fun setStopHandler(handler: (() -> Unit)?)
-
-    /** [runId] lets the notification deep-link into the run detail. */
-    fun startRunning(title: String, runId: Long? = null)
-
-    fun stopRunning()
-
-    /**
-     * Posts a dismissible popup when a run ends while the app is not visible,
-     * so the user knows the agent finished or was interrupted.
-     */
-    fun notifyFinished(title: String, success: Boolean, runId: Long?)
+object AppVisibility {
+    @Volatile
+    var foreground: Boolean = false
 }

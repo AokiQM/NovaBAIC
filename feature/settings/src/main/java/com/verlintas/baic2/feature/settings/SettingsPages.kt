@@ -22,7 +22,9 @@ package com.verlintas.baic2.feature.settings
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -84,6 +86,7 @@ import com.verlintas.baic2.core.model.ThemeMode
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.accentSpec
+import com.verlintas.baic2.designsystem.component.AuroraSurface
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.CircularProgressIndicator
@@ -548,37 +551,56 @@ fun AboutPage(
         onBack = onBack,
     ) {
         item(key = "brand") {
-            Column(
+            val brandShape = RoundedCornerShape(24.dp)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = Baic2Spacing.xl),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(top = Baic2Spacing.sm, bottom = Baic2Spacing.xs)
+                    .clip(brandShape)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        shape = brandShape,
+                    ),
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_brand),
-                    contentDescription = null,
+                AuroraSurface(
+                    modifier = Modifier.matchParentSize(),
+                    shape = brandShape,
+                    particleCount = 20,
+                    intensity = 0.9f,
+                )
+                Column(
                     modifier = Modifier
-                        .size(84.dp)
-                        .clip(RoundedCornerShape(22.dp)),
-                )
-                Spacer(Modifier.height(Baic2Spacing.lg))
-                Text(
-                    text = stringResource(R.string.settings_brand_name),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "v${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
-                    style = Baic2Mono.label,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(Baic2Spacing.sm))
-                Text(
-                    text = stringResource(R.string.settings_about_tagline),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                        .fillMaxWidth()
+                        .padding(vertical = Baic2Spacing.xl),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_brand),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(84.dp)
+                            .clip(RoundedCornerShape(22.dp)),
+                    )
+                    Spacer(Modifier.height(Baic2Spacing.lg))
+                    Text(
+                        text = stringResource(R.string.settings_brand_name),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "v${buildInfo.versionName} (${buildInfo.versionCode}) · ${buildInfo.buildType}",
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(Baic2Spacing.sm))
+                    Text(
+                        text = stringResource(R.string.settings_about_tagline),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -626,15 +648,44 @@ fun AboutPage(
         item(key = "stats") { SettingsSectionLabel(stringResource(R.string.settings_about_stats_title)) }
         item(key = "stats-card") {
             SettingsCard {
-                Column(modifier = Modifier.padding(Baic2Spacing.lg)) {
-                    StatLine(
-                        stringResource(R.string.settings_about_stats_conversations),
-                        state.stats?.conversations?.toString() ?: "…",
-                    )
-                    StatLine(
-                        stringResource(R.string.settings_about_stats_messages),
-                        state.stats?.messages?.toString() ?: "…",
-                    )
+                Column(
+                    modifier = Modifier.padding(Baic2Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Baic2Spacing.lg),
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_conversations),
+                            value = state.stats?.conversations?.toLong(),
+                            modifier = Modifier.weight(1f),
+                        )
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_messages),
+                            value = state.stats?.messages?.toLong(),
+                            modifier = Modifier.weight(1f),
+                        )
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_runs),
+                            value = state.stats?.runs?.toLong(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_tool_calls),
+                            value = state.stats?.toolCalls?.toLong(),
+                            modifier = Modifier.weight(1f),
+                        )
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_tokens_in),
+                            value = state.stats?.tokensIn,
+                            modifier = Modifier.weight(1f),
+                        )
+                        AnimatedStat(
+                            label = stringResource(R.string.settings_about_stats_tokens_out),
+                            value = state.stats?.tokensOut,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -787,20 +838,36 @@ fun AboutPage(
 }
 
 @Composable
-private fun StatLine(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 3.dp)) {
+private fun AnimatedStat(
+    label: String,
+    value: Long?,
+    modifier: Modifier = Modifier,
+) {
+    val animated by animateFloatAsState(
+        targetValue = (value ?: 0L).toFloat(),
+        animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+        label = "stat-value",
+    )
+    Column(modifier = modifier) {
+        Text(
+            text = if (value == null) "…" else compactCount(animated.toLong()),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         Text(
             text = label,
             style = Baic2Mono.label,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.primary,
         )
     }
+}
+
+private fun compactCount(value: Long): String = when {
+    value >= 1_000_000 -> String.format(java.util.Locale.ROOT, "%.1fM", value / 1_000_000.0)
+    value >= 10_000 -> String.format(java.util.Locale.ROOT, "%.0fK", value / 1_000.0)
+    value >= 1_000 -> String.format(java.util.Locale.ROOT, "%.1fK", value / 1_000.0)
+    else -> value.toString()
 }
 
 @Composable

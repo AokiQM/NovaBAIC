@@ -134,8 +134,10 @@ import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Motion
 import com.verlintas.baic2.designsystem.Baic2Spacing
+import com.verlintas.baic2.designsystem.component.AuroraSurface
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
-import com.verlintas.baic2.designsystem.component.Baic2TypingDots
+import com.verlintas.baic2.designsystem.component.ThinkingOrb
+import com.verlintas.baic2.designsystem.component.pressScale
 
 @Composable
 fun ChatScreen(
@@ -183,6 +185,7 @@ fun ChatScreen(
     val exportChooserTitle = stringResource(R.string.chat_export_chooser)
     val attachmentError by viewModel.attachmentErrors.collectAsStateWithLifecycle()
     val notice by viewModel.notices.collectAsStateWithLifecycle()
+    val runCompletion by viewModel.runCompletion.collectAsStateWithLifecycle()
 
     LaunchedEffect(notice) {
         if (notice != null) {
@@ -240,6 +243,8 @@ fun ChatScreen(
     }
 
     val compressTooShortHint = stringResource(R.string.chat_compress_too_short)
+    val memorySavedTemplate = stringResource(R.string.chat_memory_saved)
+    val memoryNoneLabel = stringResource(R.string.chat_memory_none)
     val screenPrompt = stringResource(R.string.chat_screen_prompt)
     val screenReady by viewModel.screenCaptureReady.collectAsStateWithLifecycle()
     val screenCaptureLauncher = rememberLauncherForActivityResult(
@@ -432,7 +437,10 @@ fun ChatScreen(
                 text = { Text(stringResource(R.string.chat_menu_distill)) },
                 onClick = {
                     menuOpen = false
-                    viewModel.distillMemory()
+                    viewModel.distillMemory(
+                        savedTemplate = memorySavedTemplate,
+                        noneLabel = memoryNoneLabel,
+                    )
                 },
             )
             DropdownMenuItem(
@@ -527,31 +535,29 @@ fun ChatScreen(
                 )
             }
 
-            val streaming = state.isRunning && (
-                state.streamingText.isNotBlank() ||
-                    state.streamingThinking.isNotBlank()
-                )
-            if (streaming) {
+            if (state.isRunning) {
                 item(key = "streaming") {
                     Column(modifier = Modifier.animateItem()) {
-                        if (state.streamingThinking.isNotBlank()) {
-                            ThinkingCard(text = state.streamingThinking, streaming = true)
-                            Spacer(Modifier.size(Baic2Spacing.sm))
+                        when {
+                            state.streamingThinking.isNotBlank() -> {
+                                ThinkingCard(text = state.streamingThinking, streaming = true)
+                                if (state.streamingText.isNotBlank()) {
+                                    Spacer(Modifier.size(Baic2Spacing.sm))
+                                }
+                            }
+
+                            state.streamingText.isBlank() -> {
+                                Row(
+                                    modifier = Modifier.padding(vertical = Baic2Spacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    ThinkingOrb(size = 20.dp)
+                                }
+                            }
                         }
                         if (state.streamingText.isNotBlank()) {
                             MarkdownMessage(text = state.streamingText, streaming = true)
                         }
-                    }
-                }
-            } else if (state.isRunning) {
-                item(key = "waiting") {
-                    Row(
-                        modifier = Modifier
-                            .animateItem()
-                            .padding(vertical = Baic2Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Baic2TypingDots()
                     }
                 }
             }
@@ -621,6 +627,51 @@ fun ChatScreen(
                 modePickerOpen = false
             },
             onDismiss = { modePickerOpen = false },
+        )
+    }
+
+    runCompletion?.let { completion ->
+        val duration = remember(completion.durationMs) {
+            val seconds = (completion.durationMs / 1000).coerceAtLeast(1)
+            if (seconds < 60) "${seconds}s" else "${seconds / 60}m ${seconds % 60}s"
+        }
+        AlertDialog(
+            onDismissRequest = viewModel::dismissRunCompletion,
+            title = {
+                Text(
+                    stringResource(
+                        if (completion.completed) {
+                            R.string.chat_run_done_title
+                        } else {
+                            R.string.chat_run_stopped_title
+                        },
+                    ),
+                )
+            },
+            text = {
+                Text(
+                    if (completion.completed) {
+                        stringResource(
+                            R.string.chat_run_done_body,
+                            completion.title,
+                            completion.rounds,
+                            completion.toolCalls,
+                            duration,
+                        )
+                    } else {
+                        stringResource(
+                            R.string.chat_run_stopped_body,
+                            completion.title,
+                            completion.reason.ifBlank { "—" },
+                        )
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissRunCompletion) {
+                    Text(stringResource(R.string.chat_run_dismiss))
+                }
+            },
         )
     }
 
@@ -837,7 +888,12 @@ private fun ChatTopBar(
                     )
                 }
             } else {
-                IconButton(onClick = onBack) {
+                val backInteraction = remember { MutableInteractionSource() }
+                IconButton(
+                    onClick = onBack,
+                    interactionSource = backInteraction,
+                    modifier = Modifier.pressScale(backInteraction),
+                ) {
                     Icon(
                         imageVector = Icons.Outlined.ArrowBack,
                         contentDescription = stringResource(R.string.chat_back),
@@ -867,7 +923,16 @@ private fun ChatTopBar(
                         modifier = Modifier.padding(end = Baic2Spacing.sm),
                     )
                 }
-                Box(modifier = Modifier.clickable(onClick = onModeClick)) {
+                val modeInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .pressScale(modeInteraction, pressedScale = 0.92f)
+                        .clickable(
+                            interactionSource = modeInteraction,
+                            indication = null,
+                            onClick = onModeClick,
+                        ),
+                ) {
                     Baic2ModeChip(
                         mode = mode,
                         modifier = Modifier.padding(horizontal = Baic2Spacing.xs),
@@ -878,7 +943,12 @@ private fun ChatTopBar(
                     enter = scaleIn(animationSpec = Baic2Motion.spatialFast()) + fadeIn(),
                     exit = scaleOut(animationSpec = Baic2Motion.effectsFast()) + fadeOut(),
                 ) {
-                    IconButton(onClick = onStop) {
+                    val stopInteraction = remember { MutableInteractionSource() }
+                    IconButton(
+                        onClick = onStop,
+                        interactionSource = stopInteraction,
+                        modifier = Modifier.pressScale(stopInteraction),
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
                             contentDescription = stringResource(R.string.chat_stop),
@@ -887,7 +957,12 @@ private fun ChatTopBar(
                     }
                 }
                 Box {
-                    IconButton(onClick = onMenuClick) {
+                    val menuInteraction = remember { MutableInteractionSource() }
+                    IconButton(
+                        onClick = onMenuClick,
+                        interactionSource = menuInteraction,
+                        modifier = Modifier.pressScale(menuInteraction),
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.MoreVert,
                             contentDescription = stringResource(R.string.chat_menu),
@@ -911,59 +986,76 @@ private fun ChatTopBar(
 
 @Composable
 private fun WelcomePanel(onSuggestion: (String) -> Unit) {
-    Column(
+    val shape = RoundedCornerShape(20.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = Baic2Spacing.xxl, bottom = Baic2Spacing.lg),
+            .padding(top = Baic2Spacing.xxl, bottom = Baic2Spacing.lg)
+            .clip(shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), shape),
     ) {
-        Text(
-            text = stringResource(R.string.chat_welcome_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+        AuroraSurface(
+            modifier = Modifier.matchParentSize(),
+            shape = shape,
+            particleCount = 16,
+            intensity = 0.55f,
         )
-        Spacer(Modifier.height(Baic2Spacing.xs))
-        Text(
-            text = stringResource(R.string.chat_welcome_subtitle),
-            style = Baic2Mono.label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Baic2Spacing.xl))
-        listOf(
-            R.string.chat_suggestion_1,
-            R.string.chat_suggestion_2,
-            R.string.chat_suggestion_3,
-        ).forEach { res ->
-            val text = stringResource(res)
-            val shape = RoundedCornerShape(14.dp)
-            val interaction = remember { MutableInteractionSource() }
-            val pressed by interaction.collectIsPressedAsState()
-            val pressScale by animateFloatAsState(
-                targetValue = if (pressed) 0.97f else 1f,
-                animationSpec = spring(dampingRatio = 0.7f, stiffness = 900f),
-                label = "suggestion-press",
+        Column(
+            modifier = Modifier.padding(Baic2Spacing.lg),
+        ) {
+            Text(
+                text = stringResource(R.string.chat_welcome_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = Baic2Spacing.sm)
-                    .scale(pressScale)
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                    .clickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClick = { onSuggestion(text) },
-                    )
-                    .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(Modifier.height(Baic2Spacing.xs))
+            Text(
+                text = stringResource(R.string.chat_welcome_subtitle),
+                style = Baic2Mono.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Baic2Spacing.xl))
+            listOf(
+                R.string.chat_suggestion_1,
+                R.string.chat_suggestion_2,
+                R.string.chat_suggestion_3,
+            ).forEach { res ->
+                val text = stringResource(res)
+                val itemShape = RoundedCornerShape(14.dp)
+                val interaction = remember { MutableInteractionSource() }
+                val pressed by interaction.collectIsPressedAsState()
+                val pressScale by animateFloatAsState(
+                    targetValue = if (pressed) 0.97f else 1f,
+                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 900f),
+                    label = "suggestion-press",
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = Baic2Spacing.sm)
+                        .scale(pressScale)
+                        .clip(itemShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                            itemShape,
+                        )
+                        .clickable(
+                            interactionSource = interaction,
+                            indication = null,
+                            onClick = { onSuggestion(text) },
+                        )
+                        .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -1113,13 +1205,19 @@ private fun InputBar(
         Row(verticalAlignment = Alignment.Bottom) {
             Box {
                 val attachShape = RoundedCornerShape(16.dp)
+                val attachInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
                         .size(48.dp)
+                        .pressScale(attachInteraction, pressedScale = 0.92f)
                         .clip(attachShape)
                         .background(MaterialTheme.colorScheme.surfaceContainer)
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, attachShape)
-                        .clickable { attachMenuOpen = true },
+                        .clickable(
+                            interactionSource = attachInteraction,
+                            indication = null,
+                            onClick = { attachMenuOpen = true },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1153,13 +1251,19 @@ private fun InputBar(
             Spacer(Modifier.width(Baic2Spacing.sm))
 
             val voiceShape = RoundedCornerShape(16.dp)
+            val voiceInteraction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .size(48.dp)
+                    .pressScale(voiceInteraction, pressedScale = 0.92f)
                     .clip(voiceShape)
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, voiceShape)
-                    .clickable { onVoiceInput() },
+                    .clickable(
+                        interactionSource = voiceInteraction,
+                        indication = null,
+                        onClick = onVoiceInput,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

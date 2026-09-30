@@ -134,6 +134,10 @@
     <string name="settings_about_stats_title">统计</string>
     <string name="settings_about_stats_conversations">对话</string>
     <string name="settings_about_stats_messages">消息</string>
+    <string name="settings_about_stats_runs">运行次数</string>
+    <string name="settings_about_stats_tool_calls">工具调用</string>
+    <string name="settings_about_stats_tokens_in">Token 输入</string>
+    <string name="settings_about_stats_tokens_out">Token 输出</string>
     <string name="settings_about_share">分享应用</string>
     <string name="settings_about_share_chooser">分享 BetterAIChat2</string>
     <string name="settings_developer_runtime">运行环境</string>
