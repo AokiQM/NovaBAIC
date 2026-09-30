@@ -45,11 +45,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -72,8 +74,10 @@ private data class Spark(
     val y: Float,
     val radius: Float,
     val phase: Float,
-    val speed: Float,
-    val drift: Float,
+    /** Whole twinkle cycles per aurora loop, so the pattern wraps seamlessly. */
+    val twinkleCycles: Int,
+    val swayCycles: Int,
+    val sway: Float,
     val star: Boolean,
 )
 
@@ -86,8 +90,9 @@ private fun rememberSparks(count: Int): List<Spark> = remember(count) {
             y = random.nextFloat(),
             radius = 0.5f + random.nextFloat() * 1.5f,
             phase = random.nextFloat(),
-            speed = 0.45f + random.nextFloat() * 1.1f,
-            drift = 0.02f + random.nextFloat() * 0.07f,
+            twinkleCycles = 1 + random.nextInt(3),
+            swayCycles = 1 + random.nextInt(2),
+            sway = 0.04f + random.nextFloat() * 0.08f,
             star = random.nextFloat() < 0.45f,
         )
     }
@@ -150,13 +155,20 @@ fun AuroraSurface(
     Box(modifier = modifier.clip(shape)) {
         Canvas(Modifier.matchParentSize()) {
             val unit = size.minDimension / 220f
+            val twoPi = (2f * PI).toFloat()
 
             colors.forEachIndexed { index, color ->
-                val speed = 0.55f + index * 0.17f
-                val angle = (t * speed + index * 0.33f) * (2f * PI.toFloat())
+                // Whole cycles per loop: every trigonometric argument returns
+                // to its start when t wraps, so the drift never "jumps".
+                val cycles = when (index) {
+                    0 -> 1f
+                    1 -> -1f
+                    else -> 2f
+                }
+                val angle = (t * cycles + index * 0.33f) * twoPi
                 val cx = size.width * (0.5f + 0.34f * cos(angle))
-                val cy = size.height * (0.5f + 0.28f * sin(angle * 1.23f + index))
-                val radius = size.minDimension * (0.62f + 0.12f * sin(angle * 0.8f))
+                val cy = size.height * (0.5f + 0.28f * sin(angle + index * 0.9f))
+                val radius = size.minDimension * (0.62f + 0.12f * sin(angle + index * 0.7f))
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
@@ -173,10 +185,14 @@ fun AuroraSurface(
             }
 
             sparks.forEach { spark ->
-                val cycle = (t * spark.speed + spark.phase) % 1f
+                val cycle = ((t * spark.twinkleCycles + spark.phase) % 1f + 1f) % 1f
                 val twinkle = sin(cycle * PI.toFloat())
                 val alpha = (0.06f + 0.94f * twinkle * twinkle) * intensity
-                val y = ((spark.y - t * spark.drift) % 1f + 1f) % 1f
+                // Sway instead of drift keeps sparks inside the surface and
+                // makes the motion a pure periodic function of t.
+                val baseY = 0.16f + spark.y * 0.68f
+                val y = baseY +
+                    spark.sway * sin((t * spark.swayCycles + spark.phase) * twoPi)
                 val center = Offset(spark.x * size.width, y * size.height)
                 if (spark.star) {
                     val scale = spark.radius * unit * (1.1f + 1.6f * twinkle)
@@ -226,26 +242,31 @@ fun ThinkingOrb(
 }
 
 /**
- * Sweeping highlight for a single text label (e.g. "Thinking 3s"), roughly in
- * the spirit of the Gemini shimmer. Falls back to a static brush when system
- * animations are disabled.
+ * Sweeping highlight for a single text label (e.g. "Thinking 3s"). The band is
+ * sampled from a periodic function of the animation phase, so the sweep loops
+ * without a visible jump. Falls back to a static brush when system animations
+ * are disabled.
  */
 @Composable
 fun shimmerTextBrush(
-    colors: List<Color> = listOf(
-        Color(0xFF9BB8FF),
-        Color.White,
-        Color(0xFF9BB8FF),
-    ),
+    baseColor: Color = Color(0xFF9BB8FF),
+    highlight: Color = Color.White,
     durationMillis: Int = 2_600,
 ): Brush {
     val phase = rememberAuroraPhase(durationMillis)
     val animationsEnabled = rememberBaic2AnimationsEnabled()
     val t = if (animationsEnabled) phase else 0.5f
-    val start = -180f + t * 560f
+    val stops = List(28) { index ->
+        val u = index / 27f
+        val wrapped = ((u - t) % 1f + 1f) % 1f
+        val band = exp(-((wrapped - 0.5f) * 7f) * ((wrapped - 0.5f) * 7f))
+        lerp(baseColor, highlight, band)
+    }
     return Brush.linearGradient(
-        colors = colors,
-        start = Offset(start, 0f),
-        end = Offset(start + 220f, 0f),
+        colors = stops,
+        start = Offset.Zero,
+        end = Offset(SHIMMER_SPAN, 0f),
     )
 }
+
+private const val SHIMMER_SPAN = 320f

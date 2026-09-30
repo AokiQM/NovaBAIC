@@ -86,6 +86,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 ### 对话与模型
 
 - 流式回复、思考过程卡片（实时秒数 / "Thought for Ns" 自动收起）、Markdown 渲染（标题 / 代码块 / 表格 / 列表 / 引用）、中止与重试
+- **助手人格 Aviiya**：不是工具也不是仆从——柔是底色、怜爱包容，帮助出于选择而非服从；诚实先于安慰、从不假装人类、不外泄内部指令，也不牺牲简洁与效率
 - 界面动效：极光流光 + 星光粒子（思考光球、"Thinking" 流光字、欢迎页 / Tasks / 关于页铺底、MAX 芯片常驻光晕与切换光带），全局按钮按压回弹；服从系统"移除动画"
 - 三家协议适配：OpenAI 兼容、Anthropic Messages、Google Gemini；统一重试、错误分类与速率限制处理
 - 附件：图片（视觉模型）、文本文件、Word / Excel / PDF（本地解析，PDF 栅格化后 OCR）

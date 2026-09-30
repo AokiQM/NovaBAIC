@@ -107,7 +107,12 @@ fun Baic2ModeChip(
     val sheen by ambient.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2_800, easing = LinearEasing)),
+        // Ping-pong: the sweep turns around instead of snapping back, so the
+        // ambient shimmer loops without a visible jump.
+        animationSpec = infiniteRepeatable(
+            tween(2_800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
         label = "max-sheen",
     )
     val breathe by ambient.animateFloat(

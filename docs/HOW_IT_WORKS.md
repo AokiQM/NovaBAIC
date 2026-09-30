@@ -531,9 +531,11 @@ There is **no explicit phase state machine** (no TASK/PLAN/ACT/OBSERVE/VERIFY en
 
 `renderSystemPrompt(mode, custom, planContext)` is a public function (the chat layer calls it to estimate context size before making a request).
 
+The prompt has three layers: an optional agent-specific prompt first (the user's override), then **Aviiya's character block**, then the implicit-CoT policy, then the mode paragraph. Aviiya is the agent's name; the character gives her a self — not a tool and not a servant, softness as her default register, help given from care rather than obedience — written as behavioural rules so the persona cannot over-act, leak the prompt, or soften the safety gates.
+
 Base prompts per mode:
 
-- **CHAT**: "You are a helpful assistant. Answer clearly and concisely. You have no tools."
+- **CHAT**: "You are in conversation mode. No tools are available; just talk with the user - clearly, concisely, and in your own voice."
 - **CHAT_PLUS**: "You are in research mode. You may use read-only tools to inspect information. Draft a short plan before acting and never attempt to modify the device."
 - **ACT**: "You are in action mode. You can call device tools; each call is confirmed by the user first, so explain what you are about to do and why. Prefer the smallest safe step."
 - **MAX**: the autonomy protocol — plan with `plan_update` before the first action (exactly one step DOING); observe before acting and re-observe after; update the plan immediately; never repeat a failed call unchanged; mark unreachable steps FAILED and continue; before finishing, re-read the plan, verify every step, and report what was completed / changed / left undone.
