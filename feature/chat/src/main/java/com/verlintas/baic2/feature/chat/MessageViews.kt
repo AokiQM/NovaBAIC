@@ -25,6 +25,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.togetherWith
+import com.verlintas.baic2.designsystem.component.pressScale
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -421,8 +425,12 @@ fun ToolCard(
         label = "tool-chevron",
     )
     val shape = RoundedCornerShape(12.dp)
-    val statusColor = statusColor(call.status)
-    val statusLabel = statusLabel(call.status)
+    val statusColor by animateColorAsState(
+        targetValue = statusColor(call.status),
+        animationSpec = tween(220),
+        label = "tool-status-color",
+    )
+    val headerInteraction = remember { MutableInteractionSource() }
 
     Column(
         modifier = modifier
@@ -434,8 +442,9 @@ fun ToolCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .pressScale(headerInteraction, pressedScale = 0.99f)
                 .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
+                    interactionSource = headerInteraction,
                     indication = null,
                     onClick = { expanded = !expanded },
                 )
@@ -450,11 +459,19 @@ fun ToolCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = statusLabel,
-                style = Baic2Mono.label,
-                color = statusColor,
-            )
+            AnimatedContent(
+                targetState = call.status,
+                transitionSpec = {
+                    fadeIn(tween(durationMillis = 160)) togetherWith fadeOut(tween(durationMillis = 120))
+                },
+                label = "tool-status",
+            ) { status ->
+                Text(
+                    text = statusLabel(status),
+                    style = Baic2Mono.label,
+                    color = statusColor,
+                )
+            }
             Spacer(Modifier.width(Baic2Spacing.sm))
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,

@@ -67,6 +67,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -93,15 +94,18 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -113,6 +117,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -123,6 +128,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
@@ -135,6 +141,8 @@ import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Motion
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.AuroraSurface
+import com.verlintas.baic2.device.api.SpeechFailure
+import com.verlintas.baic2.designsystem.component.VoiceLevelBars
 import com.verlintas.baic2.designsystem.component.Baic2ModeChip
 import com.verlintas.baic2.designsystem.component.ThinkingOrb
 import com.verlintas.baic2.designsystem.component.pressScale
@@ -166,6 +174,7 @@ fun ChatScreen(
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var skillDialogOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     val matches = remember(searchQuery, state.messages) {
         if (searchQuery.isBlank()) {
@@ -207,9 +216,15 @@ fun ChatScreen(
     var voiceHint by remember { mutableStateOf<String?>(null) }
     val deniedHint = stringResource(R.string.chat_voice_denied)
     val unavailableHint = stringResource(R.string.chat_voice_unavailable)
+    val voiceNoMatchHint = stringResource(R.string.chat_voice_no_match)
+    val voiceBusyHint = stringResource(R.string.chat_voice_busy)
+    val voiceNetworkHint = stringResource(R.string.chat_voice_network)
     val voicePrompt = stringResource(R.string.chat_voice_input)
     val handsFree by viewModel.handsFree.collectAsStateWithLifecycle()
-    var handsFreeListening by remember { mutableStateOf(false) }
+    val voice by viewModel.voiceState.collectAsStateWithLifecycle()
+    var voiceBase by remember { mutableStateOf("") }
+    var voiceAutoSend by remember { mutableStateOf(false) }
+    var pendingVoiceAutoSend by remember { mutableStateOf(false) }
     var handsFreeHandledMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Layout-driven bottom follow: react to layout growth instead of polling.
     var wasAtBottom by remember { mutableStateOf(true) }
@@ -217,14 +232,15 @@ fun ChatScreen(
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        handsFreeListening = false
         val recognized = if (result.resultCode == Activity.RESULT_OK) {
             result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         } else {
             null
         }
+        val auto = voiceAutoSend
+        voiceAutoSend = false
         if (recognized.isNullOrBlank()) return@rememberLauncherForActivityResult
-        if (handsFree) {
+        if (auto) {
             forceFollow = true
             viewModel.send(recognized)
         } else {
@@ -258,18 +274,75 @@ fun ChatScreen(
         }
     }
 
+    fun continueVoiceStart(autoSend: Boolean) {
+        voiceBase = if (autoSend) "" else input
+        voiceAutoSend = autoSend
+        voiceHint = null
+        if (!viewModel.startVoiceSession()) {
+            // No on-device recogniser: fall back to the system dialog.
+            launchRecognizer()
+        }
+    }
+
     val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) launchRecognizer() else voiceHint = deniedHint
+        if (granted) {
+            continueVoiceStart(pendingVoiceAutoSend)
+        } else {
+            voiceHint = deniedHint
+        }
+        pendingVoiceAutoSend = false
     }
 
-    fun startVoiceInput() {
+    fun startVoiceInput(autoSend: Boolean = false) {
+        if (voice.listening) {
+            viewModel.stopVoiceSession()
+            return
+        }
         val granted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO,
         ) == PackageManager.PERMISSION_GRANTED
-        if (granted) launchRecognizer() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        if (granted) {
+            continueVoiceStart(autoSend)
+        } else {
+            pendingVoiceAutoSend = autoSend
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Live dictation results: dictation fills the composer, hands-free sends.
+    LaunchedEffect(Unit) {
+        viewModel.voiceResults.collect { text ->
+            val combined = listOf(voiceBase, text)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+            voiceBase = ""
+            if (voiceAutoSend) {
+                voiceAutoSend = false
+                if (combined.isNotBlank()) {
+                    forceFollow = true
+                    viewModel.send(combined)
+                }
+            } else {
+                input = combined
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.voiceFailures.collect { failure ->
+            voiceHint = when (failure) {
+                SpeechFailure.NO_MATCH, SpeechFailure.TIMEOUT -> voiceNoMatchHint
+                SpeechFailure.BUSY -> voiceBusyHint
+                SpeechFailure.NETWORK -> voiceNetworkHint
+                SpeechFailure.NO_SERVICE -> unavailableHint
+                SpeechFailure.PERMISSION -> deniedHint
+                SpeechFailure.UNKNOWN -> unavailableHint
+            }
+            voiceAutoSend = false
+            voiceBase = ""
+        }
     }
 
     LaunchedEffect(voiceHint) {
@@ -298,16 +371,21 @@ fun ChatScreen(
             handsFreeHandledMessageId = null
             return@LaunchedEffect
         }
-        if (state.isRunning || handsFreeListening) return@LaunchedEffect
+        if (state.isRunning || voice.listening) return@LaunchedEffect
         val last = state.messages.lastOrNull() ?: return@LaunchedEffect
         if (last.role != ChatRole.ASSISTANT || last.content.isBlank()) return@LaunchedEffect
         val handled = handsFreeHandledMessageId
         handsFreeHandledMessageId = last.id
         if (handled == null || handled == last.id) return@LaunchedEffect
         kotlinx.coroutines.delay(650)
-        if (!state.isRunning && !handsFreeListening) {
-            handsFreeListening = true
-            startVoiceInput()
+        // Do not listen while the reply is being read aloud.
+        var waited = 0
+        while (viewModel.isSpeaking() && waited < 30_000) {
+            kotlinx.coroutines.delay(200)
+            waited += 200
+        }
+        if (!state.isRunning && !voice.listening) {
+            startVoiceInput(autoSend = true)
         }
     }
 
@@ -495,11 +573,15 @@ fun ChatScreen(
             )
         }
 
-        LazyColumn(
-            state = listState,
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
+        ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Baic2Spacing.lg,
                 end = Baic2Spacing.lg,
@@ -573,18 +655,100 @@ fun ChatScreen(
                         },
                         onDismiss = viewModel::dismissError,
                     )
+                    }
+                }
+            }
+
+            val atBottom by remember {
+                derivedStateOf {
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull()
+                    last == null ||
+                        (last.index >= info.totalItemsCount - 1 &&
+                            last.offset + last.size <= info.viewportEndOffset + 24)
+                }
+            }
+            val fabVisible = !atBottom && state.messages.isNotEmpty()
+            val fabProgress by animateFloatAsState(
+                targetValue = if (fabVisible) 1f else 0f,
+                animationSpec = Baic2Motion.effectsFast(),
+                label = "jump-fab",
+            )
+            if (fabProgress > 0.01f) {
+                val jumpInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = Baic2Spacing.lg, bottom = Baic2Spacing.lg)
+                        .graphicsLayer {
+                            scaleX = 0.8f + 0.2f * fabProgress
+                            scaleY = 0.8f + 0.2f * fabProgress
+                            alpha = fabProgress
+                        },
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            forceFollow = true
+                            wasAtBottom = true
+                            scope.launch {
+                                val total = listState.layoutInfo.totalItemsCount
+                                if (total > 0) {
+                                    runCatching { listState.animateScrollToItem(total - 1) }
+                                }
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape,
+                        interactionSource = jumpInteraction,
+                        modifier = Modifier.pressScale(jumpInteraction, pressedScale = 0.92f),
+                    ) {
+                        Box {
+                            Icon(
+                                imageVector = Icons.Outlined.KeyboardArrowDown,
+                                contentDescription = stringResource(R.string.chat_jump_latest),
+                            )
+                            if (state.isRunning) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.tertiary),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
         InputBar(
-            value = input,
-            onValueChange = { input = it },
+            value = if (voice.listening) {
+                listOf(voiceBase, voice.partial).filter { it.isNotBlank() }.joinToString(" ")
+            } else {
+                input
+            },
+            onValueChange = {
+                if (voice.listening) {
+                    viewModel.cancelVoiceSession()
+                    voiceBase = ""
+                    voiceAutoSend = false
+                }
+                input = it
+            },
             isRunning = state.isRunning,
             pendingAttachments = state.pendingAttachments,
             attachmentError = attachmentError,
             voiceHint = voiceHint ?: notice,
-            onVoiceInput = ::startVoiceInput,
+            voiceListening = voice.listening,
+            voiceLevel = voice.level,
+            onVoiceCancel = {
+                viewModel.cancelVoiceSession()
+                voiceBase = ""
+                voiceAutoSend = false
+            },
+            onVoiceInput = { startVoiceInput() },
             onAttachImages = {
                 imagePicker.launch(
                     androidx.activity.result.PickVisualMediaRequest(
@@ -1129,6 +1293,9 @@ private fun InputBar(
     pendingAttachments: List<Attachment>,
     attachmentError: AttachmentError?,
     voiceHint: String?,
+    voiceListening: Boolean = false,
+    voiceLevel: Float = 0f,
+    onVoiceCancel: (() -> Unit)? = null,
     onVoiceInput: () -> Unit,
     onAttachImages: () -> Unit,
     onAttachFile: () -> Unit,
@@ -1193,13 +1360,44 @@ private fun InputBar(
             }
         }
 
-        voiceHint?.let { hint ->
-            Text(
-                text = hint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = Baic2Spacing.sm),
-            )
+        when {
+            voiceListening -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = Baic2Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    VoiceLevelBars(level = voiceLevel, modifier = Modifier.width(40.dp))
+                    Spacer(Modifier.width(Baic2Spacing.sm))
+                    Text(
+                        text = stringResource(R.string.chat_voice_listening),
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    onVoiceCancel?.let { cancel ->
+                        Text(
+                            text = stringResource(R.string.chat_voice_cancel),
+                            style = Baic2Mono.label,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(onClick = cancel)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            voiceHint != null -> {
+                Text(
+                    text = voiceHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = Baic2Spacing.sm),
+                )
+            }
         }
 
         Row(verticalAlignment = Alignment.Bottom) {

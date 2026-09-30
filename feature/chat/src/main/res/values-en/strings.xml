@@ -106,6 +106,12 @@
     <string name="chat_run_done_body">“%1$s” finished · %2$d rounds · %3$d tool call(s) · %4$s</string>
     <string name="chat_run_stopped_body">“%1$s” was interrupted: %2$s</string>
     <string name="chat_run_dismiss">Got it</string>
+    <string name="chat_jump_latest">Jump to latest</string>
+    <string name="chat_voice_listening">Listening…</string>
+    <string name="chat_voice_cancel">Cancel</string>
+    <string name="chat_voice_no_match">Didn\'t catch that — please try again</string>
+    <string name="chat_voice_busy">The recognizer is busy; try again in a moment</string>
+    <string name="chat_voice_network">Speech recognition needs a network connection</string>
     <string name="chat_menu_restore_compression">Restore pre-compression history</string>
     <string name="chat_menu_discard_compression">Discard compression backup</string>
     <string name="chat_compress_too_short">This conversation is short enough; nothing to compress</string>

@@ -33,6 +33,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -44,11 +46,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +62,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -91,7 +101,19 @@ sealed interface MarkdownBlock {
         val rows: List<List<String>>,
         val alignments: List<MarkdownNormalizer.TableAlignment> = emptyList(),
     ) : MarkdownBlock
+
+    data object Divider : MarkdownBlock
+
+    /** GitHub-style task item: `- [x] done` / `- [ ] todo`. */
+    data class Task(val checked: Boolean, val text: String) : MarkdownBlock
+
+    /** A standalone image line; `data:` URLs render inline, others as links. */
+    data class Image(val alt: String, val url: String) : MarkdownBlock
 }
+
+private val DIVIDER_REGEX = Regex("^(-{3,}|\\*{3,}|_{3,})$")
+private val TASK_REGEX = Regex("^[-*+]\\s+\\[([ xX])]\\s+(.*)$")
+private val IMAGE_REGEX = Regex("^!\\[([^]]*)]\\(([^)]+)\\)$")
 
 fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
     val blocks = mutableListOf<MarkdownBlock>()
@@ -157,6 +179,32 @@ fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
             lineIndex = cursor
             continue
         }
+        if (DIVIDER_REGEX.matches(line.trim())) {
+            flushNormal()
+            blocks += MarkdownBlock.Divider
+            lineIndex++
+            continue
+        }
+        val taskMatch = TASK_REGEX.matchEntire(line.trimStart())
+        if (taskMatch != null) {
+            flushNormal()
+            blocks += MarkdownBlock.Task(
+                checked = taskMatch.groupValues[1].equals("x", ignoreCase = true),
+                text = taskMatch.groupValues[2],
+            )
+            lineIndex++
+            continue
+        }
+        val imageMatch = IMAGE_REGEX.matchEntire(line.trim())
+        if (imageMatch != null) {
+            flushNormal()
+            blocks += MarkdownBlock.Image(
+                alt = imageMatch.groupValues[1],
+                url = imageMatch.groupValues[2],
+            )
+            lineIndex++
+            continue
+        }
         val kind = classify(line)
         when (kind) {
             MarkdownBlock.Paragraph.Kind.NORMAL -> normalLines += line
@@ -193,22 +241,60 @@ fun MarkdownMessage(
     streaming: Boolean = false,
 ) {
     val blocks = parseMarkdownBlocks(text)
-    Column(modifier = modifier.fillMaxWidth()) {
-        blocks.forEachIndexed { index, block ->
-            val isLast = index == blocks.lastIndex
-            when (block) {
-                is MarkdownBlock.Code -> {
-                    CodeBlock(language = block.language, code = block.code)
-                    if (streaming && isLast) {
-                        BlinkingCursor(modifier = Modifier.padding(top = 2.dp))
+    SelectionContainer {
+        Column(modifier = modifier.fillMaxWidth()) {
+            blocks.forEachIndexed { index, block ->
+                val isLast = index == blocks.lastIndex
+                when (block) {
+                    is MarkdownBlock.Code -> {
+                        CodeBlock(
+                            language = block.language,
+                            code = block.code,
+                            highlight = !(streaming && isLast),
+                        )
+                        if (streaming && isLast) {
+                            BlinkingCursor(modifier = Modifier.padding(top = 2.dp))
+                        }
                     }
-                }
 
-                is MarkdownBlock.Table -> {
-                    MarkdownTable(block)
-                }
+                    is MarkdownBlock.Table -> {
+                        MarkdownTable(block)
+                    }
 
-                is MarkdownBlock.Paragraph -> {
+                    MarkdownBlock.Divider -> {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+
+                    is MarkdownBlock.Task -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TaskCheck(block.checked)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = inlineMarkdown(block.text),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (block.checked) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                textDecoration = if (block.checked) {
+                                    TextDecoration.LineThrough
+                                } else {
+                                    null
+                                },
+                            )
+                            if (streaming && isLast) BlinkingCursor()
+                        }
+                    }
+
+                    is MarkdownBlock.Image -> {
+                        MarkdownImage(alt = block.alt, url = block.url)
+                    }
+
+                    is MarkdownBlock.Paragraph -> {
                     val style = paragraphStyle(block.kind)
                     val prefix = when (block.kind) {
                         MarkdownBlock.Paragraph.Kind.BULLET -> "• "
@@ -258,6 +344,7 @@ fun MarkdownMessage(
             }
             if (!isLast) {
                 Spacer(Modifier.height(if (block is MarkdownBlock.Code) 10.dp else 6.dp))
+            }
             }
         }
     }
@@ -411,6 +498,7 @@ fun CodeBlock(
     language: String,
     code: String,
     modifier: Modifier = Modifier,
+    highlight: Boolean = true,
 ) {
     val shape = RoundedCornerShape(10.dp)
     val clipboard = LocalClipboardManager.current
@@ -462,7 +550,7 @@ fun CodeBlock(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Text(
-            text = code,
+            text = if (highlight) highlightedCode(code, language) else AnnotatedString(code),
             style = Baic2Mono.body,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
@@ -492,4 +580,87 @@ fun BlinkingCursor(modifier: Modifier = Modifier) {
             .alpha(alpha)
             .background(MaterialTheme.colorScheme.primary),
     )
+}
+
+/** Hand-drawn checkbox so the renderer stays free of new icon dependencies. */
+@Composable
+private fun TaskCheck(checked: Boolean) {
+    val checkColor = MaterialTheme.colorScheme.tertiary
+    val onCheck = MaterialTheme.colorScheme.onTertiary
+    val outline = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    Canvas(modifier = Modifier.size(15.dp)) {
+        val radius = CornerRadius(4.dp.toPx())
+        if (checked) {
+            drawRoundRect(color = checkColor, cornerRadius = radius, style = Fill)
+            val check = Path().apply {
+                moveTo(size.width * 0.22f, size.height * 0.54f)
+                lineTo(size.width * 0.43f, size.height * 0.74f)
+                lineTo(size.width * 0.80f, size.height * 0.27f)
+            }
+            drawPath(check, color = onCheck, style = Stroke(width = 1.8.dp.toPx()))
+        } else {
+            drawRoundRect(
+                color = outline,
+                cornerRadius = radius,
+                style = Stroke(width = 1.2.dp.toPx()),
+            )
+        }
+    }
+}
+
+/** `data:` images render inline; remote URLs become a link card for now. */
+@Composable
+private fun MarkdownImage(alt: String, url: String) {
+    val shape = RoundedCornerShape(10.dp)
+    val bitmap = remember(url) {
+        if (!url.startsWith("data:image/")) return@remember null
+        runCatching {
+            val payload = url.substringAfter(',', "")
+            val bytes = android.util.Base64.decode(payload, android.util.Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?.asImageBitmap()
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = alt.ifBlank { null },
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 360.dp)
+                .clip(shape)
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                    shape,
+                ),
+        )
+    } else {
+        Text(
+            text = buildAnnotatedString {
+                withLink(
+                    LinkAnnotation.Url(
+                        url,
+                        TextLinkStyles(
+                            style = SpanStyle(
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        ),
+                    ),
+                ) { append(alt.ifBlank { url }) }
+            },
+            style = Baic2Mono.label,
+            modifier = Modifier
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                    shape,
+                )
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        )
+    }
 }

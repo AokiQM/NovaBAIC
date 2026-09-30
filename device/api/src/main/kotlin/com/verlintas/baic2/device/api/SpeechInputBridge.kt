@@ -19,6 +19,8 @@
 
 package com.verlintas.baic2.device.api
 
+import kotlinx.coroutines.flow.Flow
+
 sealed interface TranscriptionResult {
     data class Text(val value: String) : TranscriptionResult
 
@@ -27,7 +29,52 @@ sealed interface TranscriptionResult {
     data class Unavailable(val reason: String) : TranscriptionResult
 }
 
-/** Records a bounded spoken utterance and returns its transcription. */
+/** Why a listening session ended without usable text. */
+enum class SpeechFailure {
+    NO_MATCH,
+    TIMEOUT,
+    BUSY,
+    PERMISSION,
+    NO_SERVICE,
+    NETWORK,
+    UNKNOWN,
+}
+
+sealed interface SpeechSessionEvent {
+    data object Ready : SpeechSessionEvent
+
+    /** Live transcript, replaces the previous partial. */
+    data class Partial(val text: String) : SpeechSessionEvent
+
+    /** Input loudness, normalized to 0..1 (for waveforms). */
+    data class Level(val level: Float) : SpeechSessionEvent
+
+    data class Final(val text: String) : SpeechSessionEvent
+
+    data class Error(val failure: SpeechFailure) : SpeechSessionEvent
+}
+
+/**
+ * One live dictation session. The implementation watches for silence and
+ * finalizes on its own; callers only need [stop] (finish now) or [cancel]
+ * (discard).
+ */
+interface SpeechSession {
+    val events: Flow<SpeechSessionEvent>
+    fun stop()
+    fun cancel()
+}
+
+/** Records spoken utterances and returns transcriptions. */
 interface SpeechInputBridge {
     suspend fun transcribe(durationMs: Long = 8_000): TranscriptionResult
+
+    /** True when an on-device recognition service exists. */
+    fun isAvailable(): Boolean
+
+    /**
+     * Starts a live session, or returns null when recognition is unavailable
+     * or the microphone permission is missing.
+     */
+    fun startSession(languageTag: String? = null): SpeechSession?
 }

@@ -60,6 +60,12 @@ import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.device.api.PdfTextExtractor
 import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
+import com.verlintas.baic2.core.data.prefs.AppLocaleStore
+import com.verlintas.baic2.core.model.AppLanguage
+import com.verlintas.baic2.device.api.SpeechFailure
+import com.verlintas.baic2.device.api.SpeechInputBridge
+import com.verlintas.baic2.device.api.SpeechSession
+import com.verlintas.baic2.device.api.SpeechSessionEvent
 import com.verlintas.baic2.device.api.SpeechOutput
 import com.verlintas.baic2.tools.skills.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,6 +76,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -145,6 +154,7 @@ class ChatViewModel @Inject constructor(
     private val auxiliaryTasks: AuxiliaryTasks,
     private val attachmentProcessor: AttachmentProcessor,
     private val speechOutput: SpeechOutput,
+    private val speechInput: SpeechInputBridge,
     private val screenshotProvider: ScreenshotProvider,
     private val pdfTextExtractor: PdfTextExtractor,
     private val runNotifier: RunNotifier,
@@ -152,6 +162,7 @@ class ChatViewModel @Inject constructor(
     private val planRepository: PlanRepository,
     private val skillRepository: SkillRepository,
     private val settingsRepository: SettingsRepository,
+    private val localeStore: AppLocaleStore,
     private val json: Json,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -184,6 +195,85 @@ class ChatViewModel @Inject constructor(
 
     fun dismissRunCompletion() {
         _runCompletion.value = null
+    }
+
+    /** Live dictation state for the composer. */
+    data class VoiceState(
+        val listening: Boolean = false,
+        val partial: String = "",
+        val level: Float = 0f,
+    )
+
+    private val _voiceState = MutableStateFlow(VoiceState())
+    val voiceState: StateFlow<VoiceState> = _voiceState.asStateFlow()
+
+    private val _voiceResults = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val voiceResults: SharedFlow<String> = _voiceResults.asSharedFlow()
+
+    private val _voiceFailures = MutableSharedFlow<SpeechFailure>(extraBufferCapacity = 4)
+    val voiceFailures: SharedFlow<SpeechFailure> = _voiceFailures.asSharedFlow()
+
+    private var voiceSession: SpeechSession? = null
+    private var voiceJob: Job? = null
+
+    /** True while TTS is reading a reply (hands-free pauses listening then). */
+    fun isSpeaking(): Boolean = speechOutput.isSpeaking
+
+    /**
+     * Starts in-app dictation. Returns false when no recognition service is
+     * available so the caller can fall back to the system dialog.
+     */
+    fun startVoiceSession(): Boolean {
+        if (_voiceState.value.listening) return true
+        val session = speechInput.startSession(languageTag()) ?: return false
+        voiceSession = session
+        _voiceState.value = VoiceState(listening = true)
+        voiceJob = viewModelScope.launch {
+            session.events.collect { event ->
+                when (event) {
+                    is SpeechSessionEvent.Ready ->
+                        _voiceState.update { it.copy(listening = true) }
+
+                    is SpeechSessionEvent.Partial ->
+                        _voiceState.update { it.copy(partial = event.text) }
+
+                    is SpeechSessionEvent.Level ->
+                        _voiceState.update { it.copy(level = event.level) }
+
+                    is SpeechSessionEvent.Final -> {
+                        _voiceState.value = VoiceState()
+                        _voiceResults.tryEmit(event.text)
+                    }
+
+                    is SpeechSessionEvent.Error -> {
+                        _voiceState.value = VoiceState()
+                        _voiceFailures.tryEmit(event.failure)
+                    }
+                }
+            }
+            _voiceState.value = VoiceState()
+        }
+        return true
+    }
+
+    /** Finishes dictation now; the final text arrives via [voiceResults]. */
+    fun stopVoiceSession() {
+        voiceSession?.stop()
+    }
+
+    /** Discards the current dictation without emitting a result. */
+    fun cancelVoiceSession() {
+        voiceSession?.cancel()
+        voiceSession = null
+        voiceJob?.cancel()
+        voiceJob = null
+        _voiceState.value = VoiceState()
+    }
+
+    private fun languageTag(): String? = when (localeStore.language.value) {
+        AppLanguage.CHINESE -> "zh-CN"
+        AppLanguage.ENGLISH -> "en"
+        AppLanguage.SYSTEM -> null
     }
 
     /** Hands-free loop toggle (settle -> listen -> auto-send). */

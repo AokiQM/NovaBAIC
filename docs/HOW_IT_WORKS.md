@@ -754,7 +754,7 @@ All mutating accessibility operations run on `Dispatchers.Main`, because `dispat
 ### 11.5 Notifications, speech, recording
 
 - `BaicNotificationListener` records the 60 newest notifications into a `CopyOnWriteArrayList`; `read_notifications` filters by time window, limit, and app.
-- `AndroidSpeechInput` creates a recognizer per call on the main thread, resolves a `CompletableDeferred` from `onResults`/`onError`, times out after the requested window, and always stops/destroys the recognizer (no leaked mic sessions).
+- `AndroidSpeechInput` creates a recognizer per call on the main thread, resolves a `CompletableDeferred` from `onResults`/`onError`, times out after the requested window, and always stops/destroys the recognizer (no leaked mic sessions). Live dictation uses the same class: `startSession()` returns a `SpeechSession` streaming `Ready / Partial / Level / Final / Error` events, watches for silence (1.4 s after speech, 6 s without speech, 60 s cap) and maps `SpeechRecognizer` error codes onto semantic `SpeechFailure` values. `transcribe_audio` is implemented on top of the same session, so the tool and the composer share one engine.
 - Hands-free lives in the chat layer: after a new assistant reply, it waits 650 ms and launches the recognizer; recognized text is auto-sent or placed in the input.
 - `AndroidSpeechOutput` is a thin `TextToSpeech` wrapper with a ready callback and queue flush.
 
@@ -915,7 +915,8 @@ Deep links: the run notification attaches `open_run_id`; `MainActivity` mirrors 
 - The **mode chip** animates color (220 ms) and plays a spring "pop" on change; mode picker sheet explains each mode.
 - Input bar: attachments (max 4 images), file import, screen analysis, mic, morphing send/stop, attachment chips, error banners.
 - Menu actions: search (with prev/next), starred, export, **save as skill**, screen analysis, compress, distill memory, hands-free, and restore/discard compression.
-- **Aurora ambience** (`core/designsystem/.../Aurora.kt`): procedural gradient light plus twinkling particles (`AuroraSurface`, `ThinkingOrb`, `shimmerTextBrush`) for the thinking card, welcome panel, Tasks header, About hero and the MAX chip. The MAX chip adds a switch glint with a sparkle burst and keeps a breathing halo while active. All of it checks `ANIMATOR_DURATION_SCALE` and falls back to a static frame.
+- **Aurora ambience** (`core/designsystem/.../Aurora.kt`): procedural gradient light plus twinkling particles (`AuroraSurface`, `ThinkingOrb`, `shimmerTextBrush`) for the thinking card, welcome panel, Tasks header, About hero and the MAX chip. The MAX chip adds a switch glint with a sparkle burst and keeps a breathing halo while active; every loop is built from integer-cycle periodic functions so it wraps without a jump. All of it checks `ANIMATOR_DURATION_SCALE` and falls back to a static frame.
+- **Renderer extras**: syntax-highlighted code blocks (`CodeTokenizer` in `:core:model`, theme colours in `CodeHighlight.kt`), GitHub task lists, dividers, `data:`-URI images and selectable text. A jump-to-latest FAB appears when the user scrolls away, carrying a streaming dot while a run is active.
 - **MAX completion report**: when a MAX run ends, the ViewModel stores a `RunCompletion` (title / rounds / tool calls / duration) that the chat renders as a dialog. If `AppVisibility.foreground` is false, `RunNotifier.notifyFinished` posts a notification on the dedicated `baic2_runs_done` channel instead (tap deep-links to the run detail).
 
 ### 18.3 Design system

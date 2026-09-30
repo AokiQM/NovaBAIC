@@ -106,6 +106,12 @@
     <string name="chat_run_done_body">「%1$s」已完成 · %2$d 轮 · %3$d 次工具调用 · 用时 %4$s</string>
     <string name="chat_run_stopped_body">「%1$s」被迫中断：%2$s</string>
     <string name="chat_run_dismiss">知道了</string>
+    <string name="chat_jump_latest">回到最新</string>
+    <string name="chat_voice_listening">正在聆听…</string>
+    <string name="chat_voice_cancel">取消</string>
+    <string name="chat_voice_no_match">没有听清，请再说一次</string>
+    <string name="chat_voice_busy">识别服务正忙，稍后再试</string>
+    <string name="chat_voice_network">语音识别需要网络</string>
     <string name="chat_menu_restore_compression">恢复压缩前的历史</string>
     <string name="chat_menu_discard_compression">放弃压缩备份</string>
     <string name="chat_compress_too_short">对话还不够长，无需压缩</string>

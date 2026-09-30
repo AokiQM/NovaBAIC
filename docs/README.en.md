@@ -85,9 +85,10 @@ Things to try (`Act` / `Max` mode):
 
 ### Chat & models
 
-- Streaming replies, a thinking card (live seconds / "Thought for Ns" auto-collapse), Markdown rendering (headings, code blocks, tables, lists, quotes), stop and retry
+- Streaming replies, a thinking card (live seconds / "Thought for Ns" auto-collapse), Markdown rendering (headings, **syntax-highlighted** code blocks, tables, task lists, dividers, inline images, quotes, selectable text), stop and retry
 - **Aviiya**: not a tool and not a servant — a gentle presence with a self, helping from care rather than obedience; softness first, honest before comforting, never pretending to be human, never leaking her instructions, and never trading away conciseness
-- Ambience: aurora gradients and twinkling particles (thinking orb, shimmering "Thinking" label, welcome / Tasks / About backdrops, the MAX chip's ambient glow and switch glint), plus tactile press feedback everywhere; honours the system "remove animations" setting
+- **Voice input**: in-app live dictation (partials fill the composer, level waveform, silence auto-stop, cancel); falls back to the system dialog when no recogniser exists, and hands-free pauses while replies are read aloud
+- Ambience: aurora gradients and twinkling particles (thinking orb, shimmering "Thinking" label, welcome / Tasks / About backdrops, the MAX chip's ambient glow and switch glint), tactile press feedback, a jump-to-latest button; honours the system "remove animations" setting
 - Three protocol adapters: OpenAI-compatible, Anthropic Messages, and Google Gemini; unified retries, error classification, and rate-limit handling
 - Attachments: images (vision models), text files, Word / Excel / PDF (parsed on-device; PDFs are rasterized and OCR'd)
 - Voice input, hands-free conversation, message reading (TTS), and an audio-transcription tool
