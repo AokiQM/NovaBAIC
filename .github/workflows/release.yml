@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 env:
   ANDROID_HOME: /usr/local/lib/android/sdk
@@ -76,3 +77,11 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      # Release events created with GITHUB_TOKEN do not trigger other
+      # workflows, so ask the site deployment to mirror the new APK.
+      - name: Refresh the site mirror
+        if: steps.signing.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY"
