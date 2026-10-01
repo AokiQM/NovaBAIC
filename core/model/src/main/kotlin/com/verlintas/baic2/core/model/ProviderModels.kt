@@ -30,6 +30,12 @@ data class ToolSpec(
     val readOnly: Boolean = false,
     val danger: DangerLevel = DangerLevel.LOW,
     val parallelSafe: Boolean = false,
+    /**
+     * Internal capability (memory recall/notes): available in every mode and
+     * exempt from the read-only and confirmation gates - it touches nothing
+     * outside the agent's own mind.
+     */
+    val alwaysAvailable: Boolean = false,
 )
 
 @Serializable

@@ -101,6 +101,8 @@
     <string name="settings_section_about">关于</string>
     <string name="settings_about_summary">版本 %1$s · 开源许可与更新</string>
     <string name="settings_about_links">链接</string>
+    <string name="settings_about_site">官方网站</string>
+    <string name="settings_about_site_summary">下载 · 功能 · 常见问题</string>
     <string name="settings_about_repo">GitHub 仓库</string>
     <string name="settings_about_releases">发布版本</string>
     <string name="settings_about_issues">问题反馈</string>
@@ -113,7 +115,9 @@
     <string name="settings_developer_build">构建信息</string>
     <string name="settings_developer_app_id">应用 ID</string>
     <string name="settings_developer_version">版本</string>
-    <string name="settings_developer_author">作者</string>
+    <string name="settings_developer_role">独立开发者 · GPL-3.0 开源维护者</string>
+    <string name="settings_developer_bio">从 Agent 运行时、52 个内置工具，到仿生记忆与全部界面：BAIC2 由他独自设计与实现。</string>
+    <string name="settings_developer_github">GitHub</string>
     <string name="settings_developer_email">邮箱</string>
     <string name="settings_developer_note">BetterAIChat2 是 BetterAIChat 的继任重制版，遵循 GPL-3.0-or-later 许可。</string>
 

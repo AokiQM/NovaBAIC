@@ -2,7 +2,7 @@
 
 This document explains the internals of **BetterAIChat2** (BAIC2) in exhaustive detail: module architecture, the request pipeline, streaming protocols, the agent loop, the tool system, permission bridges, automation, storage, UI, security, the evaluation harness, and the engineering lessons learned from real bugs. It is written as a study guide for programmers who want to understand a real, working Android AI-agent application — and as the maintenance handbook for this repository.
 
-> Scope: 48 built-in device tools, Agents (provider + key + model + prompt + reasoning), three provider protocols (OpenAI-compatible / Anthropic / Gemini), Shizuku + Accessibility + MediaProjection integration, scheduled tasks, Skills, MCP, and subagents.
+> Scope: 52 built-in device tools, Agents (provider + key + model + prompt + reasoning), three provider protocols (OpenAI-compatible / Anthropic / Gemini), Shizuku + Accessibility + MediaProjection integration, scheduled tasks, Skills, MCP, and subagents.
 
 ---
 
@@ -77,7 +77,7 @@ NovaBAIC/  (Gradle root project: BetterAIChat2)
 │   └── impl/                        # Android implementations + services + broadcast receivers
 │
 ├── tools/                           # Gradle module + repo check scripts in one directory
-│   ├── build.gradle.kts  src/       # 48 built-in tools, registry, argument healer,
+│   ├── build.gradle.kts  src/       # 52 built-in tools, registry, argument healer,
 │   │                                #   skills, scheduling, automation, subagents, web pipeline
 │   ├── check-license-headers.sh     # CI guards
 │   ├── check-strings-sync.sh        #   (license headers / zh-en string sync / tool schemas)
@@ -92,7 +92,7 @@ Numbers that matter:
 
 | Thing | Count | Source of truth |
 | --- | --- | --- |
-| Built-in tools | 48 | `tools/check-tool-schemas.py` output; `ToolRegistry.toolNames` |
+| Built-in tools | 52 | `tools/check-tool-schemas.py` output; `ToolRegistry.toolNames` |
 | Room tables | 10 | `core/data/.../db/Entities.kt` |
 | DB version | 13 | `Baic2Database.kt` |
 | Modules | 17 | `settings.gradle.kts` |
@@ -313,7 +313,19 @@ data class RunBudget(val maxRounds: Int, val maxToolCalls: Int, val maxWallClock
 
 ### 3.6 Plans & memory
 
-`Plan` is a first-class artifact — a list of `PlanStep(title, status ∈ PENDING/DOING/DONE/FAILED)` persisted per conversation (primary key `conversationId`), rendered as a live card in chat, and maintained by the `plan_update` tool. `Memory` rows are distilled facts (`kind = MEMORY`) plus compression snapshots (`kind = SNAPSHOT`) that back the reversible-compression feature.
+`Plan` is a first-class artifact — a list of `PlanStep(title, status ∈ PENDING/DOING/DONE/FAILED)` persisted per conversation (primary key `conversationId`), rendered as a live card in chat, and maintained by the `plan_update` tool.
+
+Memory follows the biological division of labour (v0.1.14, DB v15):
+
+- **Working memory** is the context window. It never grows with history: the always-on block (`CoreMemory`: "about you" + "what's ongoing", both editable) plus at most a few notes primed by the current message. Priming runs two passes: **prospective** (plan/event notes whose `whenAt` is within 7 days, or overdue by up to 30) surface on their own; then cue-driven recall adds keyword hits (`MemoryScoring` ranks by cue hits × importance × pin × retrievability).
+- **Episodic memory** is the `messages` table itself — every raw turn, never summarized away. `memory_search` queries it across conversations with cue terms (CJK bigrams + Latin words), optional date bounds and conversation filters; results are compact snippets carrying conversation title, message id and a "3 days ago" phrasing. `memory_read` opens the original window around a hit.
+- **Semantic memory** is the `notes` table: durable items the agent writes deliberately via `memory_write` (kind, importance, `when`, provenance `conversationId`). Writes are pattern-completing: an exact-normalised duplicate is refused, a ≥0.8-similar variant is **reconsolidated in place** (content updated, strength bumped), and a ≥0.55-similar one is stored with a pointer to what it may supersede. `replaces=<id>` archives the old note. Old facts and compression snapshots are migrated into notes on upgrade — nothing is lost.
+- **Synaptic strength** replaces naive time decay: retrievability is `exp(-age / (10 days × strength))`, every recall adds +0.6 strength (cap 5) and a use count, so frequently recalled notes fade more slowly — spaced repetition, in effect.
+- **Associations** are Hebbian: notes returned together by one recall wire together in `note_links` (weight +1, cap 5), and the top cue hits spread one hop of activation to their associates (score × `0.35 × w/(w+1)`), which surface in recall marked `(associated)`. Co-recalled sets include the spread notes, so chains keep strengthening.
+- **Consolidation** is the curator (`AuxiliaryTasks.CURATOR_SYSTEM`): it runs when the app **leaves the foreground** (sleep-time replay; ≥4 new assistant turns) with a 24-turn overflow fallback for marathon foreground sessions, and manually from the chat menu. It rereads the recent transcript against the note inventory and core, then emits a strict JSON plan — `remember` / `revise` / `forget` / `core_user` / `core_context` — which the app clamps and applies. It prefers revising over duplicating, and forgets near-duplicates that say the same thing in different words.
+- **Active suppression**: `memory_forget` archives notes the user asked to forget (soft delete — the transcript is untouched), pruning their links.
+
+The four memory tools are marked `alwaysAvailable` on their `ToolSpec`: they work in every mode (including Chat), bypass confirmation and read-only gates, and count against the small Chat budget (4 rounds / 6 calls). The system prompt states the memory protocol and includes the current date/time so relative phrases ("yesterday", "last week") resolve.
 
 ---
 
@@ -681,13 +693,14 @@ val result = try { tool.execute(healed.arguments, context.copy(run = run)) }
 - Type coercion: `"3"` → `3`, `true` → `1`, `"yes"` → `true`, a scalar where an array is expected gets wrapped in a single-element array.
 - Every change is recorded as a note and appended to the result, so the model sees what was fixed and (hopefully) stops repeating the mistake.
 
-### 10.4 The 48 tools at a glance
+### 10.4 The 52 tools at a glance
 
 - **Perception / UI**: `take_screenshot`, `screen_ocr`, `screen_record`, `ui_control`, `get_screen_state`, `get_foreground_app`
 - **Apps / system**: `open_app`, `manage_app`, `open_settings`, `run_shell`, `list_installed_apps`, `device_info`, `network_status`, `get_time`, `compute`, `vibrate`, `media_control`, `set_volume`, `set_brightness`, `set_flashlight`, `send_notification`, `read_notifications`, `get_clipboard`, `set_clipboard`, `share_text`, `open_dialer`, `get_app_usage`, `get_location`
 - **Content**: `files`, `file_write`, `download_file`, `ocr_file`, `generate_qr`, `decode_qr`
 - **Web**: `web_search`, `web_read`, `fetch_rss`, `get_weather`
 - **Personal**: `search_contacts`, `send_email`, `create_calendar_event`, `reminder`, `transcribe_audio`
+- **Memory**: `memory_search`, `memory_read`, `memory_write`, `memory_forget` (available in every mode)
 - **Agent collaboration**: `spawn_agent`, `plan_update`, `load_skill`, `automation`
 
 `ui_control` deserves its own paragraph: it resolves targets by fuzzy text matching (`uiMatchScore`: exact → normalized → prefix → substring → label-inside-query → edit distance ≤ 2), falls back to OCR when the accessibility tree lacks the text, scrolls up to 4 times to find off-screen targets and **scrolls back** if it fails (so the model's mental map stays valid), and verifies each action by comparing foreground package + window title before and after. That verification is why a single `ui_control` call is usually enough instead of a follow-up `screen_ocr`.
@@ -902,7 +915,9 @@ DataStore (`"settings"`) stores theme mode, accent color, and hands-free. Locale
 
 ### 18.1 Shell: four zones + the Dock
 
-The app has four full-screen zones — **Chats / Tasks / Library / Settings** — switched by a top-left floating Dock instead of a bottom bar. The Dock trigger shows the current zone icon plus a chevron; the panel unfolds downward with a spatial spring, staggered items (40 ms each), scrim dismiss, back-handler dismiss, and haptic feedback. The Chats zone owns a nested `NavHost` (`conversations`, `chat/{id}`, `starred`) with spring slide transitions; the Dock auto-hides on inner routes so it never collides with inner top bars.
+The app has four full-screen zones — **Chats / Tasks / Library / Settings** — switched by a top-left floating Dock instead of a bottom bar. The Dock trigger shows the current zone icon plus a chevron; the panel unfolds downward with a spatial spring, staggered items (40 ms each), scrim dismiss, back-handler dismiss, and haptic feedback. Every zone owns a nested `NavHost` with spring slide transitions: Chats (`conversations`, `chat/{id}`, `starred`), Tasks (`tasks_root`, `tasks_run/{runId}`), Settings (root, about, licenses, agents, permissions…), and Library (`library_root` plus one second-level page per section: Biomimetic memory, Automations, Skills, MCP). The Dock auto-hides on inner routes so it never collides with inner top bars.
+
+The Library's **Biomimetic memory** page (`LibraryScreen.kt`, `MemoryPage`) is the visual home of the memory system: an aurora hero with the tagline, the two editable core blocks, a note search, and a note timeline where each note carries a kind-coloured dot plus an animated strength bar (`strength / 5`, kind palette: profile blue, preference pink, event sky, plan amber, agreement green, fact lavender, summary grey). Strength bars grow as recall reinforces a note — the page literally shows what the agent is remembering more strongly.
 
 Deep links: the run notification attaches `open_run_id`; `MainActivity` mirrors the constant, reads it on create and `onNewIntent`, switches to Tasks, and `TasksScreen` navigates to `tasks_run/{runId}` exactly once.
 

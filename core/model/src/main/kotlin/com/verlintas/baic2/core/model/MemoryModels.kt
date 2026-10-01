@@ -21,21 +21,87 @@ package com.verlintas.baic2.core.model
 
 import kotlinx.serialization.Serializable
 
-/** Durable local knowledge. */
+/**
+ * The kinds of durable notes the agent can keep, mirroring how memory is
+ * usually classified: identity (profile), stable attitudes (preference),
+ * time-anchored happenings (event), intentions (plan), commitments
+ * (agreement), plain durable facts (fact) and compressed history (summary).
+ */
 @Serializable
-enum class MemoryKind {
-    /** A distilled user fact (name, preferences, agreements...). */
-    MEMORY,
+enum class NoteKind {
+    FACT,
+    PROFILE,
+    PREFERENCE,
+    EVENT,
+    PLAN,
+    AGREEMENT,
+    SUMMARY,
+    ;
 
-    /** A compressed snapshot of older conversation history. */
-    SNAPSHOT,
+    /** The lowercase name used on the tool/prompt wire. */
+    fun wire(): String = name.lowercase()
+
+    companion object {
+        val wireNames: List<String> = NoteKind.entries.filter { it != SUMMARY }.map { it.wire() }
+
+        fun fromWire(raw: String?): NoteKind = when (raw?.trim()?.lowercase()) {
+            "profile" -> PROFILE
+            "preference" -> PREFERENCE
+            "event" -> EVENT
+            "plan" -> PLAN
+            "agreement" -> AGREEMENT
+            "summary" -> SUMMARY
+            else -> FACT
+        }
+    }
 }
 
+/**
+ * One durable note. Notes point back at their source ([conversationId],
+ * [messageId]) so the model can always drill into the original episode, and
+ * they can supersede each other instead of silently contradicting.
+ */
 @Serializable
-data class Memory(
+data class Note(
     val id: Long = 0L,
-    val kind: MemoryKind,
+    val kind: NoteKind = NoteKind.FACT,
     val content: String,
+    val importance: Int = 3,
+    val pinned: Boolean = false,
     val conversationId: Long? = null,
+    val messageId: Long? = null,
+    val whenAt: Long? = null,
     val createdAt: Long = 0L,
+    val updatedAt: Long = 0L,
+    val lastAccessedAt: Long = 0L,
+    val accessCount: Int = 0,
+    /** Synaptic strength: retrieval reconsolidates and slows the decay down. */
+    val strength: Double = 1.0,
+    val supersededBy: Long? = null,
+    val archived: Boolean = false,
+)
+
+/**
+ * The always-on core memory, kept in the context window at a fixed small
+ * budget: who the user is, and what is going on right now. This is what keeps
+ * the agent's sense of continuity stable while everything else is recalled on
+ * demand.
+ */
+@Serializable
+data class CoreMemory(
+    val user: String = "",
+    val context: String = "",
+    val updatedAt: Long = 0L,
+) {
+    val isEmpty: Boolean get() = user.isBlank() && context.isBlank()
+}
+
+/** One synthetic hit of episodic recall: an original message, with a handle. */
+data class MessageHit(
+    val messageId: Long,
+    val conversationId: Long,
+    val conversationTitle: String,
+    val role: ChatRole,
+    val content: String,
+    val createdAt: Long,
 )

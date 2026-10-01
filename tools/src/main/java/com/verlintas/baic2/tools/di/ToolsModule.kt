@@ -305,6 +305,34 @@ object ToolsModule {
     @Provides
     @IntoSet
     fun sendNotificationTool(): DeviceTool = SendNotificationTool()
+
+    @Provides
+    @IntoSet
+    fun memorySearchTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+        conversationRepository: com.verlintas.baic2.core.data.repository.ConversationRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemorySearchTool(
+        memoryRepository,
+        conversationRepository,
+    )
+
+    @Provides
+    @IntoSet
+    fun memoryReadTool(
+        conversationRepository: com.verlintas.baic2.core.data.repository.ConversationRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryReadTool(conversationRepository)
+
+    @Provides
+    @IntoSet
+    fun memoryWriteTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryWriteTool(memoryRepository)
+
+    @Provides
+    @IntoSet
+    fun memoryForgetTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryForgetTool(memoryRepository)
 }
 
 @Module

@@ -29,6 +29,7 @@ import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.ConversationPreview
+import com.verlintas.baic2.core.model.MessageHit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -203,4 +204,68 @@ class ConversationRepository @Inject constructor(
     }
 
     suspend fun discardSnapshot(snapshotId: Long) = db.snapshotDao().delete(snapshotId)
+
+    /**
+     * Cue-driven episodic recall across conversations. The first cue
+     * pre-filters in SQL, the rest narrow in Kotlin (works the same for CJK
+     * and Latin without a tokeniser), newest first.
+     */
+    suspend fun searchMessages(
+        terms: List<String>,
+        conversationQuery: String? = null,
+        from: Long? = null,
+        to: Long? = null,
+        limit: Int = 20,
+        offset: Int = 0,
+    ): List<MessageHit> {
+        val conversationIds = resolveConversationIds(conversationQuery)
+        if (!conversationQuery.isNullOrBlank() && conversationIds != null && conversationIds.isEmpty()) {
+            return emptyList()
+        }
+        val pattern = terms.firstOrNull()?.let(::likePattern)
+        val candidates = if (conversationIds != null) {
+            db.messageDao().searchMessagesIn(conversationIds, pattern, from, to, candidateLimit(limit, offset))
+        } else {
+            db.messageDao().searchMessages(pattern, from, to, candidateLimit(limit, offset))
+        }
+        return candidates.asSequence()
+            .filter { row -> row.content.isNotBlank() }
+            .filter { row -> terms.all { row.content.contains(it, ignoreCase = true) } }
+            .drop(offset)
+            .take(limit)
+            .map(mapper::messageHitToModel)
+            .toList()
+    }
+
+    /** The window around a recalled message, oldest first. */
+    suspend fun readAround(conversationId: Long, anchorId: Long?, count: Int = 6): List<ChatMessage> {
+        if (db.conversationDao().getById(conversationId) == null) return emptyList()
+        val span = count.coerceIn(1, 30)
+        if (anchorId == null) {
+            return db.messageDao().latestMessages(conversationId, span)
+                .asReversed()
+                .map(mapper::messageToModel)
+        }
+        val half = (span / 2).coerceAtLeast(1)
+        val before = db.messageDao().beforeAnchor(conversationId, anchorId, half).asReversed()
+        val after = db.messageDao().fromAnchor(conversationId, anchorId, span - before.size)
+        return (before + after).map(mapper::messageToModel)
+    }
+
+    suspend fun conversationTitle(id: Long): String? = db.conversationDao().getById(id)?.title
+
+    private suspend fun resolveConversationIds(query: String?): List<Long>? {
+        val trimmed = query?.trim().orEmpty()
+        if (trimmed.isEmpty()) return null
+        trimmed.toLongOrNull()?.let { return listOf(it) }
+        return db.conversationDao().findByTitle(likePattern(trimmed)).map { it.id }
+    }
+
+    private fun likePattern(term: String): String {
+        val escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return "%$escaped%"
+    }
+
+    private fun candidateLimit(limit: Int, offset: Int): Int =
+        ((offset + limit) * 8L).coerceIn(120L, 800L).toInt()
 }

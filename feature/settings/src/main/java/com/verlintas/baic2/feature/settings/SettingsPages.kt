@@ -29,11 +29,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Star
@@ -69,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -87,6 +91,7 @@ import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.accentSpec
 import com.verlintas.baic2.designsystem.component.AuroraSurface
+import com.verlintas.baic2.designsystem.component.pressScale
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.CircularProgressIndicator
@@ -527,6 +532,7 @@ fun AboutPage(
 ) {
     val context = LocalContext.current
     val repoUrl = "https://github.com/Verlintas/NovaBAIC"
+    val siteUrl = "https://verlintas.github.io/NovaBAIC/"
     val tagline = stringResource(R.string.settings_about_tagline)
     val shareChooser = stringResource(R.string.settings_about_share_chooser)
     val clipboard = LocalClipboardManager.current
@@ -691,6 +697,15 @@ fun AboutPage(
         }
 
         item(key = "links") { SettingsSectionLabel(stringResource(R.string.settings_about_links)) }
+        item(key = "site") {
+            SettingsRow(
+                title = stringResource(R.string.settings_about_site),
+                summary = stringResource(R.string.settings_about_site_summary),
+                icon = Icons.Outlined.Home,
+                showChevron = true,
+                onClick = { openUrl(context, siteUrl) },
+            )
+        }
         item(key = "repo") {
             SettingsRow(
                 title = stringResource(R.string.settings_about_repo),
@@ -733,7 +748,7 @@ fun AboutPage(
                         type = "text/plain"
                         putExtra(
                             android.content.Intent.EXTRA_TEXT,
-                            "BetterAIChat2 — $tagline $repoUrl",
+                            "BetterAIChat2 — $tagline $siteUrl",
                         )
                     }
                     runCatching {
@@ -745,6 +760,68 @@ fun AboutPage(
             )
         }
         item(key = "developer") { SettingsSectionLabel(stringResource(R.string.settings_developer_title)) }
+        item(key = "dev-card") {
+            SettingsCard {
+                Column(
+                    modifier = Modifier.padding(Baic2Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Baic2Spacing.md),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.tertiary,
+                                        ),
+                                    ),
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "V",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                        Spacer(Modifier.width(Baic2Spacing.md))
+                        Column {
+                            Text(
+                                text = "Verlintas",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_developer_role),
+                                style = Baic2Mono.label,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.settings_developer_bio),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(Baic2Spacing.sm)) {
+                        DeveloperLink(stringResource(R.string.settings_developer_github)) {
+                            openUrl(context, "https://github.com/Verlintas")
+                        }
+                        DeveloperLink(stringResource(R.string.settings_about_site)) {
+                            openUrl(context, siteUrl)
+                        }
+                        DeveloperLink(stringResource(R.string.settings_developer_email)) {
+                            openUrl(context, "mailto:ulv777777@gmail.com")
+                        }
+                    }
+                }
+            }
+        }
         item(key = "dev-version") {
             SettingsRow(
                 title = stringResource(R.string.settings_developer_version),
@@ -807,14 +884,6 @@ fun AboutPage(
                 onClick = { openUrl(context, "$repoUrl/releases") },
             )
         }
-        item(key = "dev-author") {
-            SettingsRow(
-                title = stringResource(R.string.settings_developer_author),
-                summary = "Verlintas · github.com/Verlintas · ulv777777@gmail.com",
-                showChevron = true,
-                onClick = { openUrl(context, "https://github.com/Verlintas") },
-            )
-        }
         item(key = "legal") { SettingsSectionLabel(stringResource(R.string.settings_about_legal)) }
         item(key = "license") {
             SettingsRow(
@@ -834,6 +903,20 @@ fun AboutPage(
                 ),
             )
         }
+    }
+}
+
+@Composable
+private fun DeveloperLink(label: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        contentPadding = PaddingValues(horizontal = Baic2Spacing.md, vertical = Baic2Spacing.xs),
+        interactionSource = interaction,
+        modifier = Modifier.pressScale(interaction),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelMedium)
     }
 }
 

@@ -29,7 +29,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 
 它是**本地优先**的 AI 智能体 —— API Key 经 Android Keystore 加密留在设备上，没有云端、没有遥测、不需要账号；AI 通过**函数调用**真实操作你的手机：看屏、点击、输入、读写文件、设置提醒、跑自动化。
 
-- **真操作设备**：48 个内置工具，覆盖无障碍操作、截屏 OCR、文件、网络、个人助理与 Shizuku shell
+- **真操作设备**：52 个内置工具，覆盖无障碍操作、截屏 OCR、文件、网络、个人助理与 Shizuku shell
 - **不锁定模型**：DeepSeek / OpenAI / Claude / Gemini / Kimi / Qwen / GLM / MiniMax / Ollama / 任意兼容网关，随时切换
 - **四种模式**：从纯聊天到逐项确认，再到带预算约束的自主运行
 - **无人值守**：定时任务、前台服务、子代理、MCP 远程工具、Skills 技能
@@ -76,7 +76,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 </p>
 <p align="center">
   <img src="docs/screenshots/tasks.png" width="23%" alt="任务运行中心" />
-  <img src="docs/screenshots/library.png" width="23%" alt="库：技能、MCP 与记忆" />
+  <img src="docs/screenshots/library.png" width="23%" alt="库：记忆仿生、技能与 MCP" />
   <img src="docs/screenshots/settings.png" width="23%" alt="设置" />
   <img src="docs/screenshots/about.png" width="23%" alt="关于" />
 </p>
@@ -92,7 +92,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 - 三家协议适配：OpenAI 兼容、Anthropic Messages、Google Gemini；统一重试、错误分类与速率限制处理
 - 附件：图片（视觉模型）、文本文件、Word / Excel / PDF（本地解析，PDF 栅格化后 OCR）
 - 语音输入、免手对话、消息朗读；语音转写工具
-- 长期记忆（自动提炼 + 手动管理）；上下文压缩（>85% 自动，压缩前生成**可回滚快照**）
+- **仿生记忆**：常驻核心记忆（关于你 / 正在进行，占用恒定）+ 跨会话情景检索（`memory_search` / `memory_read`）+ 主动记录/取代/遗忘（`memory_write` / `memory_forget`）；联想链接（一起想起的自动连线、沿链接扩散唤醒）、前瞻记忆（临近的计划/约定主动浮出）、间隔重复（回忆越用越牢、衰减越慢）、模式补全（近似笔记原地重巩固、矛盾顶替）、睡眠固化（离开前台时策展人才复盘写笔记、刷新核心）；原文永不摘要化；上下文压缩（>85% 自动，压缩前生成**可回滚快照**）
 - 上下文占用表：实时显示 token 用量与百分比；AI 自动标题；对话搜索、收藏、Markdown 导出分享
 
 ### Agents 与模式
@@ -101,12 +101,12 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 
 | 模式 | 语义 |
 | --- | --- |
-| `Chat` | 纯对话，无工具 |
+| `Chat` | 纯对话（仅记忆工具） |
 | `Chat+` | 对话 + 只读工具 + 计划（8 轮 / 25 次工具调用） |
 | `Act` | 执行工具，逐项确认 |
 | `Max` | 自主运行：持久化 Run、预算约束（60 轮 / 160 次工具调用 / 60 分钟）、可后台 |
 
-### AI × 设备（48 个内置工具）
+### AI × 设备（52 个内置工具）
 
 **看屏与操作（无障碍 + 视觉）**
 
@@ -220,7 +220,7 @@ core:runtime       运行层预留（当前调度实现位于 device:impl / tool
 core:designsystem  设计系统 token 与组件
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    截图 / OCR / 无障碍 / 语音 / 提醒 / 运行通知
-tools              48 个内置工具 + 自动化 + 技能 + 子代理
+tools              52 个内置工具 + 自动化 + 技能 + 子代理
 mcp                远程 MCP 客户端             eval          场景评测 harness
 ```
 

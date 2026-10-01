@@ -101,6 +101,8 @@
     <string name="settings_section_about">About</string>
     <string name="settings_about_summary">Version %1$s · licenses and updates</string>
     <string name="settings_about_links">Links</string>
+    <string name="settings_about_site">Official site</string>
+    <string name="settings_about_site_summary">Downloads · features · FAQ</string>
     <string name="settings_about_repo">GitHub repository</string>
     <string name="settings_about_releases">Releases</string>
     <string name="settings_about_issues">Report an issue</string>
@@ -113,7 +115,9 @@
     <string name="settings_developer_build">Build info</string>
     <string name="settings_developer_app_id">Application ID</string>
     <string name="settings_developer_version">Version</string>
-    <string name="settings_developer_author">Author</string>
+    <string name="settings_developer_role">Indie developer · GPL-3.0 maintainer</string>
+    <string name="settings_developer_bio">From the agent runtime and 52 built-in tools to the biomimetic memory and the entire UI: BAIC2 is designed and built by him alone.</string>
+    <string name="settings_developer_github">GitHub</string>
     <string name="settings_developer_email">Email</string>
     <string name="settings_developer_note">BetterAIChat2 is the successor rewrite of BetterAIChat, licensed under GPL-3.0-or-later.</string>
 

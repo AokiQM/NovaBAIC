@@ -144,12 +144,14 @@ fun Baic2App(
     var pendingRetryConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
     var settingsInnerRoute by rememberSaveable { mutableStateOf(false) }
     var tasksInnerRoute by rememberSaveable { mutableStateOf(false) }
+    var libraryInnerRoute by rememberSaveable { mutableStateOf(false) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val chatInnerRoute = backStackEntry?.destination?.route in setOf(ROUTE_CHAT, ROUTE_STARRED)
     val innerRoute = chatInnerRoute ||
         (destination == Baic2Destination.Settings && settingsInnerRoute) ||
-        (destination == Baic2Destination.Tasks && tasksInnerRoute)
+        (destination == Baic2Destination.Tasks && tasksInnerRoute) ||
+        (destination == Baic2Destination.Library && libraryInnerRoute)
 
     LaunchedEffect(innerRoute) {
         if (innerRoute) dockOpen = false
@@ -201,7 +203,9 @@ fun Baic2App(
                     initialRunId = initialRunId,
                     onInitialRunConsumed = onRunDeepLinkConsumed,
                 )
-                Baic2Destination.Library -> LibraryScreen()
+                Baic2Destination.Library -> LibraryScreen(
+                    onInnerRouteChanged = { libraryInnerRoute = it },
+                )
                 Baic2Destination.Settings -> SettingsScreen(
                     buildInfo = BuildInfo(
                         versionName = BuildConfig.VERSION_NAME,

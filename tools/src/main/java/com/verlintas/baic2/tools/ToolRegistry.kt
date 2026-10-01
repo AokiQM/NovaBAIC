@@ -43,8 +43,11 @@ class ToolRegistry @Inject constructor(
     private fun allTools(): Map<String, DeviceTool> = byName + dynamic
 
     override fun specs(mode: AppMode): List<ToolSpec> = when (mode) {
-        AppMode.CHAT -> emptyList()
-        AppMode.CHAT_PLUS -> allTools().values.filter { it.spec.readOnly }.map { it.spec }
+        AppMode.CHAT -> allTools().values.filter { it.spec.alwaysAvailable }.map { it.spec }
+        AppMode.CHAT_PLUS -> allTools().values
+            .filter { it.spec.readOnly || it.spec.alwaysAvailable }
+            .map { it.spec }
+
         AppMode.ACT, AppMode.MAX -> allTools().values.map { it.spec }
     }
 

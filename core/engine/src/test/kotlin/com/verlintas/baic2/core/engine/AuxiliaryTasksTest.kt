@@ -106,60 +106,64 @@ class AuxiliaryTasksTest {
     }
 
     @Test
-    fun parseFactListAcceptsCleanAndFencedArrays() {
-        assertEquals(
-            listOf("likes dark themes", "builds BAIC2"),
-            AuxiliaryTasks.parseFactList("""["likes dark themes", "builds BAIC2"]"""),
-        )
-        assertEquals(
-            listOf("likes dark themes"),
-            AuxiliaryTasks.parseFactList("```json\n[\"likes dark themes\"]\n```"),
-        )
-    }
-
-    @Test
-    fun parseFactListExtractsArrayFromProse() {
-        assertEquals(
-            listOf("prefers teal", "uses a Pixel"),
-            AuxiliaryTasks.parseFactList("Sure! [\"prefers teal\", \"uses a Pixel\"] let me know."),
-        )
-    }
-
-    @Test
-    fun parseFactListRejectsGarbageInsteadOfSavingJunk() {
-        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("[broken json"))
-        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("{not json at all"))
-        assertEquals(emptyList(), AuxiliaryTasks.parseFactList("[]"))
-        assertEquals(emptyList(), AuxiliaryTasks.parseFactList(""))
-    }
-
-    @Test
-    fun parseFactListUnwrapsObjectWrappedArrays() {
-        assertEquals(
-            listOf("a", "b"),
-            AuxiliaryTasks.parseFactList("""{"facts": ["a", "b"]}"""),
-        )
-    }
-
-    @Test
-    fun parseFactListFallsBackToBulletsAndFiltersNoise() {
+    fun parseCuratorPlanReadsAllSections() {
         val raw = """
-            Here are the durable facts:
-            - likes dark themes
-            * builds BAIC2
-            • prefers teal
-            {"oops": true}
+            {"remember":[{"kind":"preference","content":"likes dark themes","importance":4,"when":"2026-09-12"}],
+             "revise":[{"id":12,"content":"moved to Shanghai","importance":5}],
+             "forget":[9],
+             "core_user":"Alex, Chinese, prefers concise replies",
+             "core_context":"preparing for an interview"}
         """.trimIndent()
 
-        assertEquals(
-            listOf("likes dark themes", "builds BAIC2", "prefers teal"),
-            AuxiliaryTasks.parseFactList(raw),
-        )
+        val plan = AuxiliaryTasks.parseCuratorPlan(raw)
+
+        assertEquals(1, plan.remember.size)
+        assertEquals("preference", plan.remember[0].kind)
+        assertEquals("likes dark themes", plan.remember[0].content)
+        assertEquals(4, plan.remember[0].importance)
+        assertEquals("2026-09-12", plan.remember[0].whenRaw)
+        assertEquals(12L, plan.revise[0].id)
+        assertEquals("moved to Shanghai", plan.revise[0].content)
+        assertEquals(5, plan.revise[0].importance)
+        assertEquals(listOf(9L), plan.forget)
+        assertEquals("Alex, Chinese, prefers concise replies", plan.coreUser)
+        assertEquals("preparing for an interview", plan.coreContext)
     }
 
     @Test
-    fun parseFactListCapsAtFiveFacts() {
-        val many = (1..9).joinToString(prefix = "[", postfix = "]") { "\"fact $it\"" }
-        assertEquals(5, AuxiliaryTasks.parseFactList(many).size)
+    fun parseCuratorPlanToleratesProseAndFences() {
+        val raw = "Sure, here it is:\n```json\n{\"remember\":[{\"content\":\"uses a Pixel\"}]}\n```\nDone."
+
+        val plan = AuxiliaryTasks.parseCuratorPlan(raw)
+
+        assertEquals(1, plan.remember.size)
+        assertEquals("uses a Pixel", plan.remember[0].content)
+        assertEquals(3, plan.remember[0].importance)
+        assertEquals("", plan.remember[0].kind)
+    }
+
+    @Test
+    fun parseCuratorPlanRejectsGarbage() {
+        assertTrue(AuxiliaryTasks.parseCuratorPlan("[broken").isEmpty)
+        assertTrue(AuxiliaryTasks.parseCuratorPlan("no json here").isEmpty)
+        assertTrue(AuxiliaryTasks.parseCuratorPlan("{\"remember\":[{\"nope\":1}]}").isEmpty)
+        assertTrue(AuxiliaryTasks.parseCuratorPlan("").isEmpty)
+    }
+
+    @Test
+    fun parseCuratorPlanClampsAndFilters() {
+        val many = (1..9).joinToString(",", prefix = "{\"remember\":[", postfix = "]}") {
+            "{\"content\":\"fact $it\"}"
+        }
+        assertEquals(5, AuxiliaryTasks.parseCuratorPlan(many).remember.size)
+
+        val plan = AuxiliaryTasks.parseCuratorPlan(
+            """{"remember":[{"content":"x","importance":99}],"forget":[-1,0,3]}""",
+        )
+        assertEquals(5, plan.remember[0].importance)
+        assertEquals(listOf(3L), plan.forget)
+
+        val withoutId = AuxiliaryTasks.parseCuratorPlan("""{"revise":[{"content":"no id"}]}""")
+        assertTrue(withoutId.revise.isEmpty())
     }
 }

@@ -24,9 +24,10 @@ import androidx.lifecycle.viewModelScope
 import com.verlintas.baic2.core.data.repository.McpServerRepository
 import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.model.Automation
-import com.verlintas.baic2.core.model.Memory
+import com.verlintas.baic2.core.model.CoreMemory
 import com.verlintas.baic2.core.model.McpServer
-import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.MemoryText
+import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.tools.automation.AutomationManager
 import com.verlintas.baic2.mcp.McpManager
@@ -34,6 +35,7 @@ import com.verlintas.baic2.mcp.McpServerStatus
 import com.verlintas.baic2.tools.skills.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -42,7 +44,9 @@ import kotlinx.coroutines.launch
 
 data class LibraryUiState(
     val automations: List<Automation> = emptyList(),
-    val memories: List<Memory> = emptyList(),
+    val notes: List<Note> = emptyList(),
+    val core: CoreMemory = CoreMemory(),
+    val noteQuery: String = "",
     val skills: List<Skill> = emptyList(),
     val mcpServers: List<McpServer> = emptyList(),
     val mcpStatus: Map<Long, McpServerStatus> = emptyMap(),
@@ -81,6 +85,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     private val skills = kotlinx.coroutines.flow.MutableStateFlow<List<Skill>>(emptyList())
+    private val noteQuery = MutableStateFlow("")
 
     init {
         refreshSkills()
@@ -103,16 +108,48 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun setNoteQuery(query: String) {
+        noteQuery.value = query
+    }
+
+    fun deleteNote(id: Long) {
+        viewModelScope.launch { memoryRepository.delete(id) }
+    }
+
+    fun setNotePinned(id: Long, pinned: Boolean) {
+        viewModelScope.launch { memoryRepository.setPinned(id, pinned) }
+    }
+
+    fun updateNote(id: Long, content: String, importance: Int) {
+        viewModelScope.launch { memoryRepository.updateNote(id, content, importance) }
+    }
+
+    fun saveCore(slot: String, content: String) {
+        viewModelScope.launch {
+            when (slot) {
+                CORE_USER_SLOT -> memoryRepository.setCore(user = content)
+                else -> memoryRepository.setCore(context = content)
+            }
+        }
+    }
+
     val uiState: StateFlow<LibraryUiState> = combine(
         automationManager.observeAll(),
-        memoryRepository.observe(MemoryKind.MEMORY),
+        combine(
+            memoryRepository.observeActive(),
+            memoryRepository.observeCore(),
+            noteQuery,
+        ) { notes, core, query -> Triple(notes, core, query) },
         skills,
         mcpServerRepository.observeAll(),
         mcpManager.status,
-    ) { automations, memories, skillList, mcpServers, mcpStatus ->
+    ) { automations, memory, skillList, mcpServers, mcpStatus ->
+        val (notes, core, query) = memory
         LibraryUiState(
             automations = automations,
-            memories = memories,
+            notes = filterNotes(notes, query),
+            core = core,
+            noteQuery = query,
             skills = skillList,
             mcpServers = mcpServers,
             mcpStatus = mcpStatus,
@@ -124,6 +161,16 @@ class LibraryViewModel @Inject constructor(
         initialValue = LibraryUiState(),
     )
 
+    private fun filterNotes(notes: List<Note>, query: String): List<Note> {
+        if (query.isBlank()) return notes
+        val terms = MemoryText.terms(query)
+        if (terms.isEmpty()) return notes
+        return notes.filter { note ->
+            val normalized = MemoryText.normalize(note.content)
+            terms.all { normalized.contains(it) }
+        }
+    }
+
     fun setAutomationEnabled(id: Long, enabled: Boolean) {
         viewModelScope.launch { automationManager.setEnabled(id, enabled) }
     }
@@ -132,7 +179,8 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { automationManager.delete(id) }
     }
 
-    fun deleteMemory(id: Long) {
-        viewModelScope.launch { memoryRepository.delete(id) }
+    companion object {
+        const val CORE_USER_SLOT = "user"
+        const val CORE_CONTEXT_SLOT = "context"
     }
 }

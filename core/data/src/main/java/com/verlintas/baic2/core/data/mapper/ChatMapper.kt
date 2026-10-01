@@ -22,14 +22,16 @@ package com.verlintas.baic2.core.data.mapper
 import com.verlintas.baic2.core.data.db.AgentEntity
 import com.verlintas.baic2.core.data.db.AutomationEntity
 import com.verlintas.baic2.core.data.db.ConversationEntity
-import com.verlintas.baic2.core.data.db.MemoryEntity
+import com.verlintas.baic2.core.data.db.CoreMemoryEntity
 import com.verlintas.baic2.core.data.db.McpServerEntity
 import com.verlintas.baic2.core.data.db.MessageEntity
+import com.verlintas.baic2.core.data.db.NoteEntity
 import com.verlintas.baic2.core.data.db.ScheduledTaskEntity
 import com.verlintas.baic2.core.data.db.SnapshotEntity
 import com.verlintas.baic2.core.data.db.PlanEntity
 import com.verlintas.baic2.core.data.db.RunEntity
 import com.verlintas.baic2.core.data.db.RunSummaryRow
+import com.verlintas.baic2.core.data.db.MessageSearchRow
 import com.verlintas.baic2.core.model.Agent
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.AutomationAction
@@ -38,9 +40,11 @@ import com.verlintas.baic2.core.model.AppMode
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
+import com.verlintas.baic2.core.model.CoreMemory
 import com.verlintas.baic2.core.model.McpServer
-import com.verlintas.baic2.core.model.Memory
-import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.MessageHit
+import com.verlintas.baic2.core.model.Note
+import com.verlintas.baic2.core.model.NoteKind
 import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ScheduledTask
 import com.verlintas.baic2.core.model.Plan
@@ -153,12 +157,37 @@ class ChatMapper @Inject constructor(private val json: Json) {
         }.getOrDefault(emptyList())
     }
 
-    fun memoryToModel(entity: MemoryEntity): Memory = Memory(
+    fun noteToModel(entity: NoteEntity): Note = Note(
         id = entity.id,
-        kind = enumOf(entity.kind, MemoryKind.MEMORY),
+        kind = enumOf(entity.kind, NoteKind.FACT),
         content = entity.content,
+        importance = entity.importance,
+        pinned = entity.pinned,
         conversationId = entity.conversationId,
+        messageId = entity.messageId,
+        whenAt = entity.whenAt,
         createdAt = entity.createdAt,
+        updatedAt = entity.updatedAt,
+        lastAccessedAt = entity.lastAccessedAt,
+        accessCount = entity.accessCount,
+        strength = entity.strength,
+        supersededBy = entity.supersededBy,
+        archived = entity.archived,
+    )
+
+    fun coreToModel(slots: List<CoreMemoryEntity>): CoreMemory = CoreMemory(
+        user = slots.firstOrNull { it.slot == CoreMemoryEntity.SLOT_USER }?.content.orEmpty(),
+        context = slots.firstOrNull { it.slot == CoreMemoryEntity.SLOT_CONTEXT }?.content.orEmpty(),
+        updatedAt = slots.maxOfOrNull { it.updatedAt } ?: 0L,
+    )
+
+    fun messageHitToModel(row: MessageSearchRow): MessageHit = MessageHit(
+        messageId = row.id,
+        conversationId = row.conversationId,
+        conversationTitle = row.conversationTitle,
+        role = enumOf(row.role, ChatRole.USER),
+        content = row.content,
+        createdAt = row.createdAt,
     )
 
     fun encodeToolCalls(toolCalls: List<ToolCall>): String = json.encodeToString(toolCalls)

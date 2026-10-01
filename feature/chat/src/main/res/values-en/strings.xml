@@ -45,7 +45,7 @@
     <string name="chat_menu_starred">Starred</string>
     <string name="chat_menu_export">Export chat</string>
     <string name="chat_menu_compress">Compress context</string>
-    <string name="chat_menu_distill">Distill memory</string>
+    <string name="chat_menu_distill">Consolidate memory</string>
     <string name="chat_menu_screen_analysis">Analyze screen</string>
     <string name="chat_screen_prompt">Analyze this screenshot, describe what is on it, and suggest concrete next steps.</string>
     <string name="chat_error_screen_capture">Screen capture failed: trigger "Analyze screen" again and approve the system dialog</string>
@@ -99,8 +99,8 @@
     <string name="chat_skill_save">Save</string>
     <string name="chat_skill_saved">Skill saved: %1$s (see Library → Skills)</string>
     <string name="chat_skill_none">No completed tool sequence to record</string>
-    <string name="chat_memory_saved">Saved %1$d new memories (see Library → Memory)</string>
-    <string name="chat_memory_none">No new durable facts to save</string>
+    <string name="chat_memory_saved">Memory consolidated: %1$d new, %2$d updated, %3$d archived (Library → Biomimetic memory)</string>
+    <string name="chat_memory_none">Nothing new worth keeping yet</string>
     <string name="chat_run_done_title">MAX run completed</string>
     <string name="chat_run_stopped_title">MAX run interrupted</string>
     <string name="chat_run_done_body">“%1$s” finished · %2$d rounds · %3$d tool call(s) · %4$s</string>

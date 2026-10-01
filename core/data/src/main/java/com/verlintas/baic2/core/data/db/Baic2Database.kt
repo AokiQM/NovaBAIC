@@ -30,14 +30,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ConversationEntity::class,
         MessageEntity::class,
         RunEntity::class,
-        MemoryEntity::class,
+        NoteEntity::class,
+        NoteLinkEntity::class,
+        CoreMemoryEntity::class,
         PlanEntity::class,
         AutomationEntity::class,
         McpServerEntity::class,
         SnapshotEntity::class,
         ScheduledTaskEntity::class,
     ],
-    version = 13,
+    version = 15,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -50,7 +52,11 @@ abstract class Baic2Database : RoomDatabase() {
 
     abstract fun runDao(): RunDao
 
-    abstract fun memoryDao(): MemoryDao
+    abstract fun noteDao(): NoteDao
+
+    abstract fun noteLinkDao(): NoteLinkDao
+
+    abstract fun coreMemoryDao(): CoreMemoryDao
 
     abstract fun planDao(): PlanDao
 
@@ -63,6 +69,89 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun scheduledTaskDao(): ScheduledTaskDao
 
     companion object {
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Synaptic strength: retrieval makes a trace decay more slowly.
+                db.execSQL("ALTER TABLE notes ADD COLUMN strength REAL NOT NULL DEFAULT 1.0")
+                // Hebbian associations between notes recalled together.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS note_links (
+                        a INTEGER NOT NULL,
+                        b INTEGER NOT NULL,
+                        weight REAL NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(a, b)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_note_links_b ON note_links(b)")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS notes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        kind TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        importance INTEGER NOT NULL,
+                        pinned INTEGER NOT NULL,
+                        conversationId INTEGER,
+                        messageId INTEGER,
+                        whenAt INTEGER,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        lastAccessedAt INTEGER NOT NULL,
+                        accessCount INTEGER NOT NULL,
+                        supersededBy INTEGER,
+                        archived INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_kind ON notes(kind)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_updatedAt ON notes(updatedAt)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS core_memory (
+                        slot TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(slot)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_createdAt ON messages(createdAt)")
+                // The old distilled facts and compression snapshots become notes;
+                // provenance (conversationId) is preserved, nothing is lost.
+                db.execSQL(
+                    """
+                    INSERT INTO notes (
+                        kind, content, importance, pinned, conversationId, messageId, whenAt,
+                        createdAt, updatedAt, lastAccessedAt, accessCount, supersededBy, archived
+                    )
+                    SELECT 'FACT', content, 3, 0, conversationId, NULL, NULL,
+                           createdAt, createdAt, 0, 0, NULL, 0
+                    FROM memories WHERE kind = 'MEMORY'
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO notes (
+                        kind, content, importance, pinned, conversationId, messageId, whenAt,
+                        createdAt, updatedAt, lastAccessedAt, accessCount, supersededBy, archived
+                    )
+                    SELECT 'SUMMARY', content, 3, 0, conversationId, NULL, NULL,
+                           createdAt, createdAt, 0, 0, NULL, 0
+                    FROM memories WHERE kind = 'SNAPSHOT'
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE memories")
+            }
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0")

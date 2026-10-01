@@ -21,6 +21,7 @@ package com.verlintas.baic2.core.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +84,9 @@ interface ConversationDao {
 
     @Query("SELECT * FROM conversations WHERE id = :id")
     fun observeById(id: Long): Flow<ConversationEntity?>
+
+    @Query("SELECT * FROM conversations WHERE title LIKE :pattern ORDER BY updatedAt DESC LIMIT 10")
+    suspend fun findByTitle(pattern: String): List<ConversationEntity>
 
     @Insert
     suspend fun insert(entity: ConversationEntity): Long
@@ -178,6 +182,70 @@ interface MessageDao {
 
     @Query("SELECT COALESCE(SUM(usageOutput), 0) FROM messages")
     suspend fun totalOutputTokens(): Long
+
+    /**
+     * Cross-conversation recall. Tool traffic is skipped: episodes are what
+     * a person remembers, not their shell commands. The pattern only prefilters
+     * on the first cue; the repository narrows with the remaining terms.
+     */
+    @Query(
+        """
+        SELECT m.id AS id, m.conversationId AS conversationId, c.title AS conversationTitle,
+               m.role AS role, m.content AS content, m.createdAt AS createdAt
+        FROM messages m
+        INNER JOIN conversations c ON c.id = m.conversationId
+        WHERE m.role <> 'TOOL'
+          AND (:pattern IS NULL OR m.content LIKE :pattern ESCAPE '\')
+          AND (:from IS NULL OR m.createdAt >= :from)
+          AND (:to IS NULL OR m.createdAt <= :to)
+        ORDER BY m.id DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun searchMessages(
+        pattern: String?,
+        from: Long?,
+        to: Long?,
+        limit: Int,
+    ): List<MessageSearchRow>
+
+    @Query(
+        """
+        SELECT m.id AS id, m.conversationId AS conversationId, c.title AS conversationTitle,
+               m.role AS role, m.content AS content, m.createdAt AS createdAt
+        FROM messages m
+        INNER JOIN conversations c ON c.id = m.conversationId
+        WHERE m.role <> 'TOOL'
+          AND m.conversationId IN (:conversationIds)
+          AND (:pattern IS NULL OR m.content LIKE :pattern ESCAPE '\')
+          AND (:from IS NULL OR m.createdAt >= :from)
+          AND (:to IS NULL OR m.createdAt <= :to)
+        ORDER BY m.id DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun searchMessagesIn(
+        conversationIds: List<Long>,
+        pattern: String?,
+        from: Long?,
+        to: Long?,
+        limit: Int,
+    ): List<MessageSearchRow>
+
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND id >= :anchorId ORDER BY id ASC LIMIT :limit",
+    )
+    suspend fun fromAnchor(conversationId: Long, anchorId: Long, limit: Int): List<MessageEntity>
+
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND id < :anchorId ORDER BY id DESC LIMIT :limit",
+    )
+    suspend fun beforeAnchor(conversationId: Long, anchorId: Long, limit: Int): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY id DESC LIMIT :limit")
+    suspend fun latestMessages(conversationId: Long, limit: Int): List<MessageEntity>
 }
 
 @Dao
@@ -293,6 +361,15 @@ data class RunSummaryRow(
     val updatedAt: Long,
 )
 
+data class MessageSearchRow(
+    val id: Long,
+    val conversationId: Long,
+    val conversationTitle: String,
+    val role: String,
+    val content: String,
+    val createdAt: Long,
+)
+
 @Dao
 interface McpServerDao {
 
@@ -348,26 +425,76 @@ interface PlanDao {
 }
 
 @Dao
-interface MemoryDao {
+interface NoteDao {
 
     @Insert
-    suspend fun insert(entity: MemoryEntity): Long
+    suspend fun insert(entity: NoteEntity): Long
 
-    @Query("SELECT * FROM memories WHERE kind = :kind ORDER BY id ASC")
-    fun observeByKind(kind: String): Flow<List<MemoryEntity>>
+    @Query("SELECT * FROM notes WHERE archived = 0 ORDER BY pinned DESC, updatedAt DESC LIMIT :limit")
+    fun observeActive(limit: Int): Flow<List<NoteEntity>>
 
-    @Query("SELECT * FROM memories WHERE kind = :kind ORDER BY id ASC")
-    suspend fun getByKind(kind: String): List<MemoryEntity>
+    @Query("SELECT * FROM notes WHERE archived = 0 ORDER BY pinned DESC, updatedAt DESC LIMIT :limit")
+    suspend fun getActive(limit: Int): List<NoteEntity>
 
-    @Query("SELECT COUNT(*) FROM memories WHERE kind = :kind")
-    suspend fun countByKind(kind: String): Int
+    @Query("SELECT * FROM notes WHERE archived = 0 AND content = :content LIMIT 1")
+    suspend fun findByContent(content: String): NoteEntity?
 
-    @Query("SELECT EXISTS(SELECT 1 FROM memories WHERE kind = :kind AND content = :content)")
-    suspend fun exists(kind: String, content: String): Boolean
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getById(id: Long): NoteEntity?
 
-    @Query("DELETE FROM memories WHERE id = :id")
+    @Query("UPDATE notes SET content = :content, importance = :importance, updatedAt = :now WHERE id = :id")
+    suspend fun update(id: Long, content: String, importance: Int, now: Long)
+
+    @Query("UPDATE notes SET pinned = :pinned, updatedAt = :now WHERE id = :id")
+    suspend fun setPinned(id: Long, pinned: Boolean, now: Long)
+
+    @Query("UPDATE notes SET archived = 1, supersededBy = :by, updatedAt = :now WHERE id = :id")
+    suspend fun archive(id: Long, by: Long?, now: Long)
+
+    @Query(
+        "UPDATE notes SET lastAccessedAt = :now, accessCount = accessCount + 1, " +
+            "strength = MIN(strength + 0.6, 5.0) WHERE id = :id",
+    )
+    suspend fun touch(id: Long, now: Long)
+
+    @Query("DELETE FROM notes WHERE id = :id")
     suspend fun delete(id: Long)
 
-    @Query("DELETE FROM memories WHERE kind = :kind")
-    suspend fun deleteByKind(kind: String)
+    @Query("SELECT COUNT(*) FROM notes WHERE archived = 0")
+    suspend fun countActive(): Int
+}
+
+@Dao
+interface NoteLinkDao {
+
+    @Insert
+    suspend fun insert(entity: NoteLinkEntity)
+
+    @Query("SELECT * FROM note_links WHERE a = :a AND b = :b")
+    suspend fun get(a: Long, b: Long): NoteLinkEntity?
+
+    @Query("UPDATE note_links SET weight = :weight, updatedAt = :now WHERE a = :a AND b = :b")
+    suspend fun updateWeight(a: Long, b: Long, weight: Float, now: Long)
+
+    @Query("SELECT * FROM note_links WHERE a IN (:ids) OR b IN (:ids)")
+    suspend fun linksFor(ids: List<Long>): List<NoteLinkEntity>
+
+    @Query("DELETE FROM note_links WHERE a = :id OR b = :id")
+    suspend fun deleteFor(id: Long)
+}
+
+@Dao
+interface CoreMemoryDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: CoreMemoryEntity)
+
+    @Query("SELECT * FROM core_memory WHERE slot = :slot")
+    suspend fun get(slot: String): CoreMemoryEntity?
+
+    @Query("SELECT * FROM core_memory")
+    fun observeAll(): Flow<List<CoreMemoryEntity>>
+
+    @Query("SELECT * FROM core_memory")
+    suspend fun getAll(): List<CoreMemoryEntity>
 }

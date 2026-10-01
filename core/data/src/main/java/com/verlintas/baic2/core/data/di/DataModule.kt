@@ -29,8 +29,10 @@ import com.verlintas.baic2.core.data.db.AutomationDao
 import com.verlintas.baic2.core.data.db.McpServerDao
 import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.ConversationDao
-import com.verlintas.baic2.core.data.db.MemoryDao
+import com.verlintas.baic2.core.data.db.CoreMemoryDao
 import com.verlintas.baic2.core.data.db.MessageDao
+import com.verlintas.baic2.core.data.db.NoteDao
+import com.verlintas.baic2.core.data.db.NoteLinkDao
 import com.verlintas.baic2.core.data.db.PlanDao
 import com.verlintas.baic2.core.data.db.RunDao
 import com.verlintas.baic2.core.data.db.ScheduledTaskDao
@@ -65,6 +67,8 @@ object DataModule {
                 Baic2Database.MIGRATION_10_11,
                 Baic2Database.MIGRATION_11_12,
                 Baic2Database.MIGRATION_12_13,
+                Baic2Database.MIGRATION_13_14,
+                Baic2Database.MIGRATION_14_15,
             )
             .build()
 
@@ -87,7 +91,13 @@ object DataModule {
     fun provideRunDao(db: Baic2Database): RunDao = db.runDao()
 
     @Provides
-    fun provideMemoryDao(db: Baic2Database): MemoryDao = db.memoryDao()
+    fun provideNoteDao(db: Baic2Database): NoteDao = db.noteDao()
+
+    @Provides
+    fun provideNoteLinkDao(db: Baic2Database): NoteLinkDao = db.noteLinkDao()
+
+    @Provides
+    fun provideCoreMemoryDao(db: Baic2Database): CoreMemoryDao = db.coreMemoryDao()
 
     @Provides
     fun providePlanDao(db: Baic2Database): PlanDao = db.planDao()

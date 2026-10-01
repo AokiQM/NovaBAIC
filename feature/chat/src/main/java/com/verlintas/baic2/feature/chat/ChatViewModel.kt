@@ -44,11 +44,15 @@ import com.verlintas.baic2.core.model.Attachment
 import com.verlintas.baic2.core.model.AttachmentKind
 import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatRole
+import com.verlintas.baic2.core.model.CoreMemory
 import com.verlintas.baic2.core.model.DocumentTextCodec
-import com.verlintas.baic2.core.model.MemoryKind
+import com.verlintas.baic2.core.model.MemoryPrompt
+import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ModelCatalog
 import com.verlintas.baic2.core.model.ModelContextWindows
+import com.verlintas.baic2.core.model.Note
+import com.verlintas.baic2.core.model.NoteKind
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderId
@@ -299,6 +303,7 @@ class ChatViewModel @Inject constructor(
         val confirmRequest: ToolCall?,
         val plan: Plan?,
         val snapshot: MessageSnapshot?,
+        val core: CoreMemory,
     )
 
     val attachmentErrors: StateFlow<AttachmentError?> = attachmentError.asStateFlow()
@@ -314,10 +319,14 @@ class ChatViewModel @Inject constructor(
             auxBusy,
             pendingAttachments,
             confirmation,
-            planRepository.observePlan(conversationId),
-            conversationRepository.observeSnapshots(conversationId),
-        ) { busy, attachments, confirmRequest, plan, snapshots ->
-            ViewExtras(busy, attachments, confirmRequest, plan, snapshots.firstOrNull())
+            combine(
+                planRepository.observePlan(conversationId),
+                conversationRepository.observeSnapshots(conversationId),
+                memoryRepository.observeCore(),
+            ) { plan, snapshots, core -> Triple(plan, snapshots, core) },
+        ) { busy, attachments, confirmRequest, planSnapshotsCore ->
+            val (plan, snapshots, core) = planSnapshotsCore
+            ViewExtras(busy, attachments, confirmRequest, plan, snapshots.firstOrNull(), core)
         },
     ) { conversation, messages, stream, session, extras ->
         val mode = conversation?.mode ?: AppMode.CHAT
@@ -325,7 +334,12 @@ class ChatViewModel @Inject constructor(
             ?: session.agents.firstOrNull { it.isDefault }
         val estimated = TokenEstimator.estimate(
             messages = messages,
-            systemPrompt = renderSystemPrompt(mode, agent?.systemPrompt.orEmpty(), extras.plan?.render()),
+            systemPrompt = renderSystemPrompt(
+                mode,
+                agent?.systemPrompt.orEmpty(),
+                extras.plan?.render(),
+                MemoryPrompt.context(extras.core, emptyList(), System.currentTimeMillis()),
+            ),
             toolSpecs = toolCatalog.specs(mode),
             streamingText = stream.text,
         )
@@ -359,7 +373,7 @@ class ChatViewModel @Inject constructor(
     private var runJob: Job? = null
     private var titleGenerated = false
     private var autoCompressAttempted = false
-    private var lastDistilledAssistantCount = 0
+    private var lastCuratedAssistantCount = -1
 
     init {
         viewModelScope.launch {
@@ -371,6 +385,25 @@ class ChatViewModel @Inject constructor(
                 if (target == conversationId) runJob?.cancel()
             }
         }
+        viewModelScope.launch {
+            // Sleep-time consolidation: replay and solidify when the app
+            // leaves the foreground, not in the middle of a conversation.
+            var wasForeground = AppVisibility.foreground
+            AppVisibility.foregroundFlow.collect { foreground ->
+                if (!foreground && wasForeground) {
+                    providerConfigQuiet()?.let { config ->
+                        maybeCurate(IDLE_CURATE_MESSAGES, config)
+                    }
+                }
+                wasForeground = foreground
+            }
+        }
+    }
+
+    /** Config lookup that never raises UI errors (background tasks). */
+    private suspend fun providerConfigQuiet(): ProviderConfig? {
+        val conversation = conversationRepository.get(conversationId) ?: return null
+        return runCatching { agentRepository.resolveConfig(conversation.agentId) }.getOrNull()
     }
 
     fun dismissNotice() {
@@ -617,16 +650,23 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { conversationRepository.discardSnapshot(snapshot.id) }
     }
 
-    /** Extracts durable user facts from the recent conversation. */
-    fun distillMemory(savedTemplate: String, noneLabel: String) {
+    /** Sleep-time consolidation: turns recent episodes into durable notes. */
+    fun reflectMemory(savedTemplate: String, noneLabel: String) {
         if (running.value || auxBusy.value) return
         viewModelScope.launch {
             val config = resolveConfig() ?: return@launch
             auxBusy.value = true
             try {
-                val added = runDistillation(config)
-                if (added >= 0) {
-                    notice.value = if (added > 0) savedTemplate.format(added) else noneLabel
+                val outcome = runCurator(config)
+                if (outcome != null) {
+                    lastCuratedAssistantCount = conversationRepository.getMessages(conversationId)
+                        .count { it.role == ChatRole.ASSISTANT }
+                    val changed = outcome.added + outcome.revised + outcome.forgotten
+                    notice.value = if (changed > 0) {
+                        savedTemplate.format(outcome.added, outcome.revised, outcome.forgotten)
+                    } else {
+                        noneLabel
+                    }
                 }
             } finally {
                 auxBusy.value = false
@@ -711,7 +751,14 @@ class ChatViewModel @Inject constructor(
         }
 
         val rawHistory = conversationRepository.getMessages(conversationId)
-        val history = withMemories(prepareHistory(rawHistory))
+        val history = prepareHistory(rawHistory)
+        // Priming: notes cued by this message are woken and ride along in the
+        // system prompt; everything else stays out of the window until asked.
+        val memoryContext = MemoryPrompt.context(
+            core = memoryRepository.getCore(),
+            primed = primedNotes(text),
+            now = System.currentTimeMillis(),
+        )
         // Tasks record agentic work only: plain Chat / Chat+ turns are not runs.
         val agentic = conversation.mode.requiresConfirmation || conversation.mode == AppMode.MAX
         val runId: Long? = if (agentic) {
@@ -742,6 +789,7 @@ class ChatViewModel @Inject constructor(
                 history = history,
                 conversationId = conversationId,
                 planContext = planRepository.getPlan(conversationId)?.render(),
+                memoryContext = memoryContext,
             ).collect { event ->
                 when (event) {
                     is AgentEvent.RoundStarted -> {
@@ -871,7 +919,14 @@ class ChatViewModel @Inject constructor(
             if (isFirstTurn && !titleGenerated) {
                 maybeGenerateTitle(config)
             }
-            maybeDistillAutomatically(config)
+            // Consolidation is sleep-time work: prefer the background edge,
+            // with an overflow fallback for marathon foreground sessions.
+            val threshold = if (AppVisibility.foreground) {
+                OVERFLOW_CURATE_MESSAGES
+            } else {
+                IDLE_CURATE_MESSAGES
+            }
+            maybeCurate(threshold, config)
             maybeAutoCompress(config)
         }
     }
@@ -927,15 +982,25 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun withMemories(history: List<ChatMessage>): List<ChatMessage> {
-        val memories = memoryRepository.list(MemoryKind.MEMORY).takeLast(MAX_MEMORIES_IN_PROMPT)
-        if (memories.isEmpty()) return history
-        val system = ChatMessage(
-            role = ChatRole.SYSTEM,
-            content = "Facts you already know about the user:\n" +
-                memories.joinToString("\n") { "- ${it.content}" },
-        )
-        return listOf(system) + history
+    /**
+     * Priming: prospective notes (plans/events whose time is near) surface on
+     * their own, then cue-driven recall wakes keyword-matched notes. Retrieval
+     * reconsolidates and wires them; everything else stays out of the window.
+     */
+    private suspend fun primedNotes(text: String): List<Note> {
+        val terms = MemoryText.terms(text)
+        val cued = if (terms.isEmpty()) {
+            emptyList()
+        } else {
+            memoryRepository.recall(
+                terms = terms,
+                limit = PREFETCH_LIMIT,
+                minHits = if (terms.size == 1) 1 else 2,
+                excludeKinds = setOf(NoteKind.SUMMARY),
+            ).map { it.note }
+        }
+        val upcoming = memoryRepository.upcoming(limit = UPCOMING_LIMIT)
+        return (upcoming + cued).distinctBy { it.id }.take(PREFETCH_LIMIT + UPCOMING_LIMIT)
     }
 
     private suspend fun maybeGenerateTitle(config: ProviderConfig) {
@@ -966,39 +1031,84 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun maybeDistillAutomatically(config: ProviderConfig) {
+    private suspend fun maybeCurate(threshold: Int, config: ProviderConfig) {
         val messages = conversationRepository.getMessages(conversationId)
         val assistantCount = messages.count { it.role == ChatRole.ASSISTANT }
+        // First observation only baselines: opening an old conversation must
+        // not replay its whole backlog through the curator.
+        if (lastCuratedAssistantCount < 0) {
+            lastCuratedAssistantCount = assistantCount
+            return
+        }
         // A single agentic turn can add many assistant rows, so a modulo check
         // would jump past exact multiples and never fire; keep a high-water mark.
-        if (assistantCount - lastDistilledAssistantCount < DISTILL_EVERY_MESSAGES) return
-        if (runDistillation(config) >= 0) {
-            lastDistilledAssistantCount = assistantCount
+        if (assistantCount - lastCuratedAssistantCount < threshold) return
+        if (runCurator(config) != null) {
+            lastCuratedAssistantCount = assistantCount
         }
     }
 
-    /** Returns the number of new facts saved, or -1 when the request failed. */
-    private suspend fun runDistillation(config: ProviderConfig): Int {
+    private data class CuratorOutcome(val added: Int, val revised: Int, val forgotten: Int)
+
+    /** Returns null when the request failed; counts otherwise. */
+    private suspend fun runCurator(config: ProviderConfig): CuratorOutcome? {
         val messages = conversationRepository.getMessages(conversationId)
             .filter { it.role == ChatRole.USER || (it.role == ChatRole.ASSISTANT && it.content.isNotBlank()) }
             .takeLast(30)
-        if (messages.isEmpty()) return -1
+        if (messages.none { it.role == ChatRole.USER }) return null
+        val notes = memoryRepository.listActive(CURATOR_NOTES)
+        val core = memoryRepository.getCore()
         val raw = runCatching {
             auxiliaryTasks.complete(
                 config = config,
-                systemPrompt = AuxiliaryTasks.MEMORY_SYSTEM,
-                userPrompt = AuxiliaryTasks.renderTranscript(messages),
-                maxTokens = 300,
+                systemPrompt = AuxiliaryTasks.CURATOR_SYSTEM,
+                userPrompt = AuxiliaryTasks.renderCuratorPrompt(
+                    transcript = AuxiliaryTasks.renderTranscript(messages, perMessageLimit = 400),
+                    inventory = MemoryPrompt.inventory(notes),
+                    coreBlocks = MemoryPrompt.coreBlocks(core),
+                ),
+                maxTokens = 900,
                 temperature = 0.2,
             )
-        }.getOrNull() ?: return -1
+        }.getOrNull() ?: return null
+        val plan = AuxiliaryTasks.parseCuratorPlan(raw)
         var added = 0
-        AuxiliaryTasks.parseFactList(raw).forEach { fact ->
-            if (memoryRepository.add(MemoryKind.MEMORY, fact, conversationId)) {
-                added++
+        var revised = 0
+        plan.remember.forEach { item ->
+            val outcome = memoryRepository.addNote(
+                kind = NoteKind.fromWire(item.kind),
+                content = item.content,
+                importance = item.importance,
+                conversationId = conversationId,
+                whenAt = MemoryText.parseWhen(item.whenRaw),
+            )
+            when (outcome) {
+                is MemoryRepository.AddOutcome.Saved -> added++
+                // Reconsolidated near-duplicates are revisions, not additions.
+                is MemoryRepository.AddOutcome.Merged -> revised++
+                is MemoryRepository.AddOutcome.Duplicate -> Unit
             }
         }
-        return added
+        plan.revise.forEach { revision ->
+            val existing = memoryRepository.noteById(revision.id) ?: return@forEach
+            memoryRepository.updateNote(
+                id = revision.id,
+                content = revision.content ?: existing.content,
+                importance = revision.importance ?: existing.importance,
+            )
+            revised++
+        }
+        var forgotten = 0
+        plan.forget.forEach { id ->
+            if (memoryRepository.noteById(id) != null) {
+                memoryRepository.archive(id)
+                forgotten++
+            }
+        }
+        if (plan.coreUser != null || plan.coreContext != null) {
+            memoryRepository.setCore(user = plan.coreUser, context = plan.coreContext)
+        }
+        return CuratorOutcome(added, revised, forgotten)
     }
 
     private suspend fun maybeAutoCompress(config: ProviderConfig) {
@@ -1051,7 +1161,7 @@ class ChatViewModel @Inject constructor(
                 keepFromMessageId = boundary.id,
                 summary = summary,
             )
-            memoryRepository.add(MemoryKind.SNAPSHOT, summary, conversationId)
+            memoryRepository.addNote(NoteKind.SUMMARY, summary, conversationId = conversationId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -1129,8 +1239,11 @@ class ChatViewModel @Inject constructor(
             "application/javascript",
             "application/x-yaml",
         )
-        private const val DISTILL_EVERY_MESSAGES = 10
-        private const val MAX_MEMORIES_IN_PROMPT = 60
+        private const val IDLE_CURATE_MESSAGES = 4
+        private const val OVERFLOW_CURATE_MESSAGES = 24
+        private const val CURATOR_NOTES = 60
+        private const val PREFETCH_LIMIT = 4
+        private const val UPCOMING_LIMIT = 2
         private const val AUTO_COMPRESS_THRESHOLD = 0.85
         private const val MAX_IMAGE_ATTACHMENTS = 4
     }

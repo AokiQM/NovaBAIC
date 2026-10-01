@@ -42,6 +42,19 @@ class ToolRegistryTest {
             ToolResult.Success("ok")
     }
 
+    private fun memoryTool(name: String) = object : DeviceTool {
+        override val spec = ToolSpec(
+            name = name,
+            description = name,
+            readOnly = true,
+            danger = DangerLevel.LOW,
+            alwaysAvailable = true,
+        )
+
+        override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult =
+            ToolResult.Success("ok")
+    }
+
     private val registry = ToolRegistry(
         setOf(
             fakeTool("get_time", readOnly = true),
@@ -71,5 +84,26 @@ class ToolRegistryTest {
     fun findResolvesByName() {
         assertEquals("open_app", registry.find("open_app")?.name)
         assertEquals(null, registry.find("nope"))
+    }
+
+    @Test
+    fun internalMemoryToolsAreAvailableInEveryMode() {
+        val withMemory = ToolRegistry(
+            setOf(
+                fakeTool("open_app", readOnly = false),
+                memoryTool("memory_search"),
+                memoryTool("memory_read"),
+            ),
+        )
+        assertEquals(
+            listOf("memory_read", "memory_search"),
+            withMemory.specs(AppMode.CHAT).map { it.name }.sorted(),
+        )
+        assertEquals(
+            listOf("memory_read", "memory_search"),
+            withMemory.specs(AppMode.CHAT_PLUS).map { it.name }.sorted(),
+        )
+        assertEquals(3, withMemory.specs(AppMode.ACT).size)
+        assertEquals(3, withMemory.specs(AppMode.MAX).size)
     }
 }

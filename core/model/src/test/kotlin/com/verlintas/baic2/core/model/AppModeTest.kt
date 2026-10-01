@@ -62,8 +62,10 @@ class RunBudgetTest {
     }
 
     @Test
-    fun chatForbidsToolCalls() {
-        assertEquals(0, RunBudget.forMode(AppMode.CHAT).maxToolCalls)
+    fun chatKeepsAMemoryOnlyToolBudget() {
+        val chat = RunBudget.forMode(AppMode.CHAT)
+        assertTrue(chat.maxToolCalls in 1..10)
+        assertTrue(chat.maxToolCalls < RunBudget.forMode(AppMode.CHAT_PLUS).maxToolCalls)
     }
 
     @Test

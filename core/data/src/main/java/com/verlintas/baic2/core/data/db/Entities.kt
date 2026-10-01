@@ -52,7 +52,7 @@ data class ConversationEntity(
 
 @Entity(
     tableName = "messages",
-    indices = [Index(value = ["conversationId"]), Index(value = ["starred"])],
+    indices = [Index(value = ["conversationId"]), Index(value = ["starred"]), Index(value = ["createdAt"])],
 )
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -74,16 +74,51 @@ data class MessageEntity(
 )
 
 @Entity(
-    tableName = "memories",
-    indices = [Index(value = ["kind"])],
+    tableName = "notes",
+    indices = [Index(value = ["kind"]), Index(value = ["updatedAt"])],
 )
-data class MemoryEntity(
+data class NoteEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val kind: String,
     val content: String,
+    val importance: Int,
+    val pinned: Boolean,
     val conversationId: Long?,
+    val messageId: Long?,
+    val whenAt: Long?,
     val createdAt: Long,
+    val updatedAt: Long,
+    val lastAccessedAt: Long,
+    val accessCount: Int,
+    val strength: Double,
+    val supersededBy: Long?,
+    val archived: Boolean,
 )
+
+/** A Hebbian association: notes recalled together wire together. */
+@Entity(
+    tableName = "note_links",
+    primaryKeys = ["a", "b"],
+    indices = [Index(value = ["b"])],
+)
+data class NoteLinkEntity(
+    val a: Long,
+    val b: Long,
+    val weight: Float,
+    val updatedAt: Long,
+)
+
+@Entity(tableName = "core_memory")
+data class CoreMemoryEntity(
+    @PrimaryKey val slot: String,
+    val content: String,
+    val updatedAt: Long,
+) {
+    companion object {
+        const val SLOT_USER = "user"
+        const val SLOT_CONTEXT = "context"
+    }
+}
 
 @Entity(
     tableName = "runs",

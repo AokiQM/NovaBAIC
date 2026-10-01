@@ -32,6 +32,11 @@ TOOL_ALIASES = {
     "files_list": ("files", {"action": "list", "scope": "downloads"}),
     "files_read": ("files", {"action": "read", "name": "baic2-test.md"}),
     "files_info": ("files", {"action": "info", "name": "baic2-test.md"}),
+    "memory_search_spread": ("memory_search", {"query": "流式管线", "scope": "notes", "limit": 5}),
+    "memory_write_merge": (
+        "memory_write",
+        {"content": "用户正在测试新的记忆工具功能", "kind": "fact", "importance": 3},
+    ),
 }
 
 TOOL_ARGS = {
@@ -71,6 +76,14 @@ TOOL_ARGS = {
             {"title": "汇报结果", "status": "pending"},
         ]
     },
+    "memory_search": {"query": "BAIC2", "scope": "all", "limit": 5},
+    "memory_read": {"conversation_id": 14, "count": 6},
+    "memory_write": {
+        "content": "用户正在测试新的记忆工具",
+        "kind": "fact",
+        "importance": 3,
+    },
+    "memory_forget": {"query": "新的记忆工具"},
 }
 
 
@@ -138,6 +151,13 @@ class Handler(BaseHTTPRequestHandler):
         system_text = system_parts[0] if system_parts else ""
 
         sys.stderr.write(f"[mock] system={system_text[:60]!r} count={len(system_parts)}\n")
+        sys.stderr.write(
+            "[mock] memory-block=%s plan-note=%s\n"
+            % (
+                "YES" if "What you already remember" in system_text else "no",
+                "YES" if "周五前" in system_text else "no",
+            )
+        )
         if len(system_parts) > 1:
             sys.stderr.write(f"[mock] extra-system={system_parts[1][:120]!r}\n")
         for message in payload.get("messages", []):
@@ -210,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
         auxiliary = (
             "Summarize the conversation" in system_text
             or "short conversation titles" in system_text
-            or "Extract durable facts" in system_text
+            or "memory curator" in system_text
         )
         trigger = None if auxiliary else re.search(r"tooltest:([a-z_0-9]+)", user_text)
         if not auxiliary and trigger is None and not tool_results and (
@@ -366,8 +386,11 @@ class Handler(BaseHTTPRequestHandler):
         """Deterministic replies for title / memory / compression requests."""
         if "short conversation titles" in system_text:
             return "量子纠缠的一句话解释"
-        if "durable facts" in system_text:
-            return '["用户喜欢深色主题", "用户正在开发 BAIC2"]'
+        if "memory curator" in system_text:
+            return (
+                '{"remember":[{"kind":"preference","content":"用户喜欢用深色主题做演示",'
+                '"importance":3}],"core_context":"正在测试新的仿生记忆系统"}'
+            )
         if "Summarize the conversation" in system_text:
             return "此前对话：用户询问了量子纠缠，并对 BAIC2 的流式管线做了验证。"
         return None

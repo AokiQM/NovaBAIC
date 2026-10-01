@@ -19,12 +19,25 @@
 
 package com.verlintas.baic2.core.model
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 /**
  * Whether the app currently has a visible foreground activity. Runs that end
  * while this is false fall back to a system notification instead of an
- * in-app dialog so the user still learns the outcome.
+ * in-app dialog so the user still learns the outcome. Memory consolidation
+ * also waits for the background edge - sleep-time replay, not mid-task.
  */
 object AppVisibility {
+
+    private val _foregroundFlow = MutableStateFlow(false)
+    val foregroundFlow: StateFlow<Boolean> = _foregroundFlow.asStateFlow()
+
     @Volatile
     var foreground: Boolean = false
+        set(value) {
+            field = value
+            _foregroundFlow.value = value
+        }
 }

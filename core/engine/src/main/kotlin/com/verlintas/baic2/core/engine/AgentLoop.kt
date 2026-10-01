@@ -91,6 +91,7 @@ class AgentLoop(
         history: List<ChatMessage>,
         conversationId: Long? = null,
         planContext: String? = null,
+        memoryContext: String? = null,
         budgetOverride: RunBudget? = null,
     ): Flow<AgentEvent> = flow {
         val budget = budgetOverride ?: RunBudget.forMode(mode)
@@ -141,7 +142,7 @@ class AgentLoop(
                 provider.stream(
                     ChatRequest(
                         config = config,
-                        systemPrompt = renderSystemPrompt(mode, customSystemPrompt, planContext),
+                        systemPrompt = renderSystemPrompt(mode, customSystemPrompt, planContext, memoryContext),
                         messages = messages,
                         tools = toolCatalog.specs(mode),
                     ),
@@ -337,8 +338,11 @@ class AgentLoop(
     }
 
     private fun gate(mode: AppMode, spec: ToolSpec?): GateResult {
-        if (mode == AppMode.CHAT) return GateResult.Denied("Chat mode does not execute tools")
         if (spec == null) return GateResult.Denied("Unknown tool")
+        // Memory is internal: it works in every mode and never needs
+        // confirmation or a read-only exemption.
+        if (spec.alwaysAvailable) return GateResult.Allow
+        if (mode == AppMode.CHAT) return GateResult.Denied("Chat mode does not execute tools")
         if (mode.readOnlyOnly && !spec.readOnly) return GateResult.Denied("This mode only allows read-only tools")
         if (mode.requiresConfirmation) return GateResult.NeedsConfirm
         return GateResult.Allow
@@ -364,15 +368,22 @@ class AgentLoop(
  * The system prompt for a run. Public so the chat layer can estimate the
  * context size before a request is built.
  */
-fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): String {
+fun renderSystemPrompt(
+    mode: AppMode,
+    custom: String,
+    planContext: String?,
+    memoryContext: String? = null,
+    now: Long = System.currentTimeMillis(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+): String {
     val base = when (mode) {
         AppMode.CHAT ->
-            "You are in conversation mode. No tools are available; just talk with the user - " +
-                "clearly, concisely, and in your own voice."
+            "You are in conversation mode. Apart from your memory tools, no tools are available; " +
+                "just talk with the user - clearly, concisely, and in your own voice."
 
         AppMode.CHAT_PLUS ->
-            "You are in research mode. You may use read-only tools to inspect information. " +
-                "Draft a short plan before acting and never attempt to modify the device."
+            "You are in research mode. You may use read-only tools and your memory tools to inspect " +
+                "information. Draft a short plan before acting and never attempt to modify the device."
 
         AppMode.ACT ->
             "You are in action mode. You can call device tools; each call is confirmed by the user first, " +
@@ -401,7 +412,33 @@ fun renderSystemPrompt(mode: AppMode, custom: String, planContext: String?): Str
         "reasoning channel (when available) and never narrate step-by-step thinking in the " +
         "visible reply. Answer with conclusions, actions and results only - concise, dense, " +
         "no filler, no restating the question."
-    val composed = "$character\n\n$policy\n\n$withPlan"
+    // Biomimetic memory protocol: memory lives outside the context window and
+    // is woken by cues; writing is deliberate, never a log.
+    val memory = "Memory protocol: you remember across every conversation. The always-on " +
+        "block below is what you already know; never claim any other memory without checking " +
+        "first. Use memory_search whenever the user refers to the past, to other conversations " +
+        "or to themselves, and before saying you don't know something about them - search " +
+        "first, then answer. Use memory_read when a recalled snippet is not enough. Use " +
+        "memory_write to keep durable notes (stable preferences, ongoing projects, agreements, " +
+        "important dates, corrections) - never small talk or one-off details - and pass " +
+        "replaces=<id> when a stored note turns out wrong or outdated. Use memory_forget only " +
+        "when the user explicitly asks you to forget something, and confirm what it is with " +
+        "them before archiving it."
+    val clock = "Current date and time: " +
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm EEEE", java.util.Locale.ENGLISH)
+            .withZone(zone)
+            .format(java.time.Instant.ofEpochMilli(now)) +
+        " (" + zone.id + "). Resolve relative phrases like 'yesterday' or 'last week' against this."
+    val composed = buildString {
+        append(character).append("\n\n")
+        append(policy).append("\n\n")
+        append(memory).append('\n')
+        append(clock).append("\n\n")
+        append(withPlan)
+        if (!memoryContext.isNullOrBlank()) {
+            append("\n\n").append(memoryContext)
+        }
+    }
     return if (custom.isBlank()) composed else "$custom\n\n$composed"
 }
 

@@ -515,7 +515,7 @@ fun ChatScreen(
                 text = { Text(stringResource(R.string.chat_menu_distill)) },
                 onClick = {
                     menuOpen = false
-                    viewModel.distillMemory(
+                    viewModel.reflectMemory(
                         savedTemplate = memorySavedTemplate,
                         noneLabel = memoryNoneLabel,
                     )

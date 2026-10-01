@@ -29,7 +29,7 @@ BetterAIChat2 is the successor rewrite (codename Nova) of [BetterAIChat](https:/
 
 It is a **local-first** AI agent — API keys are encrypted with the Android Keystore and stay on the device. There is no cloud, no telemetry, and no account. Through **function calling**, the AI actually operates your phone: read the screen, tap, type, browse files, set reminders, and run automations.
 
-- **It really touches the device**: 48 built-in tools covering accessibility automation, screen capture + OCR, files, web, personal-assistant tasks, and Shizuku shell
+- **It really touches the device**: 52 built-in tools covering accessibility automation, screen capture + OCR, files, web, personal-assistant tasks, and Shizuku shell
 - **No model lock-in**: DeepSeek / OpenAI / Claude / Gemini / Kimi / Qwen / GLM / MiniMax / Ollama / any compatible gateway — switch any time
 - **Four modes**: from plain chat, to read-only research, to per-call confirmation, to budgeted autonomous runs
 - **Unattended operation**: scheduled tasks, foreground services, subagents, remote MCP tools, and Skills
@@ -76,7 +76,7 @@ Things to try (`Act` / `Max` mode):
 </p>
 <p align="center">
   <img src="screenshots/tasks.png" width="23%" alt="Run center" />
-  <img src="screenshots/library.png" width="23%" alt="Library: skills, MCP, memory" />
+  <img src="screenshots/library.png" width="23%" alt="Library: biomimetic memory, skills and MCP" />
   <img src="screenshots/settings.png" width="23%" alt="Settings" />
   <img src="screenshots/about.png" width="23%" alt="About" />
 </p>
@@ -92,7 +92,7 @@ Things to try (`Act` / `Max` mode):
 - Three protocol adapters: OpenAI-compatible, Anthropic Messages, and Google Gemini; unified retries, error classification, and rate-limit handling
 - Attachments: images (vision models), text files, Word / Excel / PDF (parsed on-device; PDFs are rasterized and OCR'd)
 - Voice input, hands-free conversation, message reading (TTS), and an audio-transcription tool
-- Long-term memory (auto-distilled + manual); context compression (>85% automatic, with a **reversible snapshot** created before each compression)
+- **Biomimetic memory**: a constant-size core (about you / what's ongoing), cross-conversation episodic recall (`memory_search` / `memory_read`), deliberate note-taking with supersede and forgetting (`memory_write` / `memory_forget`), associative Hebbian links with one-hop spreading activation, prospective time-based priming for upcoming plans, spaced-repetition strength that makes recalled notes decay more slowly, pattern-completion reconsolidation of near-duplicates, and sleep-time consolidation (a curator reviews episodes only when the app leaves the foreground). Raw history is never summarized away; context compression (>85% automatic) still creates a **reversible snapshot**
 - Context meter: live token usage and percentage; AI-generated titles; conversation search, starred messages, Markdown export
 
 ### Agents & modes
@@ -101,12 +101,12 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 
 | Mode | Semantics |
 | --- | --- |
-| `Chat` | Plain conversation, no tools |
+| `Chat` | Plain conversation (memory tools only) |
 | `Chat+` | Conversation + read-only tools + planning (8 rounds / 25 tool calls) |
 | `Act` | Executes tools, confirming each call |
 | `Max` | Autonomous runs: persistent Run records, budgets (60 rounds / 160 tool calls / 60 minutes), runs in background |
 
-### AI × device (48 built-in tools)
+### AI × device (52 built-in tools)
 
 **Perception & UI automation (accessibility + vision)**
 
@@ -220,7 +220,7 @@ core:runtime       reserved runtime layer (scheduling currently lives in device:
 core:designsystem  design tokens and components
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    capture / OCR / accessibility / speech / reminders / run notifications
-tools              48 built-in tools + automations + skills + subagents
+tools              52 built-in tools + automations + skills + subagents
 mcp                remote MCP client         eval          scenario evaluation harness
 ```
 
