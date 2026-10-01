@@ -417,4 +417,30 @@ class AgentLoopTest {
         assertTrue(toolMessage.content.startsWith("[untrusted external content"))
         assertTrue(toolMessage.content.contains("page text"))
     }
+
+    @Test
+    fun taintInheritedFromHistoryGatesHighDangerCalls() = runTest {
+        val shell = ToolCall(id = "c1", name = "run_shell", argumentsJson = "{}")
+        val provider = ScriptedProvider(listOf(toolRound(shell), textRound("gated")))
+        val asked = mutableListOf<String>()
+        val loop = AgentLoop(
+            providerFactory = { provider },
+            toolCatalog = FakeCatalog(
+                listOf(ToolSpec(name = "run_shell", description = "sh", danger = DangerLevel.HIGH)),
+            ),
+            toolRunner = { _, _ -> ToolResult.Success("must not run") },
+            confirmationGate = ConfirmationGate { call ->
+                asked += call.name
+                false
+            },
+        )
+
+        val events = loop.run(config, AppMode.MAX, history = history, initialTaint = true).toList()
+
+        assertEquals(listOf("run_shell"), asked)
+        assertEquals(
+            ToolCallStatus.REJECTED,
+            events.filterIsInstance<AgentEvent.ToolCallFinished>().single().call.status,
+        )
+    }
 }

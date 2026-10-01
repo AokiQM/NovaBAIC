@@ -20,9 +20,11 @@
 package com.verlintas.baic2.eval
 
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.ChatMessage
 import com.verlintas.baic2.core.model.ChatProvider
 import com.verlintas.baic2.core.model.ChatRequest
 import com.verlintas.baic2.core.model.StreamEvent
+import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +58,12 @@ data class Scenario(
     val mode: AppMode,
     val rounds: List<List<StreamEvent>>,
     val tools: List<FakeTool> = emptyList(),
+    /** Context that predates this turn (simulates cross-turn replays). */
+    val history: List<ChatMessage> = emptyList(),
+    /** Answers confirmation prompts; the default approves everything. */
+    val approve: (ToolCall) -> Boolean = { true },
+    /** Run as a scheduled task: nobody is watching. */
+    val unattended: Boolean = false,
     val expect: Expectations = Expectations(),
 )
 
@@ -63,6 +71,8 @@ data class Expectations(
     val completed: Boolean = true,
     val finalTextContains: List<String> = emptyList(),
     val requiredToolCalls: List<String>? = null,
+    /** Calls the gate sent to confirmation that the user then refused. */
+    val rejectedToolCalls: List<String> = emptyList(),
     val maxRounds: Int? = null,
     val failureKind: com.verlintas.baic2.core.engine.AgentFailure.Kind? = null,
 )

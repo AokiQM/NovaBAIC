@@ -82,7 +82,7 @@ object ToolsModule {
         toolRunner: dagger.Lazy<com.verlintas.baic2.core.engine.ToolRunner>,
         confirmationGate: com.verlintas.baic2.core.engine.ConfirmationGate,
     ): DeviceTool = com.verlintas.baic2.tools.subagent.SpawnAgentTool(
-        providerFactory,
+        { providerFactory.create(it) },
         toolCatalog,
         toolRunner,
         confirmationGate,

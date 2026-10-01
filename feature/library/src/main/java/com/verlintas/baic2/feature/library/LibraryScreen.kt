@@ -98,6 +98,7 @@ import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.mcp.McpServerStatus
 import com.verlintas.baic2.designsystem.Baic2Mono
@@ -914,9 +915,18 @@ private fun NoteRow(
             )
             Spacer(Modifier.width(Baic2Spacing.sm))
             Text(
-                text = noteKindLabel(note.kind) + " · " + android.text.format.DateUtils.getRelativeTimeSpanString(
-                    note.updatedAt,
-                ),
+                text = buildString {
+                    append(noteKindLabel(note.kind))
+                    if (note.source != NoteSource.USER) {
+                        append(" · ").append(note.source.wire())
+                    }
+                    if (note.entities.isNotEmpty()) {
+                        append(" · ").append(note.entities.joinToString(" ") { "@$it" })
+                    }
+                    append(" · ").append(
+                        android.text.format.DateUtils.getRelativeTimeSpanString(note.updatedAt),
+                    )
+                },
                 style = Baic2Mono.label,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

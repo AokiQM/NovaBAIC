@@ -23,13 +23,18 @@ import com.verlintas.baic2.core.engine.AgentEvent
 import com.verlintas.baic2.core.engine.AgentLoop
 import com.verlintas.baic2.core.engine.ConfirmationGate
 import com.verlintas.baic2.core.engine.ToolCatalog
+import com.verlintas.baic2.core.engine.ToolRunContext
 import com.verlintas.baic2.core.engine.ToolRunner
 import com.verlintas.baic2.core.model.AppMode
+import com.verlintas.baic2.core.model.ChatMessage
+import com.verlintas.baic2.core.model.ChatProvider
+import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.DangerLevel
+import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.RunBudget
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
-import com.verlintas.baic2.core.network.provider.ProviderFactory
+import com.verlintas.baic2.core.model.ToolTrust
 import com.verlintas.baic2.tools.DeviceTool
 import com.verlintas.baic2.tools.ToolContext
 import javax.inject.Inject
@@ -42,9 +47,13 @@ import kotlinx.serialization.json.contentOrNull
  * Runs a scoped child agent with its own budget and context window, then
  * returns a compact report. Sub-agents cannot spawn further sub-agents, which
  * keeps depth at one and budgets predictable.
+ *
+ * Taint crosses the boundary in both directions: a tainted parent spawns a
+ * tainted child (which then confirms/denies HIGH calls like its parent), and a
+ * child that touched untrusted content returns a marked report.
  */
 class SpawnAgentTool @Inject constructor(
-    private val providerFactory: ProviderFactory,
+    private val providerFactory: (ProviderId) -> ChatProvider,
     private val toolCatalog: dagger.Lazy<ToolCatalog>,
     private val toolRunner: dagger.Lazy<ToolRunner>,
     private val confirmationGate: ConfirmationGate,
@@ -64,12 +73,16 @@ class SpawnAgentTool @Inject constructor(
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
         val task = (arguments["task"] as? JsonPrimitive)?.content?.trim()
             ?: return ToolResult.Failure("Missing 'task' argument")
-        val config = context.run.config
-            ?: return ToolResult.Failure("Sub-agents need an active provider configuration.")
         val mode = when ((arguments["mode"] as? JsonPrimitive)?.contentOrNull?.lowercase()) {
             "max" -> AppMode.MAX
             else -> AppMode.CHAT_PLUS
         }
+        return runChild(task, mode, context.run)
+    }
+
+    internal suspend fun runChild(task: String, mode: AppMode, run: ToolRunContext): ToolResult {
+        val config = run.config
+            ?: return ToolResult.Failure("Sub-agents need an active provider configuration.")
         val budget = if (mode == AppMode.CHAT_PLUS) {
             RunBudget(maxRounds = 8, maxToolCalls = 20, maxWallClockMs = 300_000)
         } else {
@@ -87,7 +100,7 @@ class SpawnAgentTool @Inject constructor(
         }
 
         val loop = AgentLoop(
-            providerFactory = { providerFactory.create(it) },
+            providerFactory = providerFactory,
             toolCatalog = childCatalog,
             toolRunner = toolRunner.get(),
             confirmationGate = ConfirmationGate { false },
@@ -97,12 +110,9 @@ class SpawnAgentTool @Inject constructor(
             loop.run(
                 config = config,
                 mode = mode,
-                history = listOf(
-                    com.verlintas.baic2.core.model.ChatMessage(
-                        role = com.verlintas.baic2.core.model.ChatRole.USER,
-                        content = task,
-                    ),
-                ),
+                history = listOf(ChatMessage(role = ChatRole.USER, content = task)),
+                initialTaint = run.taint.tainted,
+                budgetOverride = budget,
             ).toList()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -122,6 +132,10 @@ class SpawnAgentTool @Inject constructor(
             .map { it.call.name }
             .distinct()
         val rounds = events.filterIsInstance<AgentEvent.RoundStarted>().size
+        // A child that read untrusted content returns a marked report, so the
+        // parent's run inherits the taint too.
+        val childTainted = events.filterIsInstance<AgentEvent.ToolCallFinished>().any { it.untrusted }
+        val reportText = if (childTainted) ToolTrust.wrap(report.take(3_000)) else report.take(3_000)
 
         return ToolResult.Success(
             buildString {
@@ -129,7 +143,7 @@ class SpawnAgentTool @Inject constructor(
                 append("$rounds round(s)")
                 if (toolNames.isNotEmpty()) append(", tools: ${toolNames.joinToString()}")
                 append("):\n")
-                append(report.take(3_000))
+                append(reportText)
             },
         )
     }

@@ -57,9 +57,38 @@ enum class NoteKind {
 }
 
 /**
+ * Where a note came from - source monitoring. A fact the user stated himself
+ * is trusted more than the model's own inference, which is trusted more than
+ * text scraped from outside.
+ */
+@Serializable
+enum class NoteSource {
+    USER,
+    ASSISTANT,
+    EXTERNAL,
+    UNKNOWN,
+    ;
+
+    fun wire(): String = name.lowercase()
+
+    companion object {
+        val wireNames: List<String> = listOf("user", "assistant", "external")
+
+        fun fromWire(raw: String?): NoteSource = when (raw?.trim()?.lowercase()) {
+            "user" -> USER
+            "assistant" -> ASSISTANT
+            "external" -> EXTERNAL
+            else -> UNKNOWN
+        }
+    }
+}
+
+/**
  * One durable note. Notes point back at their source ([conversationId],
  * [messageId]) so the model can always drill into the original episode, and
- * they can supersede each other instead of silently contradicting.
+ * they can supersede each other instead of silently contradicting. [entities]
+ * are the people/projects/places the note is about, so memory can be reached
+ * "one thing at a time" like human episodic recall.
  */
 @Serializable
 data class Note(
@@ -77,6 +106,10 @@ data class Note(
     val accessCount: Int = 0,
     /** Synaptic strength: retrieval reconsolidates and slows the decay down. */
     val strength: Double = 1.0,
+    val source: NoteSource = NoteSource.USER,
+    val entities: List<String> = emptyList(),
+    /** A trace the user explicitly asked to forget; re-learning is blocked. */
+    val suppressed: Boolean = false,
     val supersededBy: Long? = null,
     val archived: Boolean = false,
 )

@@ -29,6 +29,7 @@ import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderId
 import com.verlintas.baic2.core.model.ToolCall
+import com.verlintas.baic2.core.model.ToolCallStatus
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import kotlinx.coroutines.flow.toList
@@ -71,13 +72,14 @@ class ScenarioRunner(
                     else -> queue.removeAt(0)
                 }
             },
-            confirmationGate = ConfirmationGate { true },
+            confirmationGate = ConfirmationGate { call -> scenario.approve(call) },
         )
 
         val events = loop.run(
             config = config,
             mode = scenario.mode,
-            history = listOf(ChatMessage(role = ChatRole.USER, content = scenario.description)),
+            history = scenario.history + ChatMessage(role = ChatRole.USER, content = scenario.description),
+            unattended = scenario.unattended,
         ).toList()
 
         return grade(scenario, events, callLog, provider.requests)
@@ -108,6 +110,12 @@ class ScenarioRunner(
             if (toolCallLog != expected) {
                 failures += "tool calls expected=$expected actual=$toolCallLog"
             }
+        }
+        val rejected = events.filterIsInstance<AgentEvent.ToolCallFinished>()
+            .filter { it.call.status == ToolCallStatus.REJECTED }
+            .map { it.call.name }
+        if (rejected != scenario.expect.rejectedToolCalls) {
+            failures += "rejected calls expected=${scenario.expect.rejectedToolCalls} actual=$rejected"
         }
         scenario.expect.maxRounds?.let { max ->
             if (rounds > max) failures += "rounds $rounds exceeded max $max"

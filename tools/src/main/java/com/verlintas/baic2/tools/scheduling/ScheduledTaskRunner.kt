@@ -32,6 +32,7 @@ import com.verlintas.baic2.core.model.RunState
 import com.verlintas.baic2.core.model.ScheduledTask
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.core.model.ToolTrust
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -144,7 +145,11 @@ class ScheduledTaskRunner @Inject constructor(
                             ChatMessage(
                                 conversationId = conversationId,
                                 role = ChatRole.TOOL,
-                                content = event.call.result.orEmpty(),
+                                content = if (event.untrusted) {
+                                    ToolTrust.wrap(event.call.result.orEmpty())
+                                } else {
+                                    event.call.result.orEmpty()
+                                },
                                 toolCallId = event.call.id,
                                 toolName = event.call.name,
                                 createdAt = System.currentTimeMillis(),

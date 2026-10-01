@@ -91,6 +91,9 @@ data class NoteEntity(
     val lastAccessedAt: Long,
     val accessCount: Int,
     val strength: Double,
+    val source: String,
+    val entities: String,
+    val suppressed: Boolean,
     val supersededBy: Long?,
     val archived: Boolean,
 )

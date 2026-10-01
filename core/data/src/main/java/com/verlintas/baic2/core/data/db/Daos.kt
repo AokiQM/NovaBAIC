@@ -436,6 +436,18 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE archived = 0 ORDER BY pinned DESC, updatedAt DESC LIMIT :limit")
     suspend fun getActive(limit: Int): List<NoteEntity>
 
+    @Query("SELECT * FROM notes WHERE suppressed = 1 LIMIT :limit")
+    suspend fun getSuppressed(limit: Int): List<NoteEntity>
+
+    @Query(
+        "SELECT * FROM notes WHERE archived = 0 AND entities LIKE :pattern ESCAPE '\\' " +
+            "ORDER BY pinned DESC, updatedAt DESC LIMIT :limit",
+    )
+    suspend fun getByEntity(pattern: String, limit: Int): List<NoteEntity>
+
+    @Query("SELECT entities FROM notes WHERE archived = 0 AND entities != ''")
+    suspend fun activeEntityBlobs(): List<String>
+
     @Query("SELECT * FROM notes WHERE archived = 0 AND content = :content LIMIT 1")
     suspend fun findByContent(content: String): NoteEntity?
 
@@ -445,11 +457,21 @@ interface NoteDao {
     @Query("UPDATE notes SET content = :content, importance = :importance, updatedAt = :now WHERE id = :id")
     suspend fun update(id: Long, content: String, importance: Int, now: Long)
 
+    @Query(
+        "UPDATE notes SET content = :content, importance = :importance, entities = :entities, " +
+            "updatedAt = :now WHERE id = :id",
+    )
+    suspend fun updateWithEntities(id: Long, content: String, importance: Int, entities: String, now: Long)
+
     @Query("UPDATE notes SET pinned = :pinned, updatedAt = :now WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean, now: Long)
 
     @Query("UPDATE notes SET archived = 1, supersededBy = :by, updatedAt = :now WHERE id = :id")
     suspend fun archive(id: Long, by: Long?, now: Long)
+
+    /** The user asked to forget: archive and remember the suppression. */
+    @Query("UPDATE notes SET archived = 1, suppressed = 1, updatedAt = :now WHERE id = :id")
+    suspend fun suppress(id: Long, now: Long)
 
     @Query(
         "UPDATE notes SET lastAccessedAt = :now, accessCount = accessCount + 1, " +

@@ -30,7 +30,9 @@ import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.ConversationPreview
+import com.verlintas.baic2.core.model.MemoryScoring
 import com.verlintas.baic2.core.model.MessageHit
+import com.verlintas.baic2.core.model.ToolTrust
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -163,18 +165,26 @@ class ConversationRepository @Inject constructor(
         summary: String,
     ) = db.withTransaction {
         val archived = db.messageDao().getRange(conversationId, summaryCarrierId, keepFromMessageId)
+        val archivedModels = archived.map(mapper::messageToModel)
         if (archived.isNotEmpty()) {
             db.snapshotDao().insert(
                 SnapshotEntity(
                     conversationId = conversationId,
                     carrierId = summaryCarrierId,
                     keepFromMessageId = keepFromMessageId,
-                    payloadJson = mapper.encodeMessages(archived.map(mapper::messageToModel)),
+                    payloadJson = mapper.encodeMessages(archivedModels),
                     createdAt = System.currentTimeMillis(),
                 ),
             )
         }
-        db.messageDao().updateRoleAndContent(summaryCarrierId, ChatRole.ASSISTANT.name, summary)
+        // Taint survives summarisation: a summary that digested untrusted
+        // content keeps the marker, so the guard cannot be laundered away.
+        val carrierContent = if (ToolTrust.anyUntrusted(archivedModels)) {
+            ToolTrust.wrap(summary)
+        } else {
+            summary
+        }
+        db.messageDao().updateRoleAndContent(summaryCarrierId, ChatRole.ASSISTANT.name, carrierContent)
         db.messageDao().deleteRange(conversationId, summaryCarrierId, keepFromMessageId)
         db.messageDao().clearUsage(conversationId)
     }
@@ -217,6 +227,7 @@ class ConversationRepository @Inject constructor(
         conversationQuery: String? = null,
         from: Long? = null,
         to: Long? = null,
+        roleFilter: ChatRole? = null,
         limit: Int = 20,
         offset: Int = 0,
     ): List<MessageHit> {
@@ -240,15 +251,27 @@ class ConversationRepository @Inject constructor(
         }
         return hits.values.asSequence()
             .filter { it.first.content.isNotBlank() }
+            .map { (row, matches) ->
+                val role = runCatching { ChatRole.valueOf(row.role) }.getOrDefault(ChatRole.ASSISTANT)
+                ScoredMessage(row, role, MemoryScoring.messageScore(role, matches))
+            }
+            .filter { roleFilter == null || it.role == roleFilter }
             .sortedWith(
-                compareByDescending<Pair<MessageSearchRow, Int>> { it.second }
-                    .thenByDescending { it.first.createdAt },
+                compareByDescending<ScoredMessage> { it.score }
+                    .thenBy { if (it.role == ChatRole.USER) 0 else 1 }
+                    .thenByDescending { it.row.createdAt },
             )
             .drop(offset)
             .take(limit)
-            .map { mapper.messageHitToModel(it.first) }
+            .map { mapper.messageHitToModel(it.row) }
             .toList()
     }
+
+    private data class ScoredMessage(
+        val row: MessageSearchRow,
+        val role: ChatRole,
+        val score: Double,
+    )
 
     private suspend fun queryMessages(
         conversationIds: List<Long>?,

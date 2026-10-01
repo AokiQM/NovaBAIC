@@ -53,6 +53,7 @@ import com.verlintas.baic2.core.model.ModelCatalog
 import com.verlintas.baic2.core.model.ModelContextWindows
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.Plan
 import com.verlintas.baic2.core.model.ProviderConfig
 import com.verlintas.baic2.core.model.ProviderId
@@ -61,6 +62,7 @@ import com.verlintas.baic2.core.data.prefs.SettingsRepository
 import com.verlintas.baic2.core.model.TokenEstimator
 import com.verlintas.baic2.core.model.ToolCall
 import com.verlintas.baic2.core.model.ToolCallStatus
+import com.verlintas.baic2.core.model.ToolTrust
 import com.verlintas.baic2.device.api.PdfTextExtractor
 import com.verlintas.baic2.device.api.RunNotifier
 import com.verlintas.baic2.device.api.ScreenshotProvider
@@ -756,7 +758,7 @@ class ChatViewModel @Inject constructor(
         // system prompt; everything else stays out of the window until asked.
         val memoryContext = MemoryPrompt.context(
             core = memoryRepository.getCore(),
-            primed = primedNotes(text),
+            primed = primedNotes(text, rawHistory, conversation.title),
             now = System.currentTimeMillis(),
         )
         // Tasks record agentic work only: plain Chat / Chat+ turns are not runs.
@@ -847,7 +849,13 @@ class ChatViewModel @Inject constructor(
                             ChatMessage(
                                 conversationId = conversationId,
                                 role = ChatRole.TOOL,
-                                content = event.call.result.orEmpty(),
+                                content = if (event.untrusted) {
+                                    // Persist the marker so the taint survives
+                                    // into later turns and replayed history.
+                                    ToolTrust.wrap(event.call.result.orEmpty())
+                                } else {
+                                    event.call.result.orEmpty()
+                                },
                                 toolCallId = event.call.id,
                                 toolName = event.call.name,
                                 createdAt = System.currentTimeMillis(),
@@ -1003,11 +1011,25 @@ class ChatViewModel @Inject constructor(
 
     /**
      * Priming: prospective notes (plans/events whose time is near) surface on
-     * their own, then cue-driven recall wakes keyword-matched notes. Retrieval
-     * reconsolidates and wires them; everything else stays out of the window.
+     * their own, entity recall answers "about this person/project", and
+     * cue-driven recall wakes keyword-matched notes - cues come from the
+     * current message, the recent user turns and the conversation title, so
+     * recall is context-dependent like a person's. Retrieval reconsolidates
+     * and wires them; everything else stays out of the window.
      */
-    private suspend fun primedNotes(text: String): List<Note> {
-        val terms = MemoryText.terms(text)
+    private suspend fun primedNotes(
+        text: String,
+        history: List<ChatMessage>,
+        title: String,
+    ): List<Note> {
+        val cueText = buildString {
+            if (title.isNotBlank()) append(title).append('\n')
+            history.filter { it.role == ChatRole.USER }.takeLast(2).forEach {
+                append(it.content.take(240)).append('\n')
+            }
+            append(text)
+        }
+        val terms = MemoryText.terms(cueText)
         val cued = if (terms.isEmpty()) {
             emptyList()
         } else {
@@ -1018,8 +1040,16 @@ class ChatViewModel @Inject constructor(
                 excludeKinds = setOf(NoteKind.SUMMARY),
             ).map { it.note }
         }
+        val names = memoryRepository.knownEntities()
+            .filter { name -> cueText.contains(name, ignoreCase = true) }
+            .take(3)
+        val byEntity = if (names.isEmpty()) {
+            emptyList()
+        } else {
+            memoryRepository.recallByEntity(names, limit = UPCOMING_LIMIT).map { it.note }
+        }
         val upcoming = memoryRepository.upcoming(limit = UPCOMING_LIMIT)
-        return (upcoming + cued).distinctBy { it.id }.take(PREFETCH_LIMIT + UPCOMING_LIMIT)
+        return (upcoming + byEntity + cued).distinctBy { it.id }.take(PREFETCH_LIMIT + UPCOMING_LIMIT)
     }
 
     private suspend fun maybeGenerateTitle(config: ProviderConfig) {
@@ -1077,6 +1107,8 @@ class ChatViewModel @Inject constructor(
         if (messages.none { it.role == ChatRole.USER }) return null
         val notes = memoryRepository.listActive(CURATOR_NOTES)
         val core = memoryRepository.getCore()
+        val now = System.currentTimeMillis()
+        val fading = memoryRepository.rehearsalCandidates(now)
         val raw = runCatching {
             auxiliaryTasks.complete(
                 config = config,
@@ -1085,6 +1117,7 @@ class ChatViewModel @Inject constructor(
                     transcript = AuxiliaryTasks.renderTranscript(messages, perMessageLimit = 400),
                     inventory = MemoryPrompt.inventory(notes),
                     coreBlocks = MemoryPrompt.coreBlocks(core),
+                    fading = MemoryPrompt.fading(fading, now),
                 ),
                 maxTokens = 900,
                 temperature = 0.2,
@@ -1100,12 +1133,16 @@ class ChatViewModel @Inject constructor(
                 importance = item.importance,
                 conversationId = conversationId,
                 whenAt = MemoryText.parseWhen(item.whenRaw),
+                source = item.source?.let(NoteSource::fromWire) ?: NoteSource.USER,
+                entities = item.entities,
             )
             when (outcome) {
                 is MemoryRepository.AddOutcome.Saved -> added++
                 // Reconsolidated near-duplicates are revisions, not additions.
                 is MemoryRepository.AddOutcome.Merged -> revised++
-                is MemoryRepository.AddOutcome.Duplicate -> Unit
+                is MemoryRepository.AddOutcome.Duplicate,
+                is MemoryRepository.AddOutcome.Suppressed,
+                -> Unit
             }
         }
         plan.revise.forEach { revision ->
@@ -1117,11 +1154,17 @@ class ChatViewModel @Inject constructor(
             )
             revised++
         }
-        var forgotten = 0
+        // Sleep maintenance: synaptic pruning first, then rehearsal.
+        var forgotten = memoryRepository.pruneStaleNotes(now)
         plan.forget.forEach { id ->
             if (memoryRepository.noteById(id) != null) {
                 memoryRepository.archive(id)
                 forgotten++
+            }
+        }
+        plan.rehearseKeep.forEach { id ->
+            if (memoryRepository.noteById(id) != null) {
+                memoryRepository.touch(listOf(id))
             }
         }
         if (plan.coreUser != null || plan.coreContext != null) {

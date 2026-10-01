@@ -166,8 +166,10 @@ class LibraryViewModel @Inject constructor(
         val terms = MemoryText.terms(query)
         if (terms.isEmpty()) return notes
         return notes.filter { note ->
-            val normalized = MemoryText.normalize(note.content)
-            terms.all { normalized.contains(it) }
+            val haystack = MemoryText.normalize(
+                note.content + " " + note.entities.joinToString(" "),
+            )
+            terms.all { haystack.contains(it) }
         }
     }
 

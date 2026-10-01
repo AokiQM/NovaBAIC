@@ -35,7 +35,7 @@ sealed interface AgentEvent {
 
     data class ToolCallStarted(val call: ToolCall) : AgentEvent
 
-    data class ToolCallFinished(val call: ToolCall) : AgentEvent
+    data class ToolCallFinished(val call: ToolCall, val untrusted: Boolean = false) : AgentEvent
 
     data class Usage(val promptTokens: Long?, val completionTokens: Long?) : AgentEvent
 

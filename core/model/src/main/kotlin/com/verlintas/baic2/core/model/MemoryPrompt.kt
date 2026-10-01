@@ -24,7 +24,6 @@ package com.verlintas.baic2.core.model
  * always-on block in the system prompt, and the curator's inventory view.
  */
 object MemoryPrompt {
-
     private const val MAX_CONTEXT_CHARS = 2_400
     private const val MAX_INVENTORY_LINE = 240
     private const val MAX_INVENTORY_CHARS = 6_000
@@ -41,7 +40,7 @@ object MemoryPrompt {
         if (ongoing.isNotEmpty()) parts += "Currently ongoing:\n$ongoing"
         if (primed.isNotEmpty()) {
             parts += "Notes primed by the current message:\n" + primed.joinToString("\n") { note ->
-                "- (${note.kind.wire()}, ${MemoryText.dateOnly(note.whenAt ?: note.updatedAt)}) " +
+                "- (${noteMeta(note)}, ${MemoryText.dateOnly(note.whenAt ?: note.updatedAt)}) " +
                     note.content.replace('\n', ' ').trim()
             }
         }
@@ -50,16 +49,41 @@ object MemoryPrompt {
             parts.joinToString("\n\n").take(MAX_CONTEXT_CHARS)
     }
 
+    private fun noteMeta(note: Note): String = buildString {
+        append(note.kind.wire())
+        if (note.source != NoteSource.USER) append(", ").append(note.source.wire())
+        if (note.entities.isNotEmpty()) {
+            append(", ").append(note.entities.joinToString("/") { "@$it" })
+        }
+    }
+
     /** One line per note for the curator, ids included so it can revise them. */
     fun inventory(notes: List<Note>): String =
         notes.joinToString("\n") { note ->
             "#${note.id} ${note.kind.wire()} i${note.importance}" +
                 (if (note.pinned) " pinned" else "") +
+                (if (note.source != NoteSource.USER) " src:${note.source.wire()}" else "") +
+                (if (note.entities.isNotEmpty()) {
+                    " @${note.entities.joinToString("@")}"
+                } else {
+                    ""
+                }) +
                 " (${MemoryText.dateOnly(note.updatedAt)}): " +
                 note.content.replace('\n', ' ').take(MAX_INVENTORY_LINE)
         }
             .take(MAX_INVENTORY_CHARS)
             .ifBlank { "(none)" }
+
+    /**
+     * Sleep rehearsal feed: valuable traces whose retrievability is fading -
+     * the curator decides keep (reinforce), revise or forget.
+     */
+    fun fading(notes: List<Note>, now: Long): String =
+        notes.joinToString("\n") { note ->
+            val recall = (MemoryScoring.retrievability(note, now) * 100).toInt()
+            "#${note.id} i${note.importance} recall $recall% (${note.kind.wire()}): " +
+                note.content.replace('\n', ' ').take(MAX_INVENTORY_LINE)
+        }.ifBlank { "(none)" }
 
     /** The curator sees the current core verbatim so it can preserve it. */
     fun coreBlocks(core: CoreMemory?): String = buildString {

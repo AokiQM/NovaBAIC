@@ -30,6 +30,7 @@ import com.verlintas.baic2.core.model.MemoryScoring
 import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.ScoredNote
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,7 +44,11 @@ import kotlinx.coroutines.flow.map
  *
  * Retrieval is deliberately biomimetic: recalling notes reactivates them
  * (strength, use counts) and wires the co-recalled set together (Hebbian
- * links), and recall itself can spread one hop along those links.
+ * links), recall itself spreads along those links (two hops with decay),
+ * entities give episodic "one thing at a time" access, decay prunes what is
+ * never used, sleep-time rehearsal rescues what is fading but valuable, and an
+ * explicitly forgotten trace leaves a suppression fingerprint that blocks
+ * silent re-learning.
  */
 @Singleton
 class MemoryRepository @Inject constructor(
@@ -63,6 +68,9 @@ class MemoryRepository @Inject constructor(
 
         /** Near-duplicate reconsolidated into the existing trace. */
         data class Merged(val id: Long) : AddOutcome
+
+        /** The fact was explicitly forgotten before; re-learning is blocked. */
+        data class Suppressed(val id: Long) : AddOutcome
     }
 
     fun observeActive(limit: Int = 500): Flow<List<Note>> =
@@ -89,8 +97,10 @@ class MemoryRepository @Inject constructor(
 
     /**
      * Pattern completion on write: the same fact is never stored twice, a very
-     * close variant is reconsolidated into the existing trace, and a merely
-     * similar one is stored while pointing at what it may supersede.
+     * close variant is reconsolidated into the existing trace, a merely
+     * similar one is stored while pointing at what it may supersede - and a
+     * trace the user asked to forget blocks re-learning until they confirm.
+     * Genuinely new facts encode a little stronger (novelty boost).
      */
     suspend fun addNote(
         kind: NoteKind,
@@ -99,9 +109,17 @@ class MemoryRepository @Inject constructor(
         conversationId: Long? = null,
         messageId: Long? = null,
         whenAt: Long? = null,
+        source: NoteSource = NoteSource.USER,
+        entities: List<String> = emptyList(),
     ): AddOutcome {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return AddOutcome.Duplicate(0L)
+        // 1. Active suppression: forgetting is inhibition, not deletion.
+        val suppressed = db.noteDao().getSuppressed(SUPPRESSED_SCAN)
+            .firstOrNull { MemoryText.similarity(trimmed, it.content) >= SUPPRESSION_SIMILARITY }
+        if (suppressed != null) return AddOutcome.Suppressed(suppressed.id)
+
+        // 2. Pattern completion against the active notes.
         val active = db.noteDao().getActive(PAGE_SIZE).map(mapper::noteToModel)
         var best: Note? = null
         var bestSimilarity = 0.0
@@ -141,7 +159,15 @@ class MemoryRepository @Inject constructor(
                         updatedAt = now,
                         lastAccessedAt = 0L,
                         accessCount = 0,
-                        strength = 1.0,
+                        strength = if (bestSimilarity < HINT_SIMILARITY) {
+                            // Genuinely new: novelty boosts initial encoding.
+                            NOVELTY_STRENGTH
+                        } else {
+                            1.0
+                        },
+                        source = source.name,
+                        entities = MemoryText.encodeEntities(entities),
+                        suppressed = false,
                         supersededBy = null,
                         archived = false,
                     ),
@@ -156,31 +182,92 @@ class MemoryRepository @Inject constructor(
         }
     }
 
-    suspend fun updateNote(id: Long, content: String, importance: Int) {
+    /** [entities] replaces the links when provided; null keeps them. */
+    suspend fun updateNote(
+        id: Long,
+        content: String,
+        importance: Int,
+        entities: List<String>? = null,
+    ) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
-        db.noteDao().update(id, trimmed, importance.coerceIn(1, 5), System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        if (entities == null) {
+            db.noteDao().update(id, trimmed, importance.coerceIn(1, 5), now)
+        } else {
+            val existing = db.noteDao().getById(id) ?: return
+            db.noteDao().updateWithEntities(
+                id = id,
+                content = trimmed,
+                importance = importance.coerceIn(1, 5),
+                entities = MemoryText.encodeEntities(entities).ifEmpty { existing.entities },
+                now = now,
+            )
+        }
     }
 
     suspend fun setPinned(id: Long, pinned: Boolean) =
         db.noteDao().setPinned(id, pinned, System.currentTimeMillis())
 
-    /** Soft forget: the note leaves recall, its associations are pruned. */
+    /** Curator-level forgetting: archived, but not suppressed (may be relearned). */
     suspend fun archive(id: Long, supersededBy: Long? = null) = db.withTransaction {
         db.noteDao().archive(id, supersededBy, System.currentTimeMillis())
         db.noteLinkDao().deleteFor(id)
     }
 
-    suspend fun delete(id: Long) = db.withTransaction {
-        db.noteDao().delete(id)
+    /**
+     * User-level forgetting: archive + suppression fingerprint. A later write
+     * that matches this trace is refused until the user confirms.
+     */
+    suspend fun suppress(id: Long) = db.withTransaction {
+        db.noteDao().suppress(id, System.currentTimeMillis())
         db.noteLinkDao().deleteFor(id)
     }
+
+    suspend fun delete(id: Long) = suppress(id)
 
     /** Retrieval strengthens a memory, like it does in a brain. */
     suspend fun touch(ids: Collection<Long>) {
         val now = System.currentTimeMillis()
         ids.forEach { id -> db.noteDao().touch(id, now) }
     }
+
+    /**
+     * Synaptic pruning (sleep maintenance, no LLM): notes that are neither
+     * important nor pinned, untouched for weeks and below the retrieval floor
+     * are archived. Soft - the trace survives and can be revived with a strong cue.
+     */
+    suspend fun pruneStaleNotes(now: Long = System.currentTimeMillis()): Int {
+        val candidates = db.noteDao().getActive(PAGE_SIZE)
+            .map(mapper::noteToModel)
+            .filter { it.isPrunable(now) }
+        candidates.forEach { archive(it.id) }
+        return candidates.size
+    }
+
+    private fun Note.isPrunable(now: Long): Boolean {
+        if (pinned || importance > PRUNE_MAX_IMPORTANCE) return false
+        val touched = maxOf(lastAccessedAt, updatedAt, createdAt)
+        val ageDays = (now - touched).coerceAtLeast(0L) / 86_400_000.0
+        return ageDays > PRUNE_MIN_AGE_DAYS &&
+            MemoryScoring.retrievability(this, now) < PRUNE_RETRIEVABILITY
+    }
+
+    /**
+     * Sleep rehearsal (curator feed): valuable traces that are fading and have
+     * not been touched recently - candidates to revive, revise or let go.
+     */
+    suspend fun rehearsalCandidates(
+        now: Long = System.currentTimeMillis(),
+        limit: Int = 6,
+    ): List<Note> = db.noteDao().getActive(PAGE_SIZE)
+        .map(mapper::noteToModel)
+        .filter { !it.pinned && it.kind != NoteKind.SUMMARY }
+        .filter { it.importance >= REHEARSAL_MIN_IMPORTANCE || it.accessCount >= REHEARSAL_MIN_USES }
+        .filter { now - maxOf(it.lastAccessedAt, it.updatedAt) > REHEARSAL_MIN_AGE_MS }
+        .sortedBy { MemoryScoring.retrievability(it, now) }
+        .filter { MemoryScoring.retrievability(it, now) < REHEARSAL_MAX_RETRIEVABILITY }
+        .take(limit)
 
     /**
      * Prospective memory: plans and events whose time is near (or recently
@@ -208,10 +295,50 @@ class MemoryRepository @Inject constructor(
     }
 
     /**
+     * Entity recall ("tell me about 张伟"): the notes linked to a person,
+     * project or place, ordered by importance/recency.
+     */
+    suspend fun recallByEntity(
+        entities: List<String>,
+        limit: Int = 6,
+        feedback: Boolean = true,
+    ): List<ScoredNote> {
+        val names = entities.asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(6)
+            .toList()
+        if (names.isEmpty()) return emptyList()
+        val merged = LinkedHashMap<Long, Note>()
+        names.forEach { entity ->
+            db.noteDao().getByEntity(MemoryText.entityLikePattern(entity), ENTITY_PAGE)
+                .forEach { entityRow -> merged[entityRow.id] = mapper.noteToModel(entityRow) }
+        }
+        if (merged.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val ranked = MemoryScoring.rank(merged.values.toList(), emptyList(), now).take(limit)
+        if (feedback && ranked.isNotEmpty()) {
+            val ids = ranked.map { it.note.id }
+            touch(ids)
+            reinforceLinks(ids)
+        }
+        return ranked
+    }
+
+    /** Distinct entity names known to memory, for context-dependent priming. */
+    suspend fun knownEntities(): List<String> =
+        db.noteDao().activeEntityBlobs()
+            .asSequence()
+            .flatMap { MemoryText.decodeEntities(it).asSequence() }
+            .distinct()
+            .toList()
+
+    /**
      * Cue-driven recall. When [spread] is on, the top cue hits act as seeds and
-     * light up their associates one hop along the Hebbian links. Every call is
-     * a real retrieval event: returned notes are reconsolidated ([touch]) and
-     * wired together ([reinforceLinks]) unless [feedback] is off.
+     * light up their associates along the Hebbian links - one hop, then a
+     * weaker second hop. Every call is a real retrieval event: returned notes
+     * are reconsolidated ([touch]) and wired together ([reinforceLinks]).
      */
     suspend fun recall(
         terms: List<String>,
@@ -278,7 +405,7 @@ class MemoryRepository @Inject constructor(
         }
     }
 
-    /** One hop of spreading activation from the seeds. */
+    /** Spreading activation: one hop from the seeds, then a weaker hop two. */
     private suspend fun spreadActivation(
         seeds: List<ScoredNote>,
         already: Set<Long>,
@@ -312,7 +439,37 @@ class MemoryRepository @Inject constructor(
                     spread = true,
                     spreadFrom = sourceId,
                     linkWeight = link.weight.toDouble(),
+                    spreadHops = 1,
                 )
+            }
+        }
+        if (boosted.isNotEmpty()) {
+            val hopOne = boosted.values.sortedByDescending { it.score }.take(SPREAD_HOP2_SEEDS)
+            val hopOneById = hopOne.associateBy { it.note.id }
+            var secondHopAdded = 0
+            val hopLinks = db.noteLinkDao().linksFor(hopOneById.keys.toList())
+            hopLinks.forEach { link ->
+                if (secondHopAdded >= SPREAD_HOP2_LIMIT) return@forEach
+                val sourceId = when {
+                    link.a in hopOneById -> link.a
+                    link.b in hopOneById -> link.b
+                    else -> return@forEach
+                }
+                val otherId = if (sourceId == link.a) link.b else link.a
+                if (otherId in already || otherId in boosted) return@forEach
+                val note = byId[otherId] ?: return@forEach
+                if (note.kind in excludeKinds) return@forEach
+                val source = hopOneById.getValue(sourceId)
+                boosted[otherId] = ScoredNote(
+                    note = note,
+                    score = MemoryScoring.spreadScore(source.score, link.weight.toDouble()),
+                    hits = 0,
+                    spread = true,
+                    spreadFrom = sourceId,
+                    linkWeight = link.weight.toDouble(),
+                    spreadHops = 2,
+                )
+                secondHopAdded++
             }
         }
         return boosted.values.sortedByDescending { it.score }
@@ -324,9 +481,22 @@ class MemoryRepository @Inject constructor(
 
     private companion object {
         const val PAGE_SIZE = 500
+        const val SUPPRESSED_SCAN = 200
+        const val ENTITY_PAGE = 60
         const val SPREAD_SEEDS = 3
+        const val SPREAD_HOP2_SEEDS = 2
+        const val SPREAD_HOP2_LIMIT = 2
         const val MAX_LINK_WEIGHT = 5f
         const val MERGE_SIMILARITY = 0.8
         const val HINT_SIMILARITY = 0.55
+        const val SUPPRESSION_SIMILARITY = 0.7
+        const val NOVELTY_STRENGTH = 1.3
+        const val PRUNE_MAX_IMPORTANCE = 2
+        const val PRUNE_MIN_AGE_DAYS = 45.0
+        const val PRUNE_RETRIEVABILITY = 0.2
+        const val REHEARSAL_MIN_IMPORTANCE = 4
+        const val REHEARSAL_MIN_USES = 3
+        const val REHEARSAL_MIN_AGE_MS = 3 * 86_400_000L
+        const val REHEARSAL_MAX_RETRIEVABILITY = 0.5
     }
 }

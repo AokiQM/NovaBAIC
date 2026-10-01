@@ -33,6 +33,30 @@ TOOL_ALIASES = {
     "files_read": ("files", {"action": "read", "name": "baic2-test.md"}),
     "files_info": ("files", {"action": "info", "name": "baic2-test.md"}),
     "memory_search_spread": ("memory_search", {"query": "流式管线", "scope": "notes", "limit": 5}),
+    "memory_search_user": (
+        "memory_search",
+        {"query": "status", "scope": "messages", "role": "user", "limit": 5},
+    ),
+    "memory_search_entity": ("memory_search", {"entity": "记忆工具", "limit": 5}),
+    "memory_search_entity2": ("memory_search", {"entity": "隐私", "limit": 5}),
+    "memory_write_note2": (
+        "memory_write",
+        {
+            "content": "用户偏好云端同步关闭",
+            "kind": "preference",
+            "importance": 4,
+            "entities": ["隐私"],
+        },
+    ),
+    "memory_write_note3": (
+        "memory_write",
+        {
+            "content": "用户每周三晚上去游泳",
+            "kind": "fact",
+            "importance": 3,
+            "entities": ["游泳"],
+        },
+    ),
     "memory_write_merge": (
         "memory_write",
         {"content": "用户正在测试新的记忆工具功能", "kind": "fact", "importance": 3},
@@ -82,6 +106,7 @@ TOOL_ARGS = {
         "content": "用户正在测试新的记忆工具",
         "kind": "fact",
         "importance": 3,
+        "entities": ["记忆工具"],
     },
     "memory_forget": {"query": "新的记忆工具"},
 }
@@ -389,7 +414,8 @@ class Handler(BaseHTTPRequestHandler):
         if "memory curator" in system_text:
             return (
                 '{"remember":[{"kind":"preference","content":"用户喜欢用深色主题做演示",'
-                '"importance":3}],"core_context":"正在测试新的仿生记忆系统"}'
+                '"importance":3,"entities":["深色主题"]}],"rehearse_keep":[2],'
+                '"core_context":"正在测试新的仿生记忆系统"}'
             )
         if "Summarize the conversation" in system_text:
             return "此前对话：用户询问了量子纠缠，并对 BAIC2 的流式管线做了验证。"

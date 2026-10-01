@@ -28,6 +28,7 @@ import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.MessageHit
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.ScoredNote
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
@@ -58,6 +59,8 @@ class MemorySearchTool(
             {"type":"object","properties":{
               "query":{"type":"string","description":"keywords in the user's language; space-separated terms are ANDed. Omit to browse recent items."},
               "scope":{"type":"string","enum":["all","notes","messages"],"description":"default all"},
+              "role":{"type":"string","enum":["any","user","assistant"],"description":"filter message hits by speaker; user recalls what the user themselves said"},
+              "entity":{"type":"string","description":"recall everything about a person/project/place by exact name"},
               "conversation":{"type":"string","description":"limit to one conversation by title or id"},
               "from":{"type":"string","description":"lower bound, ISO date like 2026-09-01"},
               "to":{"type":"string","description":"upper bound, ISO date"},
@@ -77,23 +80,37 @@ class MemorySearchTool(
         val from = MemoryText.parseWhen(arguments.string("from"))
         val to = endOfDay(arguments.string("to"))
         val conversation = arguments.string("conversation")?.trim()?.takeIf { it.isNotEmpty() }
+        val entity = arguments.string("entity")?.trim()?.takeIf { it.isNotEmpty() }
+        val roleFilter = when (arguments.string("role")?.trim()?.lowercase()) {
+            "user" -> ChatRole.USER
+            "assistant" -> ChatRole.ASSISTANT
+            else -> null
+        }
         val limit = (arguments.int("limit") ?: 10).coerceIn(1, 20)
         val offset = (arguments.int("offset") ?: 0).coerceAtLeast(0)
         val terms = MemoryText.terms(query)
 
-        val notes: List<ScoredNote> = if (scope == "messages") {
-            emptyList()
+        val entityNotes: List<ScoredNote> = if (entity != null && scope != "messages") {
+            memoryRepository.recallByEntity(listOf(entity), limit = NOTES_PER_PAGE)
         } else {
-            memoryRepository.recall(terms = terms, limit = NOTES_PER_PAGE, offset = offset)
+            emptyList()
         }
-        val hits: List<MessageHit> = if (scope == "notes") {
-            emptyList()
-        } else {
-            conversationRepository.searchMessages(
+        val cuedNotes: List<ScoredNote> = when {
+            scope == "messages" -> emptyList()
+            terms.isEmpty() && entity != null -> emptyList()
+            else -> memoryRepository.recall(terms = terms, limit = NOTES_PER_PAGE, offset = offset)
+        }
+        val notes = (entityNotes + cuedNotes).distinctBy { it.note.id }.take(NOTES_PER_PAGE)
+        val hits: List<MessageHit> = when {
+            scope == "notes" -> emptyList()
+            // An entity lookup with no keywords is about notes, not messages.
+            terms.isEmpty() && entity != null -> emptyList()
+            else -> conversationRepository.searchMessages(
                 terms = terms,
                 conversationQuery = conversation,
                 from = from,
                 to = to,
+                roleFilter = roleFilter,
                 limit = limit,
                 offset = offset,
             )
@@ -116,8 +133,12 @@ class MemorySearchTool(
                     notes.forEach { scored ->
                         append("- ")
                         if (scored.spread) {
-                            append("(associated from #").append(scored.spreadFrom)
-                                .append(", link w").append(scored.linkWeight.toInt()).append(") ")
+                            if (scored.spreadHops >= 2) {
+                                append("(2-hop via #").append(scored.spreadFrom).append(") ")
+                            } else {
+                                append("(associated from #").append(scored.spreadFrom)
+                                    .append(", link w").append(scored.linkWeight.toInt()).append(") ")
+                            }
                         }
                         append(noteLine(scored, terms.size, now)).append('\n')
                     }
@@ -160,7 +181,13 @@ class MemorySearchTool(
         }
         val score = "%.2f".format(java.util.Locale.ROOT, scored.score)
         val strength = "%.1f".format(java.util.Locale.ROOT, note.strength)
-        return "#${note.id} [${note.kind.wire()} i${note.importance} · score $score · $cues" +
+        val source = if (note.source != NoteSource.USER) " · src ${note.source.wire()}" else ""
+        val entities = if (note.entities.isNotEmpty()) {
+            note.entities.joinToString(prefix = " · @", separator = "@")
+        } else {
+            ""
+        }
+        return "#${note.id} [${note.kind.wire()} i${note.importance}$source$entities · score $score · $cues" +
             " · strength $strength · recall $recall% · last recalled $last] " +
             note.content.replace('\n', ' ')
     }
@@ -241,6 +268,8 @@ class MemoryWriteTool(
               "kind":{"type":"string","enum":["profile","preference","event","plan","agreement","fact"],"description":"default fact"},
               "importance":{"type":"integer","description":"1-5, default 3"},
               "when":{"type":"string","description":"the date this refers to, if any, like 2026-09-12"},
+              "source":{"type":"string","enum":["user","assistant","external"],"description":"who the fact comes from; default user (what the user said themselves)"},
+              "entities":{"type":"array","items":{"type":"string"},"description":"people/projects/places this is about, exact names, at most 6"},
               "replaces":{"type":"integer","description":"id of an existing note this one supersedes"}
             },"required":["content"]}
         """.trimIndent(),
@@ -260,6 +289,12 @@ class MemoryWriteTool(
         val whenRaw = arguments.string("when")?.trim()?.takeIf { it.isNotEmpty() }
         val whenAt = whenRaw?.let(MemoryText::parseWhen)
         val replaces = arguments.long("replaces")?.takeIf { it > 0 }
+        val sourceRaw = arguments.string("source")?.trim()?.takeIf { it.isNotEmpty() }
+        val source = if (sourceRaw == null) NoteSource.USER else NoteSource.fromWire(sourceRaw)
+        val entities = (arguments["entities"] as? JsonArray).orEmpty()
+            .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
+            .filter { it.isNotEmpty() }
+            .take(MAX_ENTITIES)
 
         return when (val outcome = memoryRepository.addNote(
             kind = kind,
@@ -267,11 +302,19 @@ class MemoryWriteTool(
             importance = importance,
             conversationId = context.run.conversationId,
             whenAt = whenAt,
+            source = source,
+            entities = entities,
         )) {
             is MemoryRepository.AddOutcome.Duplicate ->
                 ToolResult.Success(
                     "Already known as note #${outcome.id}; not saved again. " +
                         "Use memory_write with replaces=${outcome.id} if this corrects it.",
+                )
+
+            is MemoryRepository.AddOutcome.Suppressed ->
+                ToolResult.Success(
+                    "Refused: this was explicitly forgotten before (note #${outcome.id}). " +
+                        "Confirm with the user before re-learning it.",
                 )
 
             is MemoryRepository.AddOutcome.Merged -> {
@@ -291,7 +334,9 @@ class MemoryWriteTool(
                 ToolResult.Success(
                     buildString {
                         append("Saved note #").append(outcome.id)
-                            .append(" (").append(kind.wire()).append(", importance ").append(importance).append(')')
+                            .append(" (").append(kind.wire())
+                            .append(if (source != NoteSource.USER) ", ${source.wire()}" else "")
+                            .append(", importance ").append(importance).append(')')
                         if (whenAt != null) append(" for ").append(MemoryText.dateOnly(whenAt))
                         if (whenRaw != null && whenAt == null) {
                             append(" (could not parse when=\"").append(whenRaw).append("\"; ignored)")
@@ -317,6 +362,7 @@ class MemoryWriteTool(
 
     private companion object {
         const val MAX_CONTENT_CHARS = 400
+        const val MAX_ENTITIES = 6
     }
 }
 
@@ -360,10 +406,11 @@ class MemoryForgetTool(
             ).forEach { scored -> targets[scored.note.id] = scored.note }
         }
         if (targets.isEmpty()) return ToolResult.Success("No matching notes to forget.")
-        targets.values.forEach { memoryRepository.archive(it.id) }
+        targets.values.forEach { memoryRepository.suppress(it.id) }
         return ToolResult.Success(
             buildString {
-                append("Forgotten ").append(targets.size).append(" note(s):\n")
+                append("Forgotten ").append(targets.size)
+                    .append(" note(s); re-learning is blocked until the user confirms:\n")
                 targets.values.forEach { note ->
                     append("- #").append(note.id).append(' ').append(note.content.replace('\n', ' '))
                         .append('\n')

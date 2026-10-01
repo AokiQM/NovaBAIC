@@ -102,4 +102,12 @@ class MemoryTextTest {
         assertTrue(MemoryText.similarity("用户喜欢咖啡", "会议定在周三下午") < 0.55)
         assertEquals(0.0, MemoryText.similarity("", "anything"))
     }
+
+    @Test
+    fun entitiesRoundTripAndQueryPattern() {
+        val encoded = MemoryText.encodeEntities(listOf("张伟", "BAIC2", "", "张伟"))
+        assertEquals(listOf("张伟", "BAIC2"), MemoryText.decodeEntities(encoded))
+        assertEquals("", MemoryText.encodeEntities(emptyList()))
+        assertTrue(MemoryText.entityLikePattern("张伟").contains("\u0001张伟\u0001"))
+    }
 }

@@ -158,6 +158,32 @@ object MemoryText {
         return 1.0 - previous[b.length].toDouble() / maxLength
     }
 
+    /** Entities are stored sentinel-wrapped so exact queries can LIKE them. */
+    const val ENTITY_SEPARATOR = '\u0001'
+
+    fun encodeEntities(raw: List<String>): String {
+        val names = raw.asSequence()
+            .map { it.trim().take(40) }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(6)
+            .toList()
+        if (names.isEmpty()) return ""
+        return ENTITY_SEPARATOR + names.joinToString(ENTITY_SEPARATOR.toString()) + ENTITY_SEPARATOR
+    }
+
+    fun decodeEntities(stored: String): List<String> =
+        stored.split(ENTITY_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** Exact-entity LIKE pattern (escape + sentinels), CI for ASCII. */
+    fun entityLikePattern(entity: String): String {
+        val escaped = entity.trim()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        return "%$ENTITY_SEPARATOR$escaped$ENTITY_SEPARATOR%"
+    }
+
     private fun isCjk(character: Char): Boolean {
         val code = character.code
         return code in 0x3040..0x30FF || // kana

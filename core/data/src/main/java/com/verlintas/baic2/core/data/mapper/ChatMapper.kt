@@ -43,8 +43,10 @@ import com.verlintas.baic2.core.model.Conversation
 import com.verlintas.baic2.core.model.CoreMemory
 import com.verlintas.baic2.core.model.McpServer
 import com.verlintas.baic2.core.model.MessageHit
+import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.MessageSnapshot
 import com.verlintas.baic2.core.model.ScheduledTask
 import com.verlintas.baic2.core.model.Plan
@@ -171,6 +173,9 @@ class ChatMapper @Inject constructor(private val json: Json) {
         lastAccessedAt = entity.lastAccessedAt,
         accessCount = entity.accessCount,
         strength = entity.strength,
+        source = enumOf(entity.source, NoteSource.USER),
+        entities = MemoryText.decodeEntities(entity.entities),
+        suppressed = entity.suppressed,
         supersededBy = entity.supersededBy,
         archived = entity.archived,
     )

@@ -38,6 +38,8 @@ data class ScoredNote(
     /** The seed this note was awakened from, and the link weight. */
     val spreadFrom: Long? = null,
     val linkWeight: Double = 0.0,
+    /** 1 = direct associate of a cue hit, 2 = associate of an associate. */
+    val spreadHops: Int = 1,
 )
 
 object MemoryScoring {
@@ -67,8 +69,20 @@ object MemoryScoring {
         val accessed = minOf(0.3, ln(1.0 + note.accessCount) / 10.0)
         val score = hitFactor *
             (importance + pinned + accessed) *
-            (0.4 + 0.6 * retrievability(note, now))
+            (0.4 + 0.6 * retrievability(note, now)) *
+            sourceFactor(note.source)
         return ScoredNote(note, score, matched.size, matched)
+    }
+
+    /**
+     * Source monitoring: what the user said himself outweighs the model's own
+     * inference, which outweighs scraped external text.
+     */
+    fun sourceFactor(source: NoteSource): Double = when (source) {
+        NoteSource.USER -> 1.0
+        NoteSource.ASSISTANT -> 0.9
+        NoteSource.EXTERNAL -> 0.75
+        NoteSource.UNKNOWN -> 0.85
     }
 
     fun rank(notes: List<Note>, terms: List<String>, now: Long): List<ScoredNote> =
@@ -88,4 +102,15 @@ object MemoryScoring {
 
     fun reinforceStrength(current: Double): Double =
         (current + TOUCH_GAIN).coerceAtMost(MAX_STRENGTH)
+
+    /**
+     * Episodic ranking weight per speaker. A user message is the person's own
+     * trace and counts double: assistant replies echo the question's
+     * vocabulary, so without this "the more you are answered, the less you
+     * can retrieve what you yourself said".
+     */
+    const val USER_CUE_WEIGHT = 2.0
+
+    fun messageScore(role: ChatRole, matchedCues: Int): Double =
+        matchedCues * if (role == ChatRole.USER) USER_CUE_WEIGHT else 1.0
 }

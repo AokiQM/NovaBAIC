@@ -119,4 +119,28 @@ class MemoryScoringTest {
         assertEquals(1.6, MemoryScoring.reinforceStrength(1.0), 1e-9)
         assertEquals(MemoryScoring.MAX_STRENGTH, MemoryScoring.reinforceStrength(4.9), 1e-9)
     }
+
+    @Test
+    fun userTracesOutweighAssistantEchoes() {
+        assertEquals(2.0, MemoryScoring.messageScore(ChatRole.USER, 1), 1e-9)
+        assertEquals(1.0, MemoryScoring.messageScore(ChatRole.ASSISTANT, 1), 1e-9)
+        // A user message matching one cue ties an assistant matching two -
+        // the tiebreak then prefers the user's own trace.
+        assertEquals(
+            MemoryScoring.messageScore(ChatRole.USER, 1),
+            MemoryScoring.messageScore(ChatRole.ASSISTANT, 2),
+        )
+    }
+
+    @Test
+    fun sourceMonitoringWeightsTrust() {
+        assertTrue(
+            MemoryScoring.sourceFactor(NoteSource.USER) >
+                MemoryScoring.sourceFactor(NoteSource.ASSISTANT),
+        )
+        assertTrue(
+            MemoryScoring.sourceFactor(NoteSource.ASSISTANT) >
+                MemoryScoring.sourceFactor(NoteSource.EXTERNAL),
+        )
+    }
 }

@@ -166,4 +166,18 @@ class AuxiliaryTasksTest {
         val withoutId = AuxiliaryTasks.parseCuratorPlan("""{"revise":[{"content":"no id"}]}""")
         assertTrue(withoutId.revise.isEmpty())
     }
+
+    @Test
+    fun parseCuratorPlanReadsSourceEntitiesAndRehearsal() {
+        val raw = """
+            {"remember":[{"content":"张伟喜欢咖啡","source":"assistant","entities":["张伟","咖啡","","x","y","z","w"]}],
+             "rehearse_keep":[3,4]}
+        """.trimIndent()
+
+        val plan = AuxiliaryTasks.parseCuratorPlan(raw)
+
+        assertEquals("assistant", plan.remember[0].source)
+        assertEquals(listOf("张伟", "咖啡", "x", "y", "z", "w"), plan.remember[0].entities)
+        assertEquals(listOf(3L, 4L), plan.rehearseKeep)
+    }
 }
