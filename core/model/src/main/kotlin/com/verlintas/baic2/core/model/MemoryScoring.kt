@@ -31,8 +31,13 @@ data class ScoredNote(
     val note: Note,
     val score: Double,
     val hits: Int,
+    /** Which cues actually matched, so the agent can see why it recalled this. */
+    val matchedCues: List<String> = emptyList(),
     /** True when the note surfaced through an association, not the cues. */
     val spread: Boolean = false,
+    /** The seed this note was awakened from, and the link weight. */
+    val spreadFrom: Long? = null,
+    val linkWeight: Double = 0.0,
 )
 
 object MemoryScoring {
@@ -44,21 +49,26 @@ object MemoryScoring {
     const val MAX_STRENGTH = 5.0
     private const val TOUCH_GAIN = 0.6
 
-    fun score(note: Note, terms: List<String>, now: Long): ScoredNote {
-        val normalized = MemoryText.normalize(note.content)
-        val hits = terms.count { normalized.contains(it.lowercase(Locale.ROOT)) }
-        if (terms.isNotEmpty() && hits == 0) return ScoredNote(note, 0.0, 0)
-        val hitFactor = if (terms.isEmpty()) 1.0 else hits.toDouble() / terms.size
-        // Retrievability: how much of the trace survives, governed by strength.
+    /** How much of a trace survives right now, governed by strength. */
+    fun retrievability(note: Note, now: Long): Double {
         val anchor = maxOf(note.lastAccessedAt, note.updatedAt, note.createdAt)
         val ageDays = (now - anchor).coerceAtLeast(0L) / DAY_MS
         val stability = STABILITY_DAYS * note.strength.coerceIn(0.5, MAX_STRENGTH)
-        val retrievability = kotlin.math.exp(-ageDays / stability)
+        return kotlin.math.exp(-ageDays / stability)
+    }
+
+    fun score(note: Note, terms: List<String>, now: Long): ScoredNote {
+        val normalized = MemoryText.normalize(note.content)
+        val matched = terms.filter { normalized.contains(it.lowercase(Locale.ROOT)) }
+        if (terms.isNotEmpty() && matched.isEmpty()) return ScoredNote(note, 0.0, 0)
+        val hitFactor = if (terms.isEmpty()) 1.0 else matched.size.toDouble() / terms.size
         val importance = 0.5 + note.importance.coerceIn(1, 5) * 0.15
         val pinned = if (note.pinned) 0.6 else 0.0
         val accessed = minOf(0.3, ln(1.0 + note.accessCount) / 10.0)
-        val score = hitFactor * (importance + pinned + accessed) * (0.4 + 0.6 * retrievability)
-        return ScoredNote(note, score, hits)
+        val score = hitFactor *
+            (importance + pinned + accessed) *
+            (0.4 + 0.6 * retrievability(note, now))
+        return ScoredNote(note, score, matched.size, matched)
     }
 
     fun rank(notes: List<Note>, terms: List<String>, now: Long): List<ScoredNote> =

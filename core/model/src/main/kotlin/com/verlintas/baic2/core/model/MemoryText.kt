@@ -50,7 +50,7 @@ object MemoryText {
     /**
      * Cue extraction. Latin words survive as-is (3+ chars); CJK/Hangul runs
      * become bigrams so that "咖啡店" can still wake a note that says
-     * "新开的咖啡店" without any tokeniser.
+     * "新开的咖啡店" without any tokeniser. Chat filler is dropped.
      */
     fun terms(query: String, maxTerms: Int = 12): List<String> {
         val tokens = query.split(Regex("[\\s\\p{P}\\p{S}]+"))
@@ -60,15 +60,16 @@ object MemoryText {
             if (token.any { isCjk(it) }) {
                 val chars = token.toList()
                 if (chars.size <= 2) {
-                    terms += token
+                    if (token !in STOPWORDS) terms += token
                 } else {
                     for (index in 0 until chars.size - 1) {
-                        terms += "${chars[index]}${chars[index + 1]}"
+                        val bigram = "${chars[index]}${chars[index + 1]}"
+                        if (bigram !in STOPWORDS) terms += bigram
                     }
                 }
             } else {
                 val word = token.lowercase(Locale.ROOT)
-                if (word.length >= 3) terms += word
+                if (word.length >= 3 && word !in STOPWORDS) terms += word
             }
             if (terms.size >= maxTerms) break
         }
@@ -165,6 +166,23 @@ object MemoryText {
             code in 0xF900..0xFAFF || // compatibility ideographs
             code in 0xAC00..0xD7AF // hangul syllables
     }
+
+    /** Filler that would otherwise become noisy cues (esp. CJK bigrams). */
+    private val STOPWORDS = setOf(
+        "the", "and", "for", "with", "that", "this", "from", "have", "has", "not",
+        "you", "your", "are", "was", "were", "will", "would", "can", "could",
+        "should", "what", "when", "where", "which", "who", "how", "why", "about",
+        "into", "over", "under", "they", "them", "their", "there", "here", "then",
+        "than", "too", "very", "just", "some", "any", "all", "get", "got", "one", "two",
+        "我们", "你们", "他们", "这个", "那个", "什么", "怎么", "可以", "因为", "所以",
+        "但是", "如果", "就是", "没有", "知道", "觉得", "一个", "一些", "现在", "时候",
+        "帮我", "你好", "谢谢", "请问", "一下", "还是", "或者", "以及", "然后", "而且",
+        "只是", "不过", "其实", "应该", "可能", "需要", "想要", "能否", "是否", "我的",
+        "你的", "他的", "她的", "它的", "自己", "大家", "东西", "事情", "问题",
+        "的", "了", "是", "在", "我", "你", "他", "她", "它", "们", "和", "与", "或",
+        "及", "把", "被", "给", "让", "从", "到", "向", "对", "为", "之", "其", "也",
+        "都", "很", "就", "才", "又", "再", "还", "只", "吧", "吗", "呢", "啊", "哦", "嗯",
+    )
 
     private fun safeBoundary(text: String, index: Int, forward: Boolean): Int {
         var boundary = index.coerceIn(0, text.length)

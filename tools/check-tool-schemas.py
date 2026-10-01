@@ -14,6 +14,34 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PATTERN = re.compile(r'parametersJson\s*=\s*(?:"""(.*?)"""|"((?:[^"\\]|\\.)*)")', re.S)
 
+def validate_doc_counts(tool_count, failures):
+    """Keep README/docs/site tool counts in sync with the registry.
+
+    The 48-vs-52 drift shipped once because nothing checked the prose. These
+    patterns cover every place the count is stated.
+    """
+    checks = [
+        ("README.md", r"(\d+)\s*个内置工具"),
+        ("docs/README.en.md", r"(\d+) built-in tools"),
+        ("docs/HOW_IT_WORKS.md", r"(\d+) built-in device tools"),
+        ("docs/HOW_IT_WORKS.md", r"\| Built-in tools \| (\d+) \|"),
+        ("docs/HOW_IT_WORKS.md", r"The (\d+) tools at a glance"),
+        ("site/index.html", r"(\d+) built-in device tools"),
+        ("site/index.html", r"(\d+) real device tools"),
+        ("site/index.html", r"(\d+) device tools"),
+        ("site/index.html", r"<b>(\d+)</b><span>built-in device tools</span>"),
+    ]
+    for relative, pattern in checks:
+        path = ROOT / relative
+        if not path.exists():
+            continue
+        for match in re.finditer(pattern, path.read_text()):
+            if int(match.group(1)) != tool_count:
+                failures.append(
+                    (path, f"states {match.group(1)} tools, registry has {tool_count}"),
+                )
+
+
 def main() -> int:
     checked = 0
     failures = []
@@ -28,12 +56,14 @@ def main() -> int:
                 continue
             if not isinstance(schema, dict) or schema.get("type") != "object":
                 failures.append((path, "missing \"type\": \"object\""))
+    if not failures:
+        validate_doc_counts(checked, failures)
     if failures:
         for path, why in failures:
             print(f"{path.relative_to(ROOT)}: {why}")
-        print(f"{len(failures)} of {checked} tool schemas are invalid.")
+        print(f"{len(failures)} failure(s); registry has {checked} tool schemas.")
         return 1
-    print(f"All {checked} tool schemas are valid object schemas.")
+    print(f"All {checked} tool schemas are valid object schemas; docs match {checked} tools.")
     return 0
 
 if __name__ == "__main__":

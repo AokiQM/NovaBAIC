@@ -42,6 +42,17 @@ class MemoryTextTest {
     }
 
     @Test
+    fun stopwordsAreDroppedFromCues() {
+        val terms = MemoryText.terms("我的生日是什么时候")
+        assertTrue(terms.contains("生日"), "content words survive")
+        assertTrue(
+            terms.none { it in setOf("我的", "什么", "时候", "是") },
+            "filler bigrams and particles are filtered",
+        )
+        assertTrue(MemoryText.terms("the and you").isEmpty())
+    }
+
+    @Test
     fun snippetCentresOnTheCue() {
         val content = "x".repeat(200) + "咖啡" + "y".repeat(200)
         val snippet = MemoryText.snippet(content, listOf("咖啡"), window = 60)

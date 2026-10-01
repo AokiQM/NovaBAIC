@@ -157,6 +157,7 @@ class WebSearchTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "web_search",
+        untrustedOutput = true,
         description = "Search the web across multiple engines; results are merged, deduplicated " +
             "and ranked by relevance. Optionally reads the full text of the top results " +
             "(read_top). `query` may be an array of up to 3 queries for comparisons. " +
@@ -454,6 +455,7 @@ class WebReadTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "web_read",
+        untrustedOutput = true,
         description = "Fetch a web page and return its readable article text (boilerplate stripped). " +
             "Long pages are paged: pass 'offset' from the '(more: …)' hint to continue instead of " +
             "re-fetching.",
@@ -508,6 +510,7 @@ class GetWeatherTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "get_weather",
+        untrustedOutput = true,
         description = "Current weather and a 3-day forecast for a city (no API key).",
         parametersJson = """{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}""",
         readOnly = true,
@@ -549,6 +552,7 @@ class FetchRssTool @Inject constructor(
 
     override val spec = ToolSpec(
         name = "fetch_rss",
+        untrustedOutput = true,
         description = "Parse an RSS/Atom feed and return recent items (title, link, date).",
         parametersJson = """{"type":"object","properties":{"url":{"type":"string"},"limit":{"type":"integer"}},"required":["url"]}""",
         readOnly = true,

@@ -68,6 +68,7 @@ class TakeScreenshotTool : DeviceTool {
 class ScreenOcrTool : DeviceTool {
     override val spec = ToolSpec(
         name = "screen_ocr",
+        untrustedOutput = true,
         description = "One-shot screen perception: foreground app, window title, interactive " +
             "elements with coordinates (when accessibility is on) and the full visible text. " +
             "Prefer this over separate app/OCR/find calls.",

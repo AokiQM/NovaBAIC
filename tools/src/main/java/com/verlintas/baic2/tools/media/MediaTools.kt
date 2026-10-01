@@ -39,6 +39,7 @@ class OcrFileTool @Inject constructor() : DeviceTool {
 
     override val spec = ToolSpec(
         name = "ocr_file",
+        untrustedOutput = true,
         description = "Run on-device OCR on an image file in Downloads/Documents and return its text.",
         parametersJson = """{"type":"object","properties":{"file_name":{"type":"string"}},"required":["file_name"]}""",
         readOnly = true,

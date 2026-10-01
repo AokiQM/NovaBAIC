@@ -23,6 +23,7 @@ import com.verlintas.baic2.core.data.repository.ConversationRepository
 import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.model.ChatRole
 import com.verlintas.baic2.core.model.DangerLevel
+import com.verlintas.baic2.core.model.MemoryScoring
 import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.MessageHit
 import com.verlintas.baic2.core.model.Note
@@ -114,9 +115,14 @@ class MemorySearchTool(
                     append("\nNotes (use the #id with memory_write replaces= to correct one):\n")
                     notes.forEach { scored ->
                         append("- ")
-                        if (scored.spread) append("(associated) ")
-                        append(noteLine(scored.note, now)).append('\n')
+                        if (scored.spread) {
+                            append("(associated from #").append(scored.spreadFrom)
+                                .append(", link w").append(scored.linkWeight.toInt()).append(") ")
+                        }
+                        append(noteLine(scored, terms.size, now)).append('\n')
                     }
+                } else if (hits.isNotEmpty() && scope != "messages") {
+                    append("\nNo notes matched; if this is worth keeping, consider memory_write.\n")
                 }
                 if (hits.isNotEmpty()) {
                     append("\nMessages (use memory_read with conversation_id + message_id for more):\n")
@@ -133,10 +139,31 @@ class MemorySearchTool(
         )
     }
 
-    private fun noteLine(note: Note, now: Long): String =
-        "#${note.id} [${note.kind.wire()} i${note.importance}, " +
-            "${MemoryText.dateOnly(note.updatedAt)}, ${MemoryText.relativeTime(now, note.updatedAt)}] " +
+    /**
+     * Every recalled note states why it surfaced: score, cue coverage,
+     * strength, current retrievability and when it was last recalled - so the
+     * agent can weigh a strongly-held old memory against a fresh keyword hit.
+     */
+    private fun noteLine(scored: ScoredNote, cueCount: Int, now: Long): String {
+        val note = scored.note
+        val recall = (MemoryScoring.retrievability(note, now) * 100).toInt()
+        val last = if (note.lastAccessedAt > 0) {
+            MemoryText.relativeTime(now, note.lastAccessedAt)
+        } else {
+            "never"
+        }
+        val cues = if (cueCount == 0) {
+            "browse"
+        } else {
+            "cues ${scored.hits}/$cueCount" +
+                scored.matchedCues.joinToString(prefix = " (", postfix = ")")
+        }
+        val score = "%.2f".format(java.util.Locale.ROOT, scored.score)
+        val strength = "%.1f".format(java.util.Locale.ROOT, note.strength)
+        return "#${note.id} [${note.kind.wire()} i${note.importance} · score $score · $cues" +
+            " · strength $strength · recall $recall% · last recalled $last] " +
             note.content.replace('\n', ' ')
+    }
 
     /** A bare date as `to` means the whole day. */
     private fun endOfDay(raw: String?): Long? {

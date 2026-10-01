@@ -95,6 +95,7 @@ class ScheduledTaskRunner @Inject constructor(
                 history = conversationRepository.getMessages(conversationId),
                 conversationId = conversationId,
                 planContext = planRepository.getPlan(conversationId)?.render(),
+                unattended = true,
             ).collect { event ->
                 when (event) {
                     is AgentEvent.RoundStarted -> {
@@ -128,7 +129,13 @@ class ScheduledTaskRunner @Inject constructor(
                     }
 
                     is AgentEvent.ToolCallFinished -> {
-                        toolCalls++
+                        // Budget ledger parity with the engine: only calls that
+                        // actually ran (done/failed) are counted.
+                        if (event.call.status == ToolCallStatus.DONE ||
+                            event.call.status == ToolCallStatus.FAILED
+                        ) {
+                            toolCalls++
+                        }
                         pendingCalls = pendingCalls.map { call ->
                             if (call.id == event.call.id) event.call else call
                         }

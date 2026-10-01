@@ -830,7 +830,13 @@ class ChatViewModel @Inject constructor(
                     }
 
                     is AgentEvent.ToolCallFinished -> {
-                        toolCallsUsed++
+                        // Budget ledger parity with the engine: only calls that
+                        // actually ran (done/failed) are counted.
+                        if (event.call.status == ToolCallStatus.DONE ||
+                            event.call.status == ToolCallStatus.FAILED
+                        ) {
+                            toolCallsUsed++
+                        }
                         pendingCalls = pendingCalls.map { call ->
                             if (call.id == event.call.id) event.call else call
                         }
@@ -960,22 +966,35 @@ class ChatViewModel @Inject constructor(
     /**
      * Images are only materialized for the newest user turn; older image and
      * file attachments are replaced by a short marker so history stays cheap
-     * (the assistant already answered them).
+     * (the assistant already answered them). Stale tool results are stamped
+     * with their age, so a measurement from hours ago is never mistaken for
+     * the present.
      */
     private suspend fun prepareHistory(messages: List<ChatMessage>): List<ChatMessage> {
         val lastUserId = messages.lastOrNull { it.role == ChatRole.USER }?.id
+        val now = System.currentTimeMillis()
         return messages.map { message ->
-            if (message.attachments.isEmpty()) return@map message
-            if (message.id == lastUserId) {
+            val aged = if (message.role == ChatRole.TOOL && message.createdAt > 0 &&
+                now - message.createdAt > STALE_TOOL_RESULT_MS
+            ) {
                 message.copy(
-                    attachments = message.attachments.map { attachmentProcessor.withBase64(it) },
+                    content = "[tool result from ${MemoryText.relativeTime(now, message.createdAt)} - " +
+                        "re-check before relying on it]\n" + message.content,
                 )
             } else {
-                val marker = message.attachments.joinToString(" ") { attachment ->
+                message
+            }
+            if (aged.attachments.isEmpty()) return@map aged
+            if (aged.id == lastUserId) {
+                aged.copy(
+                    attachments = aged.attachments.map { attachmentProcessor.withBase64(it) },
+                )
+            } else {
+                val marker = aged.attachments.joinToString(" ") { attachment ->
                     "[附件: ${attachment.fileName ?: attachment.kind.name}]"
                 }
-                message.copy(
-                    content = message.content.ifBlank { marker },
+                aged.copy(
+                    content = aged.content.ifBlank { marker },
                     attachments = emptyList(),
                 )
             }
@@ -1244,6 +1263,7 @@ class ChatViewModel @Inject constructor(
         private const val CURATOR_NOTES = 60
         private const val PREFETCH_LIMIT = 4
         private const val UPCOMING_LIMIT = 2
+        private const val STALE_TOOL_RESULT_MS = 3_600_000L
         private const val AUTO_COMPRESS_THRESHOLD = 0.85
         private const val MAX_IMAGE_ATTACHMENTS = 4
     }

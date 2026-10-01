@@ -76,6 +76,7 @@ class TranscribeAudioTool(
 
     override val spec = ToolSpec(
         name = "transcribe_audio",
+        untrustedOutput = true,
         description = "Listen for a spoken utterance (up to 30s) and return its transcription. " +
             "Use for voice notes and quick dictation; ask the user to speak first.",
         parametersJson = """{"type":"object","properties":{"seconds":{"type":"integer","description":"3-30, default 8"}}}""",

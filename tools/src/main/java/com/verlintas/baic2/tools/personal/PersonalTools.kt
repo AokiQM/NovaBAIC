@@ -43,6 +43,7 @@ import kotlinx.serialization.json.longOrNull
 class ReadNotificationsTool : DeviceTool {
     override val spec = ToolSpec(
         name = "read_notifications",
+        untrustedOutput = true,
         description = "Read recent notifications (needs notification-listener access).",
         parametersJson = """{"type":"object","properties":{"limit":{"type":"integer"},"hours":{"type":"integer","description":"look-back window, default 12"},"app":{"type":"string","description":"package substring filter"},"query":{"type":"string","description":"keyword filter on title/text"}}}""",
         readOnly = true,

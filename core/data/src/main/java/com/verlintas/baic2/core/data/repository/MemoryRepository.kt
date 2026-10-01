@@ -292,15 +292,27 @@ class MemoryRepository @Inject constructor(
         val byId = active.associateBy { it.id }
         val boosted = mutableMapOf<Long, ScoredNote>()
         links.forEach { link ->
-            val source = seedScores[link.a] ?: seedScores[link.b] ?: return@forEach
-            val otherId = if (link.a in seedScores) link.b else link.a
+            val sourceId = when {
+                link.a in seedScores -> link.a
+                link.b in seedScores -> link.b
+                else -> return@forEach
+            }
+            val source = seedScores.getValue(sourceId)
+            val otherId = if (sourceId == link.a) link.b else link.a
             if (otherId in already) return@forEach
             val note = byId[otherId] ?: return@forEach
             if (note.kind in excludeKinds) return@forEach
             val score = MemoryScoring.spreadScore(source, link.weight.toDouble())
             val current = boosted[otherId]
             if (current == null || score > current.score) {
-                boosted[otherId] = ScoredNote(note, score, hits = 0, spread = true)
+                boosted[otherId] = ScoredNote(
+                    note = note,
+                    score = score,
+                    hits = 0,
+                    spread = true,
+                    spreadFrom = sourceId,
+                    linkWeight = link.weight.toDouble(),
+                )
             }
         }
         return boosted.values.sortedByDescending { it.score }

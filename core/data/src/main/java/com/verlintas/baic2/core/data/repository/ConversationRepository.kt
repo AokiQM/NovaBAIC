@@ -21,6 +21,7 @@ package com.verlintas.baic2.core.data.repository
 
 import androidx.room.withTransaction
 import com.verlintas.baic2.core.data.db.Baic2Database
+import com.verlintas.baic2.core.data.db.MessageSearchRow
 import com.verlintas.baic2.core.data.db.SnapshotEntity
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.AppMode
@@ -206,9 +207,10 @@ class ConversationRepository @Inject constructor(
     suspend fun discardSnapshot(snapshotId: Long) = db.snapshotDao().delete(snapshotId)
 
     /**
-     * Cue-driven episodic recall across conversations. The first cue
-     * pre-filters in SQL, the rest narrow in Kotlin (works the same for CJK
-     * and Latin without a tokeniser), newest first.
+     * Cue-driven episodic recall across conversations. Cues are OR-ed with a
+     * match count (BM25-shaped): a message that answers two cues outranks one
+     * that answers only one, recency breaks ties. Pure AND was wrong - the
+     * query "火车 国庆" should still find each mention on its own.
      */
     suspend fun searchMessages(
         terms: List<String>,
@@ -222,19 +224,42 @@ class ConversationRepository @Inject constructor(
         if (!conversationQuery.isNullOrBlank() && conversationIds != null && conversationIds.isEmpty()) {
             return emptyList()
         }
-        val pattern = terms.firstOrNull()?.let(::likePattern)
-        val candidates = if (conversationIds != null) {
-            db.messageDao().searchMessagesIn(conversationIds, pattern, from, to, candidateLimit(limit, offset))
+        val hits = LinkedHashMap<Long, Pair<MessageSearchRow, Int>>()
+        if (terms.isEmpty()) {
+            queryMessages(conversationIds, null, from, to, candidateLimit(limit, offset))
+                .forEach { row -> hits[row.id] = row to 1 }
         } else {
-            db.messageDao().searchMessages(pattern, from, to, candidateLimit(limit, offset))
+            val perTerm = (candidateLimit(limit, offset) / terms.size).coerceIn(40, 200)
+            terms.forEach { term ->
+                queryMessages(conversationIds, likePattern(term), from, to, perTerm)
+                    .forEach { row ->
+                        val existing = hits[row.id]
+                        hits[row.id] = row to ((existing?.second ?: 0) + 1)
+                    }
+            }
         }
-        return candidates.asSequence()
-            .filter { row -> row.content.isNotBlank() }
-            .filter { row -> terms.all { row.content.contains(it, ignoreCase = true) } }
+        return hits.values.asSequence()
+            .filter { it.first.content.isNotBlank() }
+            .sortedWith(
+                compareByDescending<Pair<MessageSearchRow, Int>> { it.second }
+                    .thenByDescending { it.first.createdAt },
+            )
             .drop(offset)
             .take(limit)
-            .map(mapper::messageHitToModel)
+            .map { mapper.messageHitToModel(it.first) }
             .toList()
+    }
+
+    private suspend fun queryMessages(
+        conversationIds: List<Long>?,
+        pattern: String?,
+        from: Long?,
+        to: Long?,
+        limit: Int,
+    ): List<MessageSearchRow> = if (conversationIds != null) {
+        db.messageDao().searchMessagesIn(conversationIds, pattern, from, to, limit)
+    } else {
+        db.messageDao().searchMessages(pattern, from, to, limit)
     }
 
     /** The window around a recalled message, oldest first. */

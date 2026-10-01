@@ -36,6 +36,12 @@ data class ToolSpec(
      * outside the agent's own mind.
      */
     val alwaysAvailable: Boolean = false,
+    /**
+     * True when the tool returns text the user did not write (web pages,
+     * notifications, OCR). Such output is data, never instructions; the loop
+     * wraps it and marks the run as tainted so high-danger calls are gated.
+     */
+    val untrustedOutput: Boolean = false,
 )
 
 @Serializable

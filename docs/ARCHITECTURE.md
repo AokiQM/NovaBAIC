@@ -54,7 +54,7 @@
 - **持久化运行**：`Run → Step → ToolCall → Observation → Artifact` 落 Room + 事件日志；进程死亡可恢复，前台服务支持后台长任务。
 - **显式阶段**：TASK → PLAN → ACT → OBSERVE → VERIFY →（REPLAN / DONE）；计划是一等工件（`plan_update` 工具维护）。
 - **感知**：无障碍树优先（role/可交互/状态），OCR 与截图视觉兜底；操作前后 UI diff 作为验证信号。
-- **工具契约**：强类型参数与 `ToolResult`（见 `:core:model`）、进度 Flow、可取消、幂等/危险级/并行安全元数据、按参数指纹熔断。
+- **工具契约**：强类型参数与 `ToolResult`（见 `:core:model`）、进度 Flow、可取消、幂等/危险级/并行安全元数据、**按工具名熔断**（同名工具一次运行内 3 次失败即拒绝后续调用，与 `HOW_IT_WORKS` §7.3 一致）。
 - **子代理**：`spawn_agent` 独立上下文与预算，结构化报告，取消树 + 深度/预算继承。
 - **上下文工程**：分层上下文（策略/任务/计划/工作记忆/工件），按阶段裁剪工具 schema，per-run/per-step 预算。
 - **MCP**：远程 Streamable HTTP 优先，工具并入统一注册表，权限与内置工具一致。
