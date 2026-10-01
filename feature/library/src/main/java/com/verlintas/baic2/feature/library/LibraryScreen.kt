@@ -56,7 +56,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -104,6 +103,7 @@ import com.verlintas.baic2.mcp.McpServerStatus
 import com.verlintas.baic2.designsystem.Baic2Mono
 import com.verlintas.baic2.designsystem.Baic2Spacing
 import com.verlintas.baic2.designsystem.component.AuroraSurface
+import com.verlintas.baic2.designsystem.component.MemoryRing
 import com.verlintas.baic2.designsystem.component.pressScale
 
 private object LibraryRoute {
@@ -206,9 +206,9 @@ private fun LibraryHomePage(
 
         item(key = "entry-memory") {
             LibraryEntryCard(
-                icon = Icons.Outlined.Favorite,
                 title = stringResource(R.string.library_memory_title),
                 summary = stringResource(R.string.library_entry_memory_summary, state.notes.size),
+                memoryRing = true,
                 aurora = true,
                 onClick = { onOpen(LibraryRoute.MEMORY) },
             )
@@ -245,10 +245,11 @@ private fun LibraryHomePage(
 
 @Composable
 private fun LibraryEntryCard(
-    icon: ImageVector,
     title: String,
     summary: String,
     onClick: () -> Unit,
+    icon: ImageVector? = null,
+    memoryRing: Boolean = false,
     aurora: Boolean = false,
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -275,19 +276,26 @@ private fun LibraryEntryCard(
                 .padding(horizontal = Baic2Spacing.lg, vertical = Baic2Spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
+            if (memoryRing) {
+                MemoryRing(
+                    modifier = Modifier.size(40.dp),
+                    dotCount = 10,
                 )
+            } else if (icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
             Spacer(Modifier.width(Baic2Spacing.md))
             Column(modifier = Modifier.weight(1f)) {
@@ -377,20 +385,29 @@ private fun MemoryPage(
                         vertical = Baic2Spacing.xl,
                     ),
                 ) {
-                    Text(
-                        text = stringResource(R.string.library_memory_tagline),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.library_memory_page_subtitle,
-                            state.notes.size,
-                        ),
-                        style = Baic2Mono.label,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.library_memory_tagline),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.library_memory_page_subtitle,
+                                    state.notes.size,
+                                ),
+                                style = Baic2Mono.label,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(Baic2Spacing.md))
+                        MemoryRing(
+                            modifier = Modifier.size(64.dp),
+                            dotCount = 12,
+                        )
+                    }
                 }
             }
         }
