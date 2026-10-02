@@ -18,6 +18,14 @@
     <string name="library_core_empty_line">（还没有内容，点击填写）</string>
     <string name="library_core_edit">编辑</string>
     <string name="library_notes_search">搜索笔记</string>
+    <string name="library_holds_title">隐私保留（不会记录）</string>
+    <string name="library_hold_lift">解除</string>
+    <string name="library_hard_delete_title">彻底删除这条笔记？</string>
+    <string name="library_hard_delete_message">内容、历史版本与关联会被永久删除，无法恢复。</string>
+    <string name="library_hard_delete">彻底删除</string>
+    <string name="library_revisions">历史版本（%1$d）</string>
+    <string name="library_revisions_button">历史版本</string>
+    <string name="library_revisions_empty">暂无历史版本</string>
     <string name="library_notes_no_match">没有匹配的笔记</string>
     <string name="library_note_edit">编辑笔记</string>
     <string name="library_note_edit_title">编辑笔记</string>

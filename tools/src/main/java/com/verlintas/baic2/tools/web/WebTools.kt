@@ -89,11 +89,24 @@ class WebFetcher @Inject constructor(
                 }
                 val source = response.body?.source() ?: return Result.failure(IOException("empty body"))
                 source.request(maxBytes)
-                Result.success(source.buffer.clone().readUtf8())
+                val bytes = source.buffer.clone().readByteArray()
+                // Honour the server charset, then sniff <meta charset>; many
+                // mainland sites still serve GBK and UTF-8 decoding garbles them.
+                val charset = response.body?.contentType()?.charset()
+                    ?: charsetFromHtml(bytes)
+                    ?: Charsets.UTF_8
+                Result.success(String(bytes, charset))
             }
         } catch (e: IOException) {
             Result.failure(e)
         }
+    }
+
+    private fun charsetFromHtml(bytes: ByteArray): java.nio.charset.Charset? {
+        val head = String(bytes, 0, minOf(bytes.size, 2048), Charsets.ISO_8859_1)
+        val match = Regex("charset\\s*=\\s*[\"']?([A-Za-z0-9_-]+)", RegexOption.IGNORE_CASE)
+            .find(head) ?: return null
+        return runCatching { java.nio.charset.Charset.forName(match.groupValues[1]) }.getOrNull()
     }
 
     fun fetchBytes(url: String, maxBytes: Long = 20_000_000L): Result<ByteArray> {
@@ -164,7 +177,7 @@ class WebSearchTool @Inject constructor(
             "Use `freshness` for time-sensitive news and `engines` to restrict or widen " +
             "the engine set (e.g. \"bing,baidu\" for local results). Site: and quotes are " +
             "passed through to the engines.",
-        parametersJson = """{"type":"object","properties":{"query":{"description":"One query string or an array of up to 3 queries"},"max_results":{"type":"integer","description":"1-15, default 10"},"read_top":{"type":"integer","description":"read the full text of the top N results, 0-3, default 1"},"freshness":{"type":"string","enum":["any","day","week","month","year"],"description":"prefer recent results where the engine supports it"},"engines":{"type":"string","description":"comma-separated subset of ddg-lite,ddg,bing,baidu,mojeek,360"},"refresh":{"type":"boolean","description":"bypass the 5-minute cache"}},"required":["query"]}""",
+        parametersJson = """{"type":"object","properties":{"query":{"description":"One query string or an array of up to 3 queries"},"max_results":{"type":"integer","description":"1-15, default 10"},"read_top":{"type":"integer","description":"read the full text of the top N results, 0-3, default 1"},"freshness":{"type":"string","enum":["any","day","week","month","year"],"description":"prefer recent results where the engine supports it"},"engines":{"type":"string","description":"comma-separated subset of ddg-lite,ddg,bing,baidu,mojeek,360,sogou"},"refresh":{"type":"boolean","description":"bypass the 5-minute cache"}},"required":["query"]}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -180,14 +193,26 @@ class WebSearchTool @Inject constructor(
         val freshness = (arguments["freshness"] as? JsonPrimitive)?.contentOrNull
             ?.lowercase()?.takeIf { it in FRESHNESS_VALUES } ?: "any"
         val engines = parseEngines(arguments["engines"])
+        val enginesExplicit = (arguments["engines"] as? JsonPrimitive)?.contentOrNull
+            ?.split(',')?.map { it.trim().lowercase() }?.any { it in ALL_ENGINES } == true
+        // Engines that just failed twice stay out of the rotation for a while,
+        // unless the caller asked for them explicitly.
+        val activeEngines = if (enginesExplicit) {
+            engines
+        } else {
+            engines.filterNot { EngineHealth.isCoolingDown(it) }.toSet().ifEmpty { engines }
+        }
 
         val cacheKey = queries.joinToString("|") +
             "|$maxResults|$readTop|$freshness|${engines.sorted().joinToString(",")}"
         if (!refresh) SearchCache.get(cacheKey)?.let { return ToolResult.Success(it) }
 
-        val (hits, diagnostics) = runEngines(queries, (maxResults * 2).coerceAtMost(30), engines, freshness)
+        val (hits, diagnostics) = runEngines(queries, (maxResults * 2).coerceAtMost(30), activeEngines, freshness)
         if (hits.isEmpty()) {
-            return ToolResult.Failure("No results for ${queries.joinToString()} ($diagnostics)")
+            return ToolResult.Failure(
+                "No results for ${queries.joinToString()} ($diagnostics). " +
+                    "Try a simpler query or engines=\"bing,baidu\" on a local network.",
+            )
         }
         val ranked = SearchPipeline.rank(hits, queries)
         val deduped = SearchPipeline.dedupe(ranked).take(maxResults)
@@ -262,6 +287,9 @@ class WebSearchTool @Inject constructor(
                     if ("360" in engines) {
                         add("360" to async { search360(query, perQuery) })
                     }
+                    if ("sogou" in engines) {
+                        add("sogou" to async { searchSogou(query, perQuery) })
+                    }
                 }
             }
             data class EngineTally(var count: Int = 0, var error: String? = null)
@@ -277,11 +305,19 @@ class WebSearchTool @Inject constructor(
                     result != null -> {
                         slot.count += result.size
                         hits += result
+                        if (result.isEmpty()) {
+                            slot.error = slot.error ?: "0 results (blocked?)"
+                        }
+                        EngineHealth.report(name, ok = true)
                     }
-                    outcome.isSuccess -> slot.error = slot.error ?: "timeout"
+                    outcome.isSuccess -> {
+                        slot.error = slot.error ?: "timeout"
+                        EngineHealth.report(name, ok = false)
+                    }
                     else -> {
                         val message = outcome.exceptionOrNull()?.message.orEmpty()
                         slot.error = slot.error ?: message.ifBlank { "failed" }.take(60)
+                        EngineHealth.report(name, ok = false)
                     }
                 }
             }
@@ -385,6 +421,17 @@ class WebSearchTool @Inject constructor(
         }.take(limit)
     }
 
+    private fun searchSogou(query: String, limit: Int): List<SearchHit> {
+        val url = "https://www.sogou.com/web?query=" + java.net.URLEncoder.encode(query, "UTF-8")
+        val html = fetcher.fetch(url).getOrElse { failure -> throw IllegalStateException(failure.message.orEmpty()) }
+        val doc = Jsoup.parse(html, url)
+        return doc.select("div.vrwrap, div.rb").mapNotNull { item ->
+            val hit = titleAnchor(item, url, "h3 a") ?: return@mapNotNull null
+            val snippet = item.selectFirst(".str-text-info, .str_info, .space-txt")?.text().orEmpty()
+            hit.copy(snippet = snippet)
+        }.take(limit)
+    }
+
     /**
      * Resolves a result's title anchor: explicit selectors first, then the
      * first public link inside the container (engine markup changes often).
@@ -440,7 +487,7 @@ class WebSearchTool @Inject constructor(
     }
 
     private companion object {
-        val ALL_ENGINES = setOf("ddg-lite", "ddg", "bing", "baidu", "mojeek", "360")
+        val ALL_ENGINES = setOf("ddg-lite", "ddg", "bing", "baidu", "mojeek", "360", "sogou")
         val FRESHNESS_VALUES = setOf("any", "day", "week", "month", "year")
         const val ENGINE_TIMEOUT_MS = 8_000L
         const val READ_ATTEMPTS = 6

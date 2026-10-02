@@ -463,6 +463,19 @@ interface NoteDao {
     )
     suspend fun updateWithEntities(id: Long, content: String, importance: Int, entities: String, now: Long)
 
+    @Query(
+        "UPDATE notes SET kind = :kind, content = :content, importance = :importance, " +
+            "entities = :entities, archived = 0, supersededBy = NULL, updatedAt = :now WHERE id = :id",
+    )
+    suspend fun replaceInPlace(
+        id: Long,
+        kind: String,
+        content: String,
+        importance: Int,
+        entities: String,
+        now: Long,
+    )
+
     @Query("UPDATE notes SET pinned = :pinned, updatedAt = :now WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean, now: Long)
 
@@ -484,6 +497,41 @@ interface NoteDao {
 
     @Query("SELECT COUNT(*) FROM notes WHERE archived = 0")
     suspend fun countActive(): Int
+}
+
+@Dao
+interface NoteRevisionDao {
+
+    @Insert
+    suspend fun insert(entity: NoteRevisionEntity): Long
+
+    @Query("SELECT * FROM note_revisions WHERE noteId = :noteId ORDER BY id DESC LIMIT :limit")
+    suspend fun revisionsFor(noteId: Long, limit: Int = 10): List<NoteRevisionEntity>
+
+    @Query(
+        "DELETE FROM note_revisions WHERE noteId = :noteId AND id NOT IN " +
+            "(SELECT id FROM note_revisions WHERE noteId = :noteId ORDER BY id DESC LIMIT :keep)",
+    )
+    suspend fun prune(noteId: Long, keep: Int)
+
+    @Query("DELETE FROM note_revisions WHERE noteId = :noteId")
+    suspend fun deleteFor(noteId: Long)
+}
+
+@Dao
+interface MemoryHoldDao {
+
+    @Insert
+    suspend fun insert(entity: MemoryHoldEntity): Long
+
+    @Query("SELECT * FROM memory_holds ORDER BY id DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 200): List<MemoryHoldEntity>
+
+    @Query("SELECT * FROM memory_holds ORDER BY id DESC LIMIT 200")
+    fun observeAll(): Flow<List<MemoryHoldEntity>>
+
+    @Query("DELETE FROM memory_holds WHERE id = :id")
+    suspend fun delete(id: Long)
 }
 
 @Dao

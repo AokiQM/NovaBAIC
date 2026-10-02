@@ -313,7 +313,9 @@ fun ThinkingCard(
     modifier: Modifier = Modifier,
     durationMs: Long? = null,
 ) {
-    var expanded by rememberSaveable(streaming) { mutableStateOf(streaming) }
+    // Thinking stays collapsed by default - the card shows status, the user
+    // taps when they actually want to read the reasoning.
+    var expanded by rememberSaveable(streaming) { mutableStateOf(false) }
     // Live elapsed seconds while the model is still thinking.
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     LaunchedEffect(streaming) {

@@ -18,6 +18,14 @@
     <string name="library_core_empty_line">(nothing yet - tap to write)</string>
     <string name="library_core_edit">Edit</string>
     <string name="library_notes_search">Search notes</string>
+    <string name="library_holds_title">Holds (never recorded)</string>
+    <string name="library_hold_lift">Lift</string>
+    <string name="library_hard_delete_title">Erase this note permanently?</string>
+    <string name="library_hard_delete_message">The content, its version history and its links will be destroyed. This cannot be undone.</string>
+    <string name="library_hard_delete">Erase</string>
+    <string name="library_revisions">History (%1$d)</string>
+    <string name="library_revisions_button">History</string>
+    <string name="library_revisions_empty">No earlier versions</string>
     <string name="library_notes_no_match">No notes match</string>
     <string name="library_note_edit">Edit note</string>
     <string name="library_note_edit_title">Edit note</string>

@@ -57,6 +57,10 @@ TOOL_ALIASES = {
             "entities": ["游泳"],
         },
     ),
+    "memory_write_fix7": (
+        "memory_write",
+        {"content": "周五前把季度报告发给团队（已更新）", "replaces": 7},
+    ),
     "memory_write_merge": (
         "memory_write",
         {"content": "用户正在测试新的记忆工具功能", "kind": "fact", "importance": 3},
@@ -108,6 +112,12 @@ TOOL_ARGS = {
         "importance": 3,
         "entities": ["记忆工具"],
     },
+    "memory_hold": {
+        "content": "用户正在测试新的记忆工具",
+        "reason": "smoke test: never record this",
+    },
+    "core_memory_update": {"slot": "context", "set": "正在测试记忆交互能力（0.1.18）"},
+    "memory_overview": {},
     "memory_forget": {"query": "新的记忆工具"},
 }
 

@@ -22,14 +22,18 @@ package com.verlintas.baic2.core.data.repository
 import androidx.room.withTransaction
 import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.CoreMemoryEntity
+import com.verlintas.baic2.core.data.db.MemoryHoldEntity
 import com.verlintas.baic2.core.data.db.NoteEntity
 import com.verlintas.baic2.core.data.db.NoteLinkEntity
+import com.verlintas.baic2.core.data.db.NoteRevisionEntity
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.CoreMemory
+import com.verlintas.baic2.core.model.MemoryHold
 import com.verlintas.baic2.core.model.MemoryScoring
 import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteRevision
 import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.ScoredNote
 import javax.inject.Inject
@@ -71,6 +75,9 @@ class MemoryRepository @Inject constructor(
 
         /** The fact was explicitly forgotten before; re-learning is blocked. */
         data class Suppressed(val id: Long) : AddOutcome
+
+        /** The user asked that this never be recorded; the hold blocks it. */
+        data class Held(val holdId: Long) : AddOutcome
     }
 
     fun observeActive(limit: Int = 500): Flow<List<Note>> =
@@ -114,6 +121,10 @@ class MemoryRepository @Inject constructor(
     ): AddOutcome {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return AddOutcome.Duplicate(0L)
+        // 0. Holds come first: a spoken promise ("don't record this") is state.
+        val held = db.memoryHoldDao().getRecent(SUPPRESSED_SCAN)
+            .firstOrNull { MemoryText.similarity(trimmed, it.content) >= SUPPRESSION_SIMILARITY }
+        if (held != null) return AddOutcome.Held(held.id)
         // 1. Active suppression: forgetting is inhibition, not deletion.
         val suppressed = db.noteDao().getSuppressed(SUPPRESSED_SCAN)
             .firstOrNull { MemoryText.similarity(trimmed, it.content) >= SUPPRESSION_SIMILARITY }
@@ -135,6 +146,7 @@ class MemoryRepository @Inject constructor(
             best != null && bestSimilarity >= 1.0 -> return AddOutcome.Duplicate(best.id)
 
             best != null && bestSimilarity >= MERGE_SIMILARITY -> {
+                recordRevision(best)
                 db.noteDao().update(
                     id = best.id,
                     content = trimmed,
@@ -191,11 +203,12 @@ class MemoryRepository @Inject constructor(
     ) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
+        val existing = db.noteDao().getById(id) ?: return
+        recordRevision(mapper.noteToModel(existing))
         val now = System.currentTimeMillis()
         if (entities == null) {
             db.noteDao().update(id, trimmed, importance.coerceIn(1, 5), now)
         } else {
-            val existing = db.noteDao().getById(id) ?: return
             db.noteDao().updateWithEntities(
                 id = id,
                 content = trimmed,
@@ -205,6 +218,106 @@ class MemoryRepository @Inject constructor(
             )
         }
     }
+
+    /**
+     * Deterministic in-place replacement (the `replaces=<id>` path): the id
+     * never changes, so references cannot dangle, and the old version is
+     * archived into the revision history first.
+     */
+    suspend fun replaceNote(
+        id: Long,
+        content: String,
+        importance: Int? = null,
+        entities: List<String>? = null,
+        kind: NoteKind? = null,
+    ): Note? {
+        val trimmed = content.trim()
+        if (trimmed.isEmpty()) return null
+        val existing = db.noteDao().getById(id) ?: return null
+        val note = mapper.noteToModel(existing)
+        recordRevision(note)
+        val now = System.currentTimeMillis()
+        db.noteDao().replaceInPlace(
+            id = id,
+            kind = (kind ?: note.kind).name,
+            content = trimmed,
+            importance = (importance ?: note.importance).coerceIn(1, 5),
+            entities = entities?.let(MemoryText::encodeEntities).orEmpty().ifEmpty { existing.entities },
+            now = now,
+        )
+        db.noteDao().touch(id, now)
+        return db.noteDao().getById(id)?.let(mapper::noteToModel)
+    }
+
+    /** Old versions of a note, newest first. */
+    suspend fun revisionsFor(noteId: Long, limit: Int = 10): List<NoteRevision> =
+        db.noteRevisionDao().revisionsFor(noteId, limit).map { entity ->
+            NoteRevision(
+                id = entity.id,
+                content = entity.content,
+                importance = entity.importance,
+                replacedAt = entity.replacedAt,
+            )
+        }
+
+    private suspend fun recordRevision(note: Note) {
+        db.noteRevisionDao().insert(
+            NoteRevisionEntity(
+                noteId = note.id,
+                content = note.content,
+                importance = note.importance,
+                entities = MemoryText.encodeEntities(note.entities),
+                replacedAt = System.currentTimeMillis(),
+            ),
+        )
+        db.noteRevisionDao().prune(note.id, MAX_REVISIONS)
+    }
+
+    /** True hard delete: the row, its links and its history disappear. */
+    suspend fun purge(id: Long) = db.withTransaction {
+        db.noteDao().delete(id)
+        db.noteLinkDao().deleteFor(id)
+        db.noteRevisionDao().deleteFor(id)
+    }
+
+    /** A hold: "do not record this", stored as executable state. */
+    suspend fun addHold(content: String, reason: String? = null): Long {
+        val trimmed = content.trim()
+        return db.memoryHoldDao().insert(
+            MemoryHoldEntity(
+                content = trimmed,
+                reason = reason?.trim()?.takeIf { it.isNotEmpty() },
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    suspend fun listHolds(): List<MemoryHold> =
+        db.memoryHoldDao().getRecent().map { entity ->
+            MemoryHold(id = entity.id, content = entity.content, reason = entity.reason)
+        }
+
+    fun observeHolds(): Flow<List<MemoryHold>> =
+        db.memoryHoldDao().observeAll().map { list ->
+            list.map { entity -> MemoryHold(id = entity.id, content = entity.content, reason = entity.reason) }
+        }
+
+    suspend fun removeHold(id: Long) = db.memoryHoldDao().delete(id)
+
+    /**
+     * Closest notes by text similarity, for the "no confident match" exit:
+     * never an empty answer, always something actionable.
+     */
+    suspend fun closestNotes(query: String, limit: Int = 3): List<Pair<Note, Double>> =
+        db.noteDao().getActive(PAGE_SIZE)
+            .asSequence()
+            .map(mapper::noteToModel)
+            .filter { it.kind != NoteKind.SUMMARY }
+            .map { it to MemoryText.similarity(query, it.content) }
+            .filter { it.second >= 0.2 }
+            .sortedByDescending { it.second }
+            .take(limit)
+            .toList()
 
     suspend fun setPinned(id: Long, pinned: Boolean) =
         db.noteDao().setPinned(id, pinned, System.currentTimeMillis())
@@ -498,5 +611,6 @@ class MemoryRepository @Inject constructor(
         const val REHEARSAL_MIN_USES = 3
         const val REHEARSAL_MIN_AGE_MS = 3 * 86_400_000L
         const val REHEARSAL_MAX_RETRIEVABILITY = 0.5
+        const val MAX_REVISIONS = 8
     }
 }

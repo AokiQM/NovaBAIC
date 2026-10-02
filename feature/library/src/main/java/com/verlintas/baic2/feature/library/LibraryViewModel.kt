@@ -26,8 +26,10 @@ import com.verlintas.baic2.core.data.repository.MemoryRepository
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.CoreMemory
 import com.verlintas.baic2.core.model.McpServer
+import com.verlintas.baic2.core.model.MemoryHold
 import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.Note
+import com.verlintas.baic2.core.model.NoteRevision
 import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.tools.automation.AutomationManager
 import com.verlintas.baic2.mcp.McpManager
@@ -47,6 +49,7 @@ data class LibraryUiState(
     val notes: List<Note> = emptyList(),
     val core: CoreMemory = CoreMemory(),
     val noteQuery: String = "",
+    val holds: List<MemoryHold> = emptyList(),
     val skills: List<Skill> = emptyList(),
     val mcpServers: List<McpServer> = emptyList(),
     val mcpStatus: Map<Long, McpServerStatus> = emptyMap(),
@@ -116,6 +119,17 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { memoryRepository.delete(id) }
     }
 
+    /** Permanent erase: row, history and links disappear. */
+    fun hardDeleteNote(id: Long) {
+        viewModelScope.launch { memoryRepository.purge(id) }
+    }
+
+    fun liftHold(id: Long) {
+        viewModelScope.launch { memoryRepository.removeHold(id) }
+    }
+
+    suspend fun revisionsFor(id: Long): List<NoteRevision> = memoryRepository.revisionsFor(id)
+
     fun setNotePinned(id: Long, pinned: Boolean) {
         viewModelScope.launch { memoryRepository.setPinned(id, pinned) }
     }
@@ -133,23 +147,31 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    private data class MemorySlice(
+        val notes: List<Note>,
+        val core: CoreMemory,
+        val query: String,
+        val holds: List<MemoryHold>,
+    )
+
     val uiState: StateFlow<LibraryUiState> = combine(
         automationManager.observeAll(),
         combine(
             memoryRepository.observeActive(),
             memoryRepository.observeCore(),
             noteQuery,
-        ) { notes, core, query -> Triple(notes, core, query) },
+            memoryRepository.observeHolds(),
+        ) { notes, core, query, holds -> MemorySlice(notes, core, query, holds) },
         skills,
         mcpServerRepository.observeAll(),
         mcpManager.status,
     ) { automations, memory, skillList, mcpServers, mcpStatus ->
-        val (notes, core, query) = memory
         LibraryUiState(
             automations = automations,
-            notes = filterNotes(notes, query),
-            core = core,
-            noteQuery = query,
+            notes = filterNotes(memory.notes, memory.query),
+            core = memory.core,
+            noteQuery = memory.query,
+            holds = memory.holds,
             skills = skillList,
             mcpServers = mcpServers,
             mcpStatus = mcpStatus,

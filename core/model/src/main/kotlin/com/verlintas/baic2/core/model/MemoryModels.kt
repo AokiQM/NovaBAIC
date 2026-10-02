@@ -138,3 +138,18 @@ data class MessageHit(
     val content: String,
     val createdAt: Long,
 )
+
+/** An older version of a note, kept when the note was rewritten. */
+data class NoteRevision(
+    val id: Long = 0L,
+    val content: String,
+    val importance: Int = 3,
+    val replacedAt: Long = 0L,
+)
+
+/** A "do not record this" directive: a promise kept as executable state. */
+data class MemoryHold(
+    val id: Long = 0L,
+    val content: String,
+    val reason: String? = null,
+)

@@ -32,6 +32,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RunEntity::class,
         NoteEntity::class,
         NoteLinkEntity::class,
+        NoteRevisionEntity::class,
+        MemoryHoldEntity::class,
         CoreMemoryEntity::class,
         PlanEntity::class,
         AutomationEntity::class,
@@ -39,7 +41,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SnapshotEntity::class,
         ScheduledTaskEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -56,6 +58,10 @@ abstract class Baic2Database : RoomDatabase() {
 
     abstract fun noteLinkDao(): NoteLinkDao
 
+    abstract fun noteRevisionDao(): NoteRevisionDao
+
+    abstract fun memoryHoldDao(): MemoryHoldDao
+
     abstract fun coreMemoryDao(): CoreMemoryDao
 
     abstract fun planDao(): PlanDao
@@ -69,6 +75,38 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun scheduledTaskDao(): ScheduledTaskDao
 
     companion object {
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Notes keep their own history; promises to not record become state.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS note_revisions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        noteId INTEGER NOT NULL,
+                        content TEXT NOT NULL,
+                        importance INTEGER NOT NULL,
+                        entities TEXT NOT NULL,
+                        replacedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_note_revisions_noteId " +
+                        "ON note_revisions(noteId)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS memory_holds (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        content TEXT NOT NULL,
+                        reason TEXT,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Source monitoring + suppression + entity index.

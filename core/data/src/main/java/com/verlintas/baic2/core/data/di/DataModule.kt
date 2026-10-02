@@ -31,8 +31,10 @@ import com.verlintas.baic2.core.data.db.Baic2Database
 import com.verlintas.baic2.core.data.db.ConversationDao
 import com.verlintas.baic2.core.data.db.CoreMemoryDao
 import com.verlintas.baic2.core.data.db.MessageDao
+import com.verlintas.baic2.core.data.db.MemoryHoldDao
 import com.verlintas.baic2.core.data.db.NoteDao
 import com.verlintas.baic2.core.data.db.NoteLinkDao
+import com.verlintas.baic2.core.data.db.NoteRevisionDao
 import com.verlintas.baic2.core.data.db.PlanDao
 import com.verlintas.baic2.core.data.db.RunDao
 import com.verlintas.baic2.core.data.db.ScheduledTaskDao
@@ -70,6 +72,7 @@ object DataModule {
                 Baic2Database.MIGRATION_13_14,
                 Baic2Database.MIGRATION_14_15,
                 Baic2Database.MIGRATION_15_16,
+                Baic2Database.MIGRATION_16_17,
             )
             .build()
 
@@ -96,6 +99,12 @@ object DataModule {
 
     @Provides
     fun provideNoteLinkDao(db: Baic2Database): NoteLinkDao = db.noteLinkDao()
+
+    @Provides
+    fun provideNoteRevisionDao(db: Baic2Database): NoteRevisionDao = db.noteRevisionDao()
+
+    @Provides
+    fun provideMemoryHoldDao(db: Baic2Database): MemoryHoldDao = db.memoryHoldDao()
 
     @Provides
     fun provideCoreMemoryDao(db: Baic2Database): CoreMemoryDao = db.coreMemoryDao()

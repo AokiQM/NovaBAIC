@@ -147,6 +147,9 @@ class AuxiliaryTasks(
             "- forget: ids of notes that are clearly obsolete or contradicted, and of near-duplicates " +
             "that say the same thing in different words (keep the clearest one). Never forget what " +
             "the user asked to keep.\n" +
+            "- holds: the holds list is absolute. Never remember, revise or merge anything that " +
+            "matches a hold, even if it appears in the transcript - a hold is the user's explicit " +
+            "\"do not record this\".\n" +
             "- rehearse_keep: from the fading notes below, the ids that are still true and worth " +
             "keeping - they will be reinforced; revise or forget the others instead.\n" +
             "- core_user: the user's stable identity in <=600 chars (name, languages, enduring " +
@@ -167,17 +170,19 @@ class AuxiliaryTasks(
                 "$role: ${message.content.take(perMessageLimit)}"
             }
 
-        /** The curator's view: core memory, inventories, episodes, fading notes. */
+        /** The curator's view: core memory, inventories, episodes, fading notes, holds. */
         fun renderCuratorPrompt(
             transcript: String,
             inventory: String,
             coreBlocks: String,
             fading: String = "(none)",
+            holds: String = "(none)",
         ): String =
             buildString {
                 append("Core memory now:\n").append(coreBlocks).append("\n\n")
                 append("Existing notes:\n").append(inventory).append("\n\n")
                 append("Fading notes (rehearsal):\n").append(fading).append("\n\n")
+                append("Holds (never record anything matching these):\n").append(holds).append("\n\n")
                 append("Recent conversation (oldest first):\n").append(transcript)
             }
 

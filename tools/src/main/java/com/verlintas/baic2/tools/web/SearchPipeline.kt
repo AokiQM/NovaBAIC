@@ -148,9 +148,35 @@ internal object SearchPipeline {
     }
 }
 
+/**
+ * Short-term engine health. Two consecutive failures put an engine into a
+ * cooldown, so an engine that is blocked on this network stops costing every
+ * search an 8-second timeout; an explicit `engines=` filter overrides it.
+ */
+internal object EngineHealth {
+
+    private const val COOLDOWN_MS = 10 * 60 * 1000L
+    private const val FAILURES_BEFORE_COOLDOWN = 2
+
+    private val failures = ConcurrentHashMap<String, Pair<Int, Long>>()
+
+    fun isCoolingDown(name: String): Boolean {
+        val entry = failures[name] ?: return false
+        return entry.first >= FAILURES_BEFORE_COOLDOWN &&
+            System.currentTimeMillis() - entry.second < COOLDOWN_MS
+    }
+
+    fun report(name: String, ok: Boolean) {
+        if (ok) {
+            failures.remove(name)
+            return
+        }
+        failures[name] = ((failures[name]?.first ?: 0) + 1) to System.currentTimeMillis()
+    }
+}
+
 /** Five-minute TTL cache so follow-up searches don't refetch. */
 internal object SearchCache {
-
     private const val TTL_MS = 5 * 60 * 1000L
     private const val MAX_ENTRIES = 32
 

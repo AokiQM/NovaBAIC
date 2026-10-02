@@ -29,6 +29,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -96,8 +97,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.verlintas.baic2.core.model.Automation
 import com.verlintas.baic2.core.model.McpServer
+import com.verlintas.baic2.core.model.MemoryHold
+import com.verlintas.baic2.core.model.MemoryText
 import com.verlintas.baic2.core.model.Note
 import com.verlintas.baic2.core.model.NoteKind
+import com.verlintas.baic2.core.model.NoteRevision
 import com.verlintas.baic2.core.model.NoteSource
 import com.verlintas.baic2.core.model.Skill
 import com.verlintas.baic2.mcp.McpServerStatus
@@ -335,14 +339,38 @@ private fun MemoryPage(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var editingNote by remember { mutableStateOf<Note?>(null) }
     var editingCoreSlot by remember { mutableStateOf<String?>(null) }
+    var hardDeleteTarget by remember { mutableStateOf<Note?>(null) }
 
     editingNote?.let { note ->
         NoteEditDialog(
             note = note,
             onDismiss = { editingNote = null },
+            revisionsFor = viewModel::revisionsFor,
             onSave = { text ->
                 viewModel.updateNote(note.id, text, note.importance)
                 editingNote = null
+            },
+        )
+    }
+    hardDeleteTarget?.let { note ->
+        AlertDialog(
+            onDismissRequest = { hardDeleteTarget = null },
+            title = { Text(stringResource(R.string.library_hard_delete_title)) },
+            text = { Text(stringResource(R.string.library_hard_delete_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.hardDeleteNote(note.id)
+                        hardDeleteTarget = null
+                    },
+                ) {
+                    Text(stringResource(R.string.library_hard_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { hardDeleteTarget = null }) {
+                    Text(stringResource(R.string.library_cancel))
+                }
             },
         )
     }
@@ -426,6 +454,23 @@ private fun MemoryPage(
                 onClick = { editingCoreSlot = LibraryViewModel.CORE_CONTEXT_SLOT },
             )
         }
+        if (state.holds.isNotEmpty()) {
+            item(key = "holds-title") {
+                Text(
+                    text = stringResource(R.string.library_holds_title),
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = Baic2Spacing.xs, top = Baic2Spacing.sm),
+                )
+            }
+            items(state.holds, key = { "hold-${it.id}" }) { hold ->
+                HoldRow(
+                    hold = hold,
+                    onLift = { viewModel.liftHold(hold.id) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
         item(key = "memory-search") {
             OutlinedTextField(
                 value = state.noteQuery,
@@ -453,6 +498,7 @@ private fun MemoryPage(
                     onPin = { viewModel.setNotePinned(note.id, !note.pinned) },
                     onEdit = { editingNote = note },
                     onDelete = { viewModel.deleteNote(note.id) },
+                    onLongPress = { hardDeleteTarget = note },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -889,10 +935,12 @@ private fun NoteRow(
     onPin: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(14.dp)
     val accent = note.kind.accent()
+    val interaction = remember { MutableInteractionSource() }
     val strength by animateFloatAsState(
         targetValue = (note.strength / 5.0).toFloat().coerceIn(0.08f, 1f),
         animationSpec = tween(durationMillis = 700),
@@ -904,6 +952,12 @@ private fun NoteRow(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = {},
+                onLongClick = onLongPress,
+            )
             .padding(start = Baic2Spacing.lg, end = Baic2Spacing.xs, top = Baic2Spacing.sm, bottom = Baic2Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -995,19 +1049,52 @@ private fun NoteRow(
 private fun NoteEditDialog(
     note: Note,
     onDismiss: () -> Unit,
+    revisionsFor: suspend (Long) -> List<NoteRevision>,
     onSave: (String) -> Unit,
 ) {
     var text by rememberSaveable(note.id) { mutableStateOf(note.content) }
+    var showHistory by remember { mutableStateOf(false) }
+    var revisions by remember { mutableStateOf<List<NoteRevision>>(emptyList()) }
+    LaunchedEffect(showHistory) {
+        if (showHistory) revisions = revisionsFor(note.id)
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.library_note_edit_title)) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                minLines = 3,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (showHistory) {
+                    Spacer(Modifier.height(Baic2Spacing.sm))
+                    Text(
+                        text = stringResource(R.string.library_revisions, revisions.size),
+                        style = Baic2Mono.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (revisions.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.library_revisions_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        revisions.forEach { revision ->
+                            Text(
+                                text = MemoryText.dateOnly(revision.replacedAt) + " · " +
+                                    revision.content.replace('\n', ' ').take(140),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(onClick = { onSave(text) }, enabled = text.isNotBlank()) {
@@ -1015,11 +1102,53 @@ private fun NoteEditDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.library_cancel))
+            Row {
+                TextButton(onClick = { showHistory = !showHistory }) {
+                    Text(stringResource(R.string.library_revisions_button))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.library_cancel))
+                }
             }
         },
     )
+}
+
+@Composable
+private fun HoldRow(
+    hold: MemoryHold,
+    onLift: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            .padding(start = Baic2Spacing.lg, end = Baic2Spacing.xs, top = Baic2Spacing.md, bottom = Baic2Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = hold.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            hold.reason?.takeIf { it.isNotBlank() }?.let { reason ->
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = reason,
+                    style = Baic2Mono.label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        TextButton(onClick = onLift) {
+            Text(stringResource(R.string.library_hold_lift))
+        }
+    }
 }
 
 @Composable

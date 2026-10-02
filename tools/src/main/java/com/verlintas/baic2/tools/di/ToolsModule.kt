@@ -333,6 +333,24 @@ object ToolsModule {
     fun memoryForgetTool(
         memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
     ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryForgetTool(memoryRepository)
+
+    @Provides
+    @IntoSet
+    fun memoryHoldTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryHoldTool(memoryRepository)
+
+    @Provides
+    @IntoSet
+    fun coreMemoryUpdateTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.CoreMemoryUpdateTool(memoryRepository)
+
+    @Provides
+    @IntoSet
+    fun memoryOverviewTool(
+        memoryRepository: com.verlintas.baic2.core.data.repository.MemoryRepository,
+    ): DeviceTool = com.verlintas.baic2.tools.memory.MemoryOverviewTool(memoryRepository)
 }
 
 @Module

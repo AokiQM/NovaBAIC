@@ -1109,6 +1109,7 @@ class ChatViewModel @Inject constructor(
         val core = memoryRepository.getCore()
         val now = System.currentTimeMillis()
         val fading = memoryRepository.rehearsalCandidates(now)
+        val holds = memoryRepository.listHolds()
         val raw = runCatching {
             auxiliaryTasks.complete(
                 config = config,
@@ -1118,6 +1119,7 @@ class ChatViewModel @Inject constructor(
                     inventory = MemoryPrompt.inventory(notes),
                     coreBlocks = MemoryPrompt.coreBlocks(core),
                     fading = MemoryPrompt.fading(fading, now),
+                    holds = MemoryPrompt.holds(holds),
                 ),
                 maxTokens = 900,
                 temperature = 0.2,
@@ -1142,6 +1144,7 @@ class ChatViewModel @Inject constructor(
                 is MemoryRepository.AddOutcome.Merged -> revised++
                 is MemoryRepository.AddOutcome.Duplicate,
                 is MemoryRepository.AddOutcome.Suppressed,
+                is MemoryRepository.AddOutcome.Held,
                 -> Unit
             }
         }

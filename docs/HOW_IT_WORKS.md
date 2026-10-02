@@ -2,7 +2,7 @@
 
 This document explains the internals of **BetterAIChat2** (BAIC2) in exhaustive detail: module architecture, the request pipeline, streaming protocols, the agent loop, the tool system, permission bridges, automation, storage, UI, security, the evaluation harness, and the engineering lessons learned from real bugs. It is written as a study guide for programmers who want to understand a real, working Android AI-agent application — and as the maintenance handbook for this repository.
 
-> Scope: 52 built-in device tools, Agents (provider + key + model + prompt + reasoning), three provider protocols (OpenAI-compatible / Anthropic / Gemini), Shizuku + Accessibility + MediaProjection integration, scheduled tasks, Skills, MCP, and subagents.
+> Scope: 55 built-in device tools, Agents (provider + key + model + prompt + reasoning), three provider protocols (OpenAI-compatible / Anthropic / Gemini), Shizuku + Accessibility + MediaProjection integration, scheduled tasks, Skills, MCP, and subagents.
 
 ---
 
@@ -77,7 +77,7 @@ NovaBAIC/  (Gradle root project: BetterAIChat2)
 │   └── impl/                        # Android implementations + services + broadcast receivers
 │
 ├── tools/                           # Gradle module + repo check scripts in one directory
-│   ├── build.gradle.kts  src/       # 52 built-in tools, registry, argument healer,
+│   ├── build.gradle.kts  src/       # 55 built-in tools, registry, argument healer,
 │   │                                #   skills, scheduling, automation, subagents, web pipeline
 │   ├── check-license-headers.sh     # CI guards
 │   ├── check-strings-sync.sh        #   (license headers / zh-en string sync / tool schemas)
@@ -92,7 +92,7 @@ Numbers that matter:
 
 | Thing | Count | Source of truth |
 | --- | --- | --- |
-| Built-in tools | 52 | `tools/check-tool-schemas.py` output; `ToolRegistry.toolNames` |
+| Built-in tools | 55 | `tools/check-tool-schemas.py` output; `ToolRegistry.toolNames` |
 | Room tables | 10 | `core/data/.../db/Entities.kt` |
 | DB version | 13 | `Baic2Database.kt` |
 | Modules | 17 | `settings.gradle.kts` |
@@ -324,9 +324,9 @@ Memory follows the biological division of labour (v0.1.14, DB v15):
 - **Synaptic strength** replaces naive time decay: retrievability is `exp(-age / (10 days × strength))`, every recall adds +0.6 strength (cap 5) and a use count, so frequently recalled notes fade more slowly — spaced repetition, in effect.
 - **Associations** are Hebbian: notes returned together by one recall wire together in `note_links` (weight +1, cap 5), and the top cue hits spread activation two hops with decay (`0.35 × w/(w+1)` per hop), surfaced in recall as `associated` / `2-hop via #id`. Co-recalled sets include the spread notes, so chains keep strengthening.
 - **Consolidation** is the curator (`AuxiliaryTasks.CURATOR_SYSTEM`): it runs when the app **leaves the foreground** (sleep-time replay; ≥4 new assistant turns) with a 24-turn overflow fallback for marathon foreground sessions, and manually from the chat menu. Alongside new **pruning** - notes that are neither important nor pinned, untouched for 45+ days and below the retrieval floor are archived (soft, revivable) - it runs a **rehearsal** pass: fading but valuable notes (importance ≥ 4 or well-used, retrievability < 0.5, untouched 3+ days) are re-read and either kept (`rehearse_keep` → reinforced), revised or forgotten. The reply is a strict JSON plan — `remember` (with `source`/`entities`) / `revise` / `forget` / `rehearse_keep` / `core_user` / `core_context` — which the app clamps and applies.
-- **Active suppression**: `memory_forget` (and the Library delete button) archives the note **and records a suppression fingerprint**. Later writes that match a suppressed trace within similarity 0.7 are refused with a pointer to the old note — forgetting is inhibition, not deletion, and a silently re-learned "forgotten" fact cannot happen without the user's confirmation.
+- **Active suppression**: `memory_forget` (and the Library delete button) archives the note **and records a suppression fingerprint**. Later writes that match a suppressed trace within similarity 0.7 are refused with a pointer to the old note — forgetting is inhibition, not deletion. `memory_hold` goes one step further: "don't record this" is stored as a hold (visible and liftable in the Library), and both `memory_write` and the curator must refuse anything matching it — a promise made in conversation becomes executable state. Rewritten notes keep a **revision history** (`note_revisions`, last 8 versions) and long-pressing a note offers a true **permanent erase** (`purge`: row, links and history).
 
-The four memory tools are marked `alwaysAvailable` on their `ToolSpec`: they work in every mode (including Chat), bypass confirmation and read-only gates, and count against the small Chat budget (4 rounds / 6 calls). The system prompt states the memory protocol and includes the current date/time so relative phrases ("yesterday", "last week") resolve.
+The seven memory tools are marked `alwaysAvailable` on their `ToolSpec` (`memory_search` / `memory_read` / `memory_write` / `memory_forget` / `memory_hold` / `core_memory_update` / `memory_overview`): they work in every mode (including Chat), bypass confirmation and read-only gates, and count against the small Chat budget (4 rounds / 6 calls). The system prompt states the memory protocol and includes the current date/time so relative phrases ("yesterday", "last week") resolve.
 
 ---
 
@@ -697,14 +697,14 @@ val result = try { tool.execute(healed.arguments, context.copy(run = run)) }
 - Type coercion: `"3"` → `3`, `true` → `1`, `"yes"` → `true`, a scalar where an array is expected gets wrapped in a single-element array.
 - Every change is recorded as a note and appended to the result, so the model sees what was fixed and (hopefully) stops repeating the mistake.
 
-### 10.4 The 52 tools at a glance
+### 10.4 The 55 tools at a glance
 
 - **Perception / UI**: `take_screenshot`, `screen_ocr`, `screen_record`, `ui_control`, `get_screen_state`, `get_foreground_app`
 - **Apps / system**: `open_app`, `manage_app`, `open_settings`, `run_shell`, `list_installed_apps`, `device_info`, `network_status`, `get_time`, `compute`, `vibrate`, `media_control`, `set_volume`, `set_brightness`, `set_flashlight`, `send_notification`, `read_notifications`, `get_clipboard`, `set_clipboard`, `share_text`, `open_dialer`, `get_app_usage`, `get_location`
 - **Content**: `files`, `file_write`, `download_file`, `ocr_file`, `generate_qr`, `decode_qr`
 - **Web**: `web_search`, `web_read`, `fetch_rss`, `get_weather`
 - **Personal**: `search_contacts`, `send_email`, `create_calendar_event`, `reminder`, `transcribe_audio`
-- **Memory**: `memory_search`, `memory_read`, `memory_write`, `memory_forget` (available in every mode)
+- **Memory**: `memory_search`, `memory_read`, `memory_write`, `memory_forget`, `memory_hold`, `core_memory_update`, `memory_overview` (available in every mode)
 - **Agent collaboration**: `spawn_agent`, `plan_update`, `load_skill`, `automation`
 
 `ui_control` deserves its own paragraph: it resolves targets by fuzzy text matching (`uiMatchScore`: exact → normalized → prefix → substring → label-inside-query → edit distance ≤ 2), falls back to OCR when the accessibility tree lacks the text, scrolls up to 4 times to find off-screen targets and **scrolls back** if it fails (so the model's mental map stays valid), and verifies each action by comparing foreground package + window title before and after. That verification is why a single `ui_control` call is usually enough instead of a follow-up `screen_ocr`.

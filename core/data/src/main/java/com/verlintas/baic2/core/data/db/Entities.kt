@@ -123,6 +123,32 @@ data class CoreMemoryEntity(
     }
 }
 
+/** Old versions of a note, kept when it is rewritten: notes never lose their past. */
+@Entity(
+    tableName = "note_revisions",
+    indices = [Index(value = ["noteId"])],
+)
+data class NoteRevisionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val noteId: Long,
+    val content: String,
+    val importance: Int,
+    val entities: String,
+    val replacedAt: Long,
+)
+
+/**
+ * "Do not record this" directives: a promise made in conversation, stored as
+ * executable state so the curator and memory_write must respect it.
+ */
+@Entity(tableName = "memory_holds")
+data class MemoryHoldEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val content: String,
+    val reason: String?,
+    val createdAt: Long,
+)
+
 @Entity(
     tableName = "runs",
     indices = [Index(value = ["conversationId"])],

@@ -481,15 +481,20 @@ fun renderSystemPrompt(
         "block below is what you already know; never claim any other memory without checking " +
         "first. Use memory_search whenever the user refers to the past, to other conversations " +
         "or to themselves, and before saying you don't know something about them - search " +
-        "first, then answer. Use memory_read when a recalled snippet is not enough. Use " +
+        "first, then answer. memory_overview gives a one-call map when you need to orient. Use " +
+        "memory_read when a recalled snippet is not enough. Use " +
         "memory_write to keep durable notes (stable preferences, ongoing projects, agreements, " +
         "important dates, corrections) - never small talk or one-off details - and pass " +
-        "replaces=<id> when a stored note turns out wrong or outdated. Pass source=assistant " +
+        "replaces=<id> to update a stored note in place (the id stays stable); use notes=[...] " +
+        "to write several in one call. Pass source=assistant " +
         "when the note is your own inference rather than what the user said, and source=external " +
         "for facts from tools; add entities (people, projects, places) so memory stays " +
         "addressable one thing at a time. Use memory_forget only " +
         "when the user explicitly asks you to forget something, and confirm what it is with " +
-        "them before archiving it."
+        "them before archiving it. When the user says not to record something, call memory_hold " +
+        "immediately - a promise spoken in conversation is otherwise just text. When the user " +
+        "corrects what you know about them, fix it at once with core_memory_update so a wrong " +
+        "line stops being injected."
     val clock = "Current date and time: " +
         java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm EEEE", java.util.Locale.ENGLISH)
             .withZone(zone)

@@ -36,8 +36,11 @@ object MemoryPrompt {
         val parts = mutableListOf<String>()
         val user = core?.user?.trim().orEmpty()
         val ongoing = core?.context?.trim().orEmpty()
-        if (user.isNotEmpty()) parts += "About the user:\n$user"
-        if (ongoing.isNotEmpty()) parts += "Currently ongoing:\n$ongoing"
+        val stamp = core?.updatedAt?.takeIf { it > 0 }
+            ?.let { " (updated ${MemoryText.dateOnly(it)})" }
+            .orEmpty()
+        if (user.isNotEmpty()) parts += "About the user$stamp:\n$user"
+        if (ongoing.isNotEmpty()) parts += "Currently ongoing$stamp:\n$ongoing"
         if (primed.isNotEmpty()) {
             parts += "Notes primed by the current message:\n" + primed.joinToString("\n") { note ->
                 "- (${noteMeta(note)}, ${MemoryText.dateOnly(note.whenAt ?: note.updatedAt)}) " +
@@ -91,4 +94,8 @@ object MemoryPrompt {
         append('\n')
         append("[context] ").append(core?.context?.trim().orEmpty().ifBlank { "(empty)" })
     }
+
+    /** Holds the curator must respect: nothing matching these may be recorded. */
+    fun holds(holds: List<MemoryHold>): String =
+        holds.joinToString("\n") { "#${it.id}: ${it.content}" }.ifBlank { "(none)" }
 }

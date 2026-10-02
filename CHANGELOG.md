@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.18] - 2026-10-02
+
+> 本版是对 Aviiya 实测反馈的完整响应：承诺落地为状态、笔记可追溯不可丢、检索可解释、交互效率提升。DB v17。
+
+### 安全与隐私 Security & privacy
+
+- **隐私保留（hold）**：新增 `memory_hold` 工具与 `memory_holds` 表——用户说"别记这个"时，承诺变成可执行状态：`memory_write` 与策展人的写入路径都会拒绝相似内容（≥0.7），库页可见、可一键解除
+- **彻底删除**：库内长按笔记 → 二次确认后永久删除（内容、历史版本、关联链接）；软删除（归档 + 抑制指纹）仍是默认
+- 策展人提示词新增 holds 区块：与 hold 匹配的内容永不复记
+
+### 修复 Fixed
+
+- **`replaces` 行为不一致**：现在一律原地更新目标 id（id 稳定，悬空引用消失）；未提供的字段（kind / importance / entities）保持原值而非重置为默认
+- **笔记版本历史**：改写前自动存档旧版（每篇保留最近 8 版），编辑对话框可查看
+- **核心记忆无法即时纠正**：新增 `core_memory_update` 工具（纠正当场生效）；核心块注入时带更新时间
+- **检索可解释性**：每条结果带 `rank k/N`、自然语言路径（keyword match / no keywords - browsing recent）、`weak match` 标注；无命中时给出"最接近的 3 条 + 相似度"出口
+- **Web 搜索**：按 Content-Type / meta 自动解码（GBK 站点不再乱码）；连续失败的引擎进入 10 分钟冷却；0 结果标注 "blocked?"；全失败给可行动建议；新增搜狗引擎（共 7 个）
+
+### 优化 Changed
+
+- **交互效率**：`memory_overview` 一键全景（核心 / 计数 / 实体 / holds / 最近笔记）；`memory_write` 支持批量 `notes=[...]`
+- **思考过程默认折叠**（流式中也折叠，点击展开）
+- 工具 52 → 55；README 中英 / HOW_IT_WORKS / 官网与计数校验同步
+
 ## [0.1.17] - 2026-10-02
 
 > 仿生记忆第二轮：更会淡忘、更分来源、更按"一件事"记事。DB v16 无损迁移。
