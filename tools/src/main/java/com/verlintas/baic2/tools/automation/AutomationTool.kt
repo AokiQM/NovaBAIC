@@ -94,11 +94,13 @@ class AutomationTool(
             val obj = element as? JsonObject ?: return@mapNotNull null
             val tool = obj["tool"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
-            if (registry.get().tool(tool) == null) return ToolResult.Failure(
+            val delegate = registry.get().tool(tool) ?: return ToolResult.Failure(
                 "Unknown tool '$tool'. Available: ${registry.get().toolNames.joinToString()}",
             )
-            if (tool in FORBIDDEN_TOOLS) {
-                return ToolResult.Failure("Tool '$tool' cannot run inside an automation.")
+            if (tool in FORBIDDEN_TOOLS || delegate.spec.danger == DangerLevel.HIGH) {
+                return ToolResult.Failure(
+                    "Tool '$tool' is too dangerous to run unattended inside an automation.",
+                )
             }
             AutomationAction(
                 tool = tool,

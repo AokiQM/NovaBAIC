@@ -20,6 +20,7 @@
 package com.verlintas.baic2.core.data.storage
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.verlintas.baic2.core.data.db.Baic2Database
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -70,8 +71,18 @@ class AppStorage @Inject constructor(
         File(context.filesDir, "screenshots").deleteRecursively()
     }
 
+    /**
+     * Wipes conversation data only: agents and API keys, memory (notes,
+     * revisions, holds), automations, MCP servers and settings all survive.
+     */
     suspend fun clearConversations() = withContext(Dispatchers.IO) {
-        db.clearAllTables()
+        db.withTransaction {
+            db.messageDao().deleteAll()
+            db.snapshotDao().deleteAll()
+            db.planDao().deleteAll()
+            db.runDao().deleteAll()
+            db.conversationDao().deleteAll()
+        }
     }
 
     private fun File.directorySize(): Long =

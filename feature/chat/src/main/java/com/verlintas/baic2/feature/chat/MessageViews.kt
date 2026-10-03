@@ -421,6 +421,10 @@ fun ToolCard(
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(call.status == ToolCallStatus.FAILED) }
+    // A failure that happens after first composition still surfaces: reveal it.
+    LaunchedEffect(call.status) {
+        if (call.status == ToolCallStatus.FAILED) expanded = true
+    }
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = Baic2Motion.spatialFast(),

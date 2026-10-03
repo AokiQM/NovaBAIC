@@ -57,10 +57,39 @@ class WebFetcher @Inject constructor(
 ) {
 
     private val client = client.newBuilder()
+        // Redirects are followed manually so every hop is SSRF-checked before
+        // the connection is opened (auto-follow would hit the private host first).
+        .followRedirects(false)
+        .followSslRedirects(false)
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
         .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Executes [request], following at most [maxRedirects] hops with every
+     * target validated against the public-URL policy before it is dialled.
+     */
+    private fun executeGuarded(request: Request, maxRedirects: Int = 5): okhttp3.Response {
+        var current = request
+        repeat(maxRedirects + 1) { hop ->
+            val response = client.newCall(current).execute()
+            val redirect = response.code in REDIRECT_CODES
+            val location = if (redirect) response.header("Location") else null
+            if (location == null) return response
+            response.close()
+            if (hop == maxRedirects) {
+                throw IOException("too many redirects for ${request.url}")
+            }
+            val next = current.url.resolve(location)
+                ?: throw IOException("blocked_redirect: bad location '$location'")
+            if (!isPublicHttpUrl(next.toString())) {
+                throw IOException("blocked_redirect: refusing to follow to a private address")
+            }
+            current = current.newBuilder().url(next).build()
+        }
+        throw IOException("too many redirects for ${request.url}")
+    }
 
     fun fetch(
         url: String,
@@ -77,7 +106,7 @@ class WebFetcher @Inject constructor(
             .get()
             .build()
         return try {
-            client.newCall(request).execute().use { response ->
+            executeGuarded(request).use { response ->
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} for $url"))
                 }
@@ -115,7 +144,7 @@ class WebFetcher @Inject constructor(
         }
         val request = Request.Builder().url(url).header("User-Agent", DEFAULT_UA).get().build()
         return try {
-            client.newCall(request).execute().use { response ->
+            executeGuarded(request).use { response ->
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} for $url"))
                 }
@@ -140,6 +169,7 @@ class WebFetcher @Inject constructor(
     }
 
     private companion object {
+        val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
         const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36"
     }

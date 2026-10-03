@@ -469,7 +469,8 @@ class MemoryRepository @Inject constructor(
         if (notes.isEmpty()) return emptyList()
         val now = System.currentTimeMillis()
         val ranked = MemoryScoring.rank(notes, terms, now)
-            .filter { it.hits >= minHits && it.score >= minScore }
+            // Browse mode (no cues) must not be filtered by cue-hit minimums.
+            .filter { (terms.isEmpty() || it.hits >= minHits) && it.score >= minScore }
         val page = ranked.drop(offset).take(limit)
         if (page.isEmpty()) return emptyList()
 

@@ -115,8 +115,8 @@
     <string name="settings_developer_build">构建信息</string>
     <string name="settings_developer_app_id">应用 ID</string>
     <string name="settings_developer_version">版本</string>
-    <string name="settings_developer_role">独立开发者 · GPL-3.0 开源维护者</string>
-    <string name="settings_developer_bio">从 Agent 运行时、52 个内置工具，到仿生记忆与全部界面：BAIC2 由他独自设计与实现。</string>
+    <string name="settings_developer_role">Born 2010 | Full-stack &amp; AI Developer</string>
+    <string name="settings_developer_bio">Building, breaking, learning, shipping — making anything just for fun.</string>
     <string name="settings_developer_github">GitHub</string>
     <string name="settings_developer_email">邮箱</string>
     <string name="settings_developer_note">BetterAIChat2 是 BetterAIChat 的继任重制版，遵循 GPL-3.0-or-later 许可。</string>

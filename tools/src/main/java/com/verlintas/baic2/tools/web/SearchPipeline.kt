@@ -58,7 +58,12 @@ internal object SearchPipeline {
         val x = normalizedTitle(a)
         val y = normalizedTitle(b)
         if (x.isEmpty() || y.isEmpty()) return false
-        if (x == y || x.contains(y) || y.contains(x)) return true
+        if (x == y) return true
+        // Short fragments occur inside longer titles constantly ("AI", "GitHub");
+        // containment only counts for substantial titles.
+        val shorter = if (x.length <= y.length) x else y
+        if (shorter.length >= 6 && (x.contains(y) || y.contains(x))) return true
+        if (x.length < 4 || y.length < 4) return false
         val bigramsX = x.windowed(2).toHashSet()
         val bigramsY = y.windowed(2).toHashSet()
         if (bigramsX.isEmpty() || bigramsY.isEmpty()) return false

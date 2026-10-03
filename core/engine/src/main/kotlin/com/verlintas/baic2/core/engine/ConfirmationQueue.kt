@@ -42,6 +42,9 @@ class ConfirmationQueue(
     val requests: SharedFlow<ToolCall> = _requests
 
     suspend fun confirm(call: ToolCall): Boolean {
+        // Nobody is listening (background/unattended run): deny immediately
+        // instead of buffering the request until the 5-minute timeout.
+        if (_requests.subscriptionCount.value == 0) return false
         val deferred = CompletableDeferred<Boolean>()
         if (pending.putIfAbsent(call.id, deferred) != null) {
             return false

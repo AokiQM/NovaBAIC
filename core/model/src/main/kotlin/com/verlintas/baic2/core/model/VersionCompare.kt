@@ -22,7 +22,11 @@ package com.verlintas.baic2.core.model
 /** True when [latest] (e.g. "v0.1.5") is a newer semver-ish tag than [current] ("0.1.4"). */
 fun isVersionNewer(latest: String, current: String): Boolean {
     fun parts(value: String): List<Int> =
-        value.trim().removePrefix("v").substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
+        value.trim().removePrefix("v")
+            .substringBefore('-')
+            .substringBefore('+')
+            .split('.')
+            .mapNotNull { it.toIntOrNull() }
     val a = parts(latest)
     val b = parts(current)
     if (a.isEmpty() || b.isEmpty()) return false

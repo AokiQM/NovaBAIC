@@ -78,20 +78,21 @@ class SkillRepository @Inject constructor(
     }
 
     suspend fun save(skill: Skill) = withContext(Dispatchers.IO) {
-        val directory = File(root, skill.id).apply { mkdirs() }
+        // The id comes from an imported manifest: slug it so crafted ids like
+        // "../../foo" can never escape the skills directory.
+        val id = storageId(skill.id).ifBlank { "skill-${System.currentTimeMillis()}" }
+        val directory = File(root, id).apply { mkdirs() }
         File(directory, "skill.yaml").writeText(SkillCodec.encode(skill))
     }
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
-        runCatching { File(root, id).deleteRecursively() }
+        val safe = storageId(id)
+        if (safe.isNotBlank()) runCatching { File(root, safe).deleteRecursively() }
     }
 
     /** Turns a completed run's tool calls into a replayable skill. */
     suspend fun saveFromToolCalls(name: String, calls: List<ToolCall>): Skill {
-        val id = name.lowercase()
-            .replace(Regex("[^a-z0-9]+"), "-")
-            .trim('-')
-            .ifBlank { "skill-${System.currentTimeMillis()}" }
+        val id = storageId(name).ifBlank { "skill-${System.currentTimeMillis()}" }
         val skill = Skill(
             id = id,
             name = name,
@@ -109,6 +110,9 @@ class SkillRepository @Inject constructor(
         save(skill)
         return skill
     }
+
+    private fun storageId(raw: String): String =
+        raw.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
 
     private companion object {
         const val MAX_MANIFEST_BYTES = 64 * 1024

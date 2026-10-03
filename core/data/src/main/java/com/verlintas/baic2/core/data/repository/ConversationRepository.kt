@@ -144,7 +144,9 @@ class ConversationRepository @Inject constructor(
         val message = mapper.messageToModel(entity)
         db.messageDao().deleteById(messageId)
         if (message.toolCalls.isNotEmpty()) {
-            db.messageDao().deleteByToolCallIds(message.toolCalls.map { it.id })
+            // Scoped to the conversation: Gemini synthesises call ids from the
+            // tool name and can collide with other conversations.
+            db.messageDao().deleteByToolCallIds(message.conversationId, message.toolCalls.map { it.id })
         }
         db.messageDao().clearUsage(message.conversationId)
     }
@@ -253,7 +255,20 @@ class ConversationRepository @Inject constructor(
             .filter { it.first.content.isNotBlank() }
             .map { (row, matches) ->
                 val role = runCatching { ChatRole.valueOf(row.role) }.getOrDefault(ChatRole.ASSISTANT)
-                ScoredMessage(row, role, MemoryScoring.messageScore(role, matches))
+                // Name the cues that actually hit so the agent can see why this
+                // message surfaced, exactly like the notes side does.
+                val matched = if (terms.isEmpty()) {
+                    emptyList()
+                } else {
+                    val haystack = row.content.lowercase()
+                    terms.filter { haystack.contains(it.lowercase()) }
+                }
+                ScoredMessage(
+                    row = row,
+                    role = role,
+                    score = MemoryScoring.messageScore(role, matched.size.coerceAtLeast(matches)),
+                    matchedCues = matched,
+                )
             }
             .filter { roleFilter == null || it.role == roleFilter }
             .sortedWith(
@@ -263,7 +278,12 @@ class ConversationRepository @Inject constructor(
             )
             .drop(offset)
             .take(limit)
-            .map { mapper.messageHitToModel(it.row) }
+            .map { scored ->
+                mapper.messageHitToModel(scored.row).copy(
+                    matchedCues = scored.matchedCues,
+                    score = scored.score,
+                )
+            }
             .toList()
     }
 
@@ -271,6 +291,7 @@ class ConversationRepository @Inject constructor(
         val row: MessageSearchRow,
         val role: ChatRole,
         val score: Double,
+        val matchedCues: List<String>,
     )
 
     private suspend fun queryMessages(

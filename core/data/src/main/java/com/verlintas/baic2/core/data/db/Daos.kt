@@ -32,6 +32,9 @@ interface AgentDao {
     @Query("SELECT * FROM agents ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<AgentEntity>>
 
+    @Query("SELECT * FROM agents ORDER BY createdAt ASC")
+    suspend fun getAll(): List<AgentEntity>
+
     @Query("SELECT * FROM agents WHERE id = :id")
     suspend fun getById(id: Long): AgentEntity?
 
@@ -85,7 +88,7 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE id = :id")
     fun observeById(id: Long): Flow<ConversationEntity?>
 
-    @Query("SELECT * FROM conversations WHERE title LIKE :pattern ORDER BY updatedAt DESC LIMIT 10")
+    @Query("SELECT * FROM conversations WHERE title LIKE :pattern ESCAPE '\\' ORDER BY updatedAt DESC LIMIT 10")
     suspend fun findByTitle(pattern: String): List<ConversationEntity>
 
     @Insert
@@ -105,6 +108,9 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM conversations")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -143,8 +149,11 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    @Query("DELETE FROM messages WHERE toolCallId IN (:ids)")
-    suspend fun deleteByToolCallIds(ids: List<String>)
+    @Query("DELETE FROM messages")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId AND toolCallId IN (:ids)")
+    suspend fun deleteByToolCallIds(conversationId: Long, ids: List<String>)
 
     @Query("SELECT * FROM messages WHERE id = :id")
     suspend fun getById(id: Long): MessageEntity?
@@ -299,6 +308,9 @@ interface SnapshotDao {
 
     @Query("DELETE FROM message_snapshots WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM message_snapshots")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -327,6 +339,9 @@ interface RunDao {
 
     @Query("UPDATE runs SET state = 'CANCELLED', updatedAt = :now WHERE state = 'RUNNING'")
     suspend fun cancelStale(now: Long)
+
+    @Query("DELETE FROM runs")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM runs WHERE conversationId = :conversationId")
     suspend fun deleteForConversation(conversationId: Long)
@@ -422,6 +437,9 @@ interface PlanDao {
 
     @Query("SELECT * FROM plans WHERE conversationId = :conversationId")
     fun observe(conversationId: Long): Flow<PlanEntity?>
+
+    @Query("DELETE FROM plans")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -436,7 +454,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE archived = 0 ORDER BY pinned DESC, updatedAt DESC LIMIT :limit")
     suspend fun getActive(limit: Int): List<NoteEntity>
 
-    @Query("SELECT * FROM notes WHERE suppressed = 1 LIMIT :limit")
+    @Query("SELECT * FROM notes WHERE suppressed = 1 ORDER BY id DESC LIMIT :limit")
     suspend fun getSuppressed(limit: Int): List<NoteEntity>
 
     @Query(
@@ -465,7 +483,8 @@ interface NoteDao {
 
     @Query(
         "UPDATE notes SET kind = :kind, content = :content, importance = :importance, " +
-            "entities = :entities, archived = 0, supersededBy = NULL, updatedAt = :now WHERE id = :id",
+            "entities = :entities, archived = 0, suppressed = 0, supersededBy = NULL, " +
+            "updatedAt = :now WHERE id = :id",
     )
     suspend fun replaceInPlace(
         id: Long,

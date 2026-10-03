@@ -249,11 +249,17 @@ class ChatViewModel @Inject constructor(
                     is SpeechSessionEvent.Final -> {
                         _voiceState.value = VoiceState()
                         _voiceResults.tryEmit(event.text)
+                        // Terminal event: release the recognizer and end the
+                        // collector so dictation cannot leak jobs or the mic.
+                        voiceSession = null
+                        voiceJob?.cancel()
                     }
 
                     is SpeechSessionEvent.Error -> {
                         _voiceState.value = VoiceState()
                         _voiceFailures.tryEmit(event.failure)
+                        voiceSession = null
+                        voiceJob?.cancel()
                     }
                 }
             }
@@ -374,8 +380,8 @@ class ChatViewModel @Inject constructor(
 
     private var runJob: Job? = null
     private var titleGenerated = false
-    private var autoCompressAttempted = false
     private var lastCuratedAssistantCount = -1
+    private val turnGate = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
         viewModelScope.launch {
@@ -447,9 +453,18 @@ class ChatViewModel @Inject constructor(
     fun send(text: String) {
         val trimmed = text.trim()
         val attachments = pendingAttachments.value
-        if ((trimmed.isEmpty() && attachments.isEmpty()) || running.value) return
+        if (trimmed.isEmpty() && attachments.isEmpty()) return
+        // Atomic admission: two taps (or voice auto-send + tap) must not start
+        // two concurrent turns inside the pre-`running` suspension window.
+        if (!turnGate.compareAndSet(false, true)) return
         pendingAttachments.value = emptyList()
-        runJob = viewModelScope.launch { executeTurn(trimmed, attachments = attachments) }
+        runJob = viewModelScope.launch {
+            try {
+                executeTurn(trimmed, attachments = attachments)
+            } finally {
+                turnGate.set(false)
+            }
+        }
     }
 
     fun importImages(uris: List<android.net.Uri>) {
@@ -536,22 +551,26 @@ class ChatViewModel @Inject constructor(
 
     /** Captures the screen and sends it to the model as an image attachment. */
     fun analyzeScreen(prompt: String) {
-        if (running.value) return
+        if (!turnGate.compareAndSet(false, true)) return
         runJob = viewModelScope.launch {
-            auxBusy.value = true
-            val bytes = try {
-                screenshotProvider.capture().getOrElse { failure ->
+            try {
+                auxBusy.value = true
+                val bytes = try {
+                    screenshotProvider.capture().getOrElse { failure ->
+                        error.value = ChatError(ChatError.Kind.SCREEN_CAPTURE, failure.message)
+                        return@launch
+                    }
+                } finally {
+                    auxBusy.value = false
+                }
+                val attachment = attachmentProcessor.importImageBytes(bytes).getOrElse { failure ->
                     error.value = ChatError(ChatError.Kind.SCREEN_CAPTURE, failure.message)
                     return@launch
                 }
+                executeTurn(prompt, attachments = listOf(attachment))
             } finally {
-                auxBusy.value = false
+                turnGate.set(false)
             }
-            val attachment = attachmentProcessor.importImageBytes(bytes).getOrElse { failure ->
-                error.value = ChatError(ChatError.Kind.SCREEN_CAPTURE, failure.message)
-                return@launch
-            }
-            executeTurn(prompt, attachments = listOf(attachment))
         }
     }
 
@@ -564,6 +583,7 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        cancelVoiceSession()
         speechOutput.stop()
         runNotifier.setStopHandler(null)
         runNotifier.stopRunning()
@@ -582,12 +602,16 @@ class ChatViewModel @Inject constructor(
 
     /** Drops everything after the last user message and runs that turn again. */
     fun retryLast() {
-        if (running.value) return
+        if (!turnGate.compareAndSet(false, true)) return
         runJob = viewModelScope.launch {
-            val messages = conversationRepository.getMessages(conversationId)
-            val lastUser = messages.lastOrNull { it.role == ChatRole.USER } ?: return@launch
-            conversationRepository.deleteMessagesAfter(conversationId, lastUser.id)
-            executeTurn(lastUser.content, appendUserMessage = false)
+            try {
+                val messages = conversationRepository.getMessages(conversationId)
+                val lastUser = messages.lastOrNull { it.role == ChatRole.USER } ?: return@launch
+                conversationRepository.deleteMessagesAfter(conversationId, lastUser.id)
+                executeTurn(lastUser.content, appendUserMessage = false)
+            } finally {
+                turnGate.set(false)
+            }
         }
     }
 
@@ -610,17 +634,22 @@ class ChatViewModel @Inject constructor(
     }
 
     fun deleteMessage(messageId: Long) {
+        if (running.value) return
         viewModelScope.launch { conversationRepository.deleteMessage(messageId) }
     }
 
     fun editAndResend(messageId: Long, newText: String) {
-        if (running.value) return
         val trimmed = newText.trim()
         if (trimmed.isEmpty()) return
+        if (!turnGate.compareAndSet(false, true)) return
         runJob = viewModelScope.launch {
-            conversationRepository.updateMessageContent(messageId, trimmed)
-            conversationRepository.deleteMessagesAfter(conversationId, messageId)
-            executeTurn(trimmed, appendUserMessage = false)
+            try {
+                conversationRepository.updateMessageContent(messageId, trimmed)
+                conversationRepository.deleteMessagesAfter(conversationId, messageId)
+                executeTurn(trimmed, appendUserMessage = false)
+            } finally {
+                turnGate.set(false)
+            }
         }
     }
 
@@ -640,6 +669,7 @@ class ChatViewModel @Inject constructor(
     /** Brings back the messages the last compression replaced. */
     fun restoreCompression() {
         val snapshot = uiState.value.compressionSnapshot ?: return
+        if (running.value || auxBusy.value) return
         viewModelScope.launch {
             notice.value = null
             conversationRepository.restoreSnapshot(snapshot.id)
@@ -649,6 +679,7 @@ class ChatViewModel @Inject constructor(
     /** Keeps the summarized history and drops the backup. */
     fun discardCompression() {
         val snapshot = uiState.value.compressionSnapshot ?: return
+        if (running.value || auxBusy.value) return
         viewModelScope.launch { conversationRepository.discardSnapshot(snapshot.id) }
     }
 
@@ -881,6 +912,22 @@ class ChatViewModel @Inject constructor(
                     }
 
                     is AgentEvent.Failed -> {
+                        // Keep what the user already saw before the failure.
+                        val partial = streaming.value.text
+                        if (partial.isNotBlank()) {
+                            runCatching {
+                                conversationRepository.append(
+                                    ChatMessage(
+                                        conversationId = conversationId,
+                                        role = ChatRole.ASSISTANT,
+                                        content = partial,
+                                        model = config.model,
+                                        createdAt = System.currentTimeMillis(),
+                                    ),
+                                )
+                            }
+                            streaming.value = StreamingState()
+                        }
                         failed = true
                         error.value = event.error.toChatError()
                         runId?.let { id ->
@@ -919,6 +966,11 @@ class ChatViewModel @Inject constructor(
             }
             throw e
         } catch (e: Exception) {
+            withContext(NonCancellable) {
+                // A crash between an assistant tool call and its result must
+                // not poison the next request: repair the transcript.
+                runCatching { rejectPendingToolCalls() }
+            }
             failed = true
             error.value = ChatError(ChatError.Kind.INTERNAL, e.message)
             runId?.let { runRepository.finish(it, RunState.FAILED, roundsUsed, toolCallsUsed) }
@@ -940,8 +992,19 @@ class ChatViewModel @Inject constructor(
             } else {
                 IDLE_CURATE_MESSAGES
             }
-            maybeCurate(threshold, config)
-            maybeAutoCompress(config)
+            // Best-effort upkeep: a memory failure must never take the turn down.
+            quietly { maybeCurate(threshold, config) }
+            quietly { maybeAutoCompress(config) }
+        }
+    }
+
+    private suspend fun quietly(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Intentionally ignored: background upkeep is best-effort.
         }
     }
 
@@ -1177,7 +1240,6 @@ class ChatViewModel @Inject constructor(
     }
 
     private suspend fun maybeAutoCompress(config: ProviderConfig) {
-        if (autoCompressAttempted) return
         val window = ModelCatalog.entryFor(config.provider, config.model)?.contextWindow
             ?: ModelContextWindows.forModel(config.model)
             ?: return
@@ -1195,7 +1257,8 @@ class ChatViewModel @Inject constructor(
         val reported = messages.asReversed().firstOrNull { it.usageInput != null }?.usageInput
         val used = reported ?: estimated
         if (used < window * AUTO_COMPRESS_THRESHOLD) return
-        autoCompressAttempted = true
+        // Attempted at most once per completed turn; a later turn may retry,
+        // so a conversation that regrows can be compressed again.
         runCompression(config)
     }
 

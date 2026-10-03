@@ -319,16 +319,23 @@ class AnthropicProvider(
             )
         }
 
+        val maxTokens = (request.config.maxTokens ?: DEFAULT_MAX_TOKENS).coerceAtLeast(1)
+        // Thinking requires max_tokens > budget_tokens; when the cap is tiny,
+        // reasoning is disabled instead of sending an invalid request.
+        val thinkingEnabled = request.config.reasoning && maxTokens > MIN_THINKING_TOKENS
         return AnthropicRequest(
             model = request.config.model,
-            maxTokens = request.config.maxTokens ?: DEFAULT_MAX_TOKENS,
+            maxTokens = maxTokens,
             // Thinking requires temperature to be unset (Anthropic pins it to 1).
-            temperature = if (request.config.reasoning) null else request.config.temperature,
+            temperature = if (thinkingEnabled) null else request.config.temperature,
             system = system,
             messages = messages,
             tools = tools,
-            thinking = if (request.config.reasoning) {
-                AnthropicThinking(type = "enabled", budgetTokens = THINKING_BUDGET)
+            thinking = if (thinkingEnabled) {
+                AnthropicThinking(
+                    type = "enabled",
+                    budgetTokens = minOf(THINKING_BUDGET, maxTokens - 1),
+                )
             } else {
                 null
             },
@@ -417,10 +424,12 @@ class AnthropicProvider(
         const val API_VERSION = "2023-06-01"
         const val DEFAULT_MAX_TOKENS = 4096
         const val THINKING_BUDGET = 2048
+        const val MIN_THINKING_TOKENS = 1024
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
 
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 private data class AnthropicRequest(
     val model: String,
@@ -430,6 +439,8 @@ private data class AnthropicRequest(
     val messages: List<AnthropicMessage>,
     val tools: List<AnthropicTool>? = null,
     @SerialName("thinking") val thinking: AnthropicThinking? = null,
+    // encodeDefaults is off in the DI Json; the API needs stream: true.
+    @kotlinx.serialization.EncodeDefault
     @SerialName("stream") val stream: Boolean = true,
 )
 
@@ -459,8 +470,11 @@ private data class AnthropicBlock(
     val signature: String? = null,
 )
 
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 private data class AnthropicImageSource(
+    // The API requires source.type; encodeDefaults is off in the DI Json.
+    @kotlinx.serialization.EncodeDefault
     val type: String = "base64",
     @SerialName("media_type") val mediaType: String,
     val data: String,

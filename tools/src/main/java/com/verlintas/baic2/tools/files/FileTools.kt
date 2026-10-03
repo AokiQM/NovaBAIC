@@ -121,9 +121,11 @@ class DownloadFileTool @Inject constructor(
     }
 
     private fun saveToDownloads(context: Context, name: String, bytes: ByteArray): Uri? {
+        // Never let a crafted name traverse out of Downloads (legacy path).
+        val safeName = name.replace(Regex("[/\\\\]"), "_").trim().ifBlank { "download.bin" }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOADS)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -141,7 +143,7 @@ class DownloadFileTool @Inject constructor(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "",
         ).apply { mkdirs() }
-        val file = File(directory, name)
+        val file = File(directory, safeName)
         file.writeBytes(bytes)
         return Uri.fromFile(file)
     }
@@ -512,10 +514,12 @@ class FileWriteTool : DeviceTool {
 
     private fun write(
         context: ToolContext,
-        name: String,
+        rawName: String,
         bytes: ByteArray,
         arguments: JsonObject,
     ): ToolResult {
+        // Never let a crafted name traverse out of Downloads (legacy path).
+        val name = rawName.replace(Regex("[/\\\\]"), "_").trim().ifBlank { "document.txt" }
         val mime = (arguments["mime_type"] as? JsonPrimitive)?.content?.trim()
             ?.takeIf { it.isNotBlank() } ?: guessMime(name)
         return try {

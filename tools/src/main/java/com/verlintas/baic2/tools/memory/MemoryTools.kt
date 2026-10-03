@@ -158,9 +158,29 @@ class MemorySearchTool(
                     closestBlock(query)?.let { append('\n').append(it).append('\n') }
                 }
                 if (hits.isNotEmpty()) {
-                    append("\nMessages (use memory_read with conversation_id + message_id for more):\n")
-                    hits.forEach { hit ->
-                        append("- ").append(MemoryText.formatDateTime(hit.createdAt))
+                    append("\nMessages (ranked; user turns weigh double; scores relative within this set; ")
+                        .append("use memory_read with conversation_id + message_id for more):\n")
+                    hits.forEachIndexed { index, hit ->
+                        val cues = if (terms.isEmpty()) {
+                            "no keywords - browsing recent"
+                        } else {
+                            "keyword match ${hit.matchedCues.size}/${terms.size}" +
+                                hit.matchedCues.joinToString(prefix = " (", postfix = ")")
+                        }
+                        // Same vocabulary as the notes side: thin coverage is
+                        // flagged weak so an assistant echo cannot masquerade
+                        // as a strong episodic hit.
+                        val weak = if (terms.isNotEmpty() && hit.matchedCues.size * 2 < terms.size) {
+                            " · weak match, reference only"
+                        } else {
+                            ""
+                        }
+                        append("- rank ").append(index + 1).append('/').append(hits.size)
+                            .append(" · score ")
+                            .append("%.2f".format(java.util.Locale.ROOT, hit.score))
+                            .append(weak)
+                            .append(" · ").append(cues)
+                            .append(" · ").append(MemoryText.formatDateTime(hit.createdAt))
                             .append(" (").append(MemoryText.relativeTime(now, hit.createdAt)).append(")")
                             .append(" · \"").append(hit.conversationTitle.ifBlank { "untitled" })
                             .append("\" conv #").append(hit.conversationId)

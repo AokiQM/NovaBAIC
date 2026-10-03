@@ -160,9 +160,10 @@ fun ChatScreen(
     val context = LocalContext.current
 
     // Arrived from the Tasks center with "retry": re-run the failed turn once.
-    LaunchedEffect(retryRequested) {
-        if (!retryRequested) return@LaunchedEffect
-        if (!state.isRunning) viewModel.retryLast()
+    // If a run is active, keep the request pending until it can be consumed.
+    LaunchedEffect(retryRequested, state.isRunning) {
+        if (!retryRequested || state.isRunning) return@LaunchedEffect
+        viewModel.retryLast()
         onRetryHandled()
     }
     var input by rememberSaveable { mutableStateOf("") }
@@ -359,6 +360,16 @@ fun ChatScreen(
         }
     }
 
+    // Enabling hands-free baselines the current last message, so the loop
+    // starts with the *next* reply instead of swallowing the first one.
+    LaunchedEffect(handsFree) {
+        handsFreeHandledMessageId = if (handsFree) {
+            state.messages.lastOrNull()?.id ?: 0L
+        } else {
+            null
+        }
+    }
+
     // Hands-free loop: after every *new* assistant reply, reopen the mic and
     // auto-send what was said. Entering a conversation must not fire it, and
     // it stays quiet while a run is active or a dialog is already open.
@@ -368,15 +379,14 @@ fun ChatScreen(
         state.messages.lastOrNull()?.id,
     ) {
         if (!handsFree) {
-            handsFreeHandledMessageId = null
             return@LaunchedEffect
         }
         if (state.isRunning || voice.listening) return@LaunchedEffect
         val last = state.messages.lastOrNull() ?: return@LaunchedEffect
         if (last.role != ChatRole.ASSISTANT || last.content.isBlank()) return@LaunchedEffect
         val handled = handsFreeHandledMessageId
-        handsFreeHandledMessageId = last.id
         if (handled == null || handled == last.id) return@LaunchedEffect
+        handsFreeHandledMessageId = last.id
         kotlinx.coroutines.delay(650)
         // Do not listen while the reply is being read aloud.
         var waited = 0
@@ -775,6 +785,7 @@ fun ChatScreen(
                 val text = input
                 input = ""
                 forceFollow = true
+                viewModel.cancelVoiceSession()
                 viewModel.send(text)
             },
             onStop = viewModel::stop,

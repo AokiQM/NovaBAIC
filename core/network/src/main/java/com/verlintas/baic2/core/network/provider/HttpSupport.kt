@@ -50,14 +50,28 @@ internal fun mapHttpError(
     kind = httpErrorKind(code),
     message = message ?: "HTTP $code",
     httpStatus = code,
-    retryAfterSeconds = retryAfterHeader?.toIntOrNull(),
+    retryAfterSeconds = parseRetryAfter(retryAfterHeader)?.coerceIn(0, 3_600)?.toInt(),
 )
 
 internal fun mapIOException(e: IOException): ProviderError =
     ProviderError(kind = ioErrorKind(e), message = e.message ?: e.javaClass.simpleName)
 
+/** Retry-After may be a delay in seconds or an HTTP date; both are accepted. */
+internal fun parseRetryAfter(header: String?): Long? {
+    if (header.isNullOrBlank()) return null
+    val trimmed = header.trim()
+    trimmed.toLongOrNull()?.let { return it }
+    return runCatching {
+        val target = java.time.ZonedDateTime.parse(
+            trimmed,
+            java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME,
+        )
+        java.time.Duration.between(java.time.ZonedDateTime.now(), target).seconds
+    }.getOrNull()
+}
+
 internal fun retryDelaySeconds(header: String?): Long =
-    header?.toLongOrNull()?.coerceIn(0, 10) ?: 1
+    parseRetryAfter(header)?.coerceIn(0, 10) ?: 1
 
 /**
  * Runs one HTTP call, retrying once for retryable statuses (408/429/5xx) or

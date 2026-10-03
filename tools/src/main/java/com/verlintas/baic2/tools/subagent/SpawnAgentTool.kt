@@ -112,6 +112,7 @@ class SpawnAgentTool @Inject constructor(
                 mode = mode,
                 history = listOf(ChatMessage(role = ChatRole.USER, content = task)),
                 initialTaint = run.taint.tainted,
+                unattended = run.unattended,
                 budgetOverride = budget,
             ).toList()
         } catch (e: Exception) {

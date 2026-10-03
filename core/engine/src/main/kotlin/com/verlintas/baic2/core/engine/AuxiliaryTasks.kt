@@ -248,11 +248,36 @@ class AuxiliaryTasks(
 
         private fun extractJsonObject(text: String): JsonObject? {
             val start = text.indexOf('{')
-            val end = text.lastIndexOf('}')
-            if (start < 0 || end <= start) return null
-            return runCatching {
-                Json.parseToJsonElement(text.substring(start, end + 1)) as? JsonObject
-            }.getOrNull()
+            if (start < 0) return null
+            // First balanced {...}, ignoring braces inside JSON strings: the
+            // model often wraps the plan in prose or adds text after it.
+            var depth = 0
+            var inString = false
+            var escaped = false
+            for (index in start until text.length) {
+                val char = text[index]
+                if (inString) {
+                    when {
+                        escaped -> escaped = false
+                        char == '\\' -> escaped = true
+                        char == '"' -> inString = false
+                    }
+                    continue
+                }
+                when (char) {
+                    '"' -> inString = true
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) {
+                            return runCatching {
+                                Json.parseToJsonElement(text.substring(start, index + 1)) as? JsonObject
+                            }.getOrNull()
+                        }
+                    }
+                }
+            }
+            return null
         }
 
         private const val MAX_REMEMBER = 5

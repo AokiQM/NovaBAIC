@@ -183,8 +183,10 @@ class AgentLoop(
                         }
                         is StreamEvent.ToolCallsDone -> toolCalls = event.calls
                         is StreamEvent.Usage -> {
-                            roundUsageInput = event.promptTokens
-                            roundUsageOutput = event.completionTokens
+                            // Anthropic reports input and output usage in two
+                            // separate events; never let a null overwrite.
+                            event.promptTokens?.let { roundUsageInput = it }
+                            event.completionTokens?.let { roundUsageOutput = it }
                             emit(AgentEvent.Usage(event.promptTokens, event.completionTokens))
                         }
                         is StreamEvent.Failed -> throw ProviderStreamFailure(event)
@@ -236,8 +238,34 @@ class AgentLoop(
 
             if (canParallelize) {
                 toolCalls.forEach { emit(AgentEvent.ToolCallStarted(it)) }
-                val executed = executeParallel(toolCalls, runContext)
-                executed.forEach { (call, status, result) ->
+                // The breaker and the tool budget still apply inside a parallel
+                // round: split the batch into runnable and denied calls first.
+                var remainingBudget = (budget.maxToolCalls - toolCallsUsed).coerceAtLeast(0)
+                val preDenied = LinkedHashMap<ToolCall, String>()
+                val runnable = mutableListOf<ToolCall>()
+                for (call in toolCalls) {
+                    when {
+                        (toolFailures[call.name] ?: 0) >= MAX_TOOL_FAILURES ->
+                            preDenied[call] =
+                                "${call.name} failed $MAX_TOOL_FAILURES times in this run. " +
+                                    "Re-read its parameter documentation, change the arguments, " +
+                                    "or use another tool — do not retry unchanged."
+
+                        remainingBudget <= 0 ->
+                            preDenied[call] =
+                                "Tool call budget exhausted (${budget.maxToolCalls}); answer with what you have"
+
+                        else -> {
+                            runnable += call
+                            remainingBudget--
+                        }
+                    }
+                }
+                val executed = executeParallel(runnable, runContext)
+                val byId = (executed + preDenied.map { (call, reason) ->
+                    Triple(call, ToolCallStatus.DENIED, ToolResult.Denied(reason))
+                }).associateBy { it.first.id }
+                toolCalls.mapNotNull { byId[it.id] }.forEach { (call, status, result) ->
                     recordFailure(toolFailures, call.name, status, result)
                     if (status == ToolCallStatus.DONE || status == ToolCallStatus.FAILED) {
                         toolCallsUsed++

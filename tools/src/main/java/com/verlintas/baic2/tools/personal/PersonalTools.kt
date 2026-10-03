@@ -56,7 +56,14 @@ class ReadNotificationsTool : DeviceTool {
             context.appContext.contentResolver,
             "enabled_notification_listeners",
         ).orEmpty()
-        if (!enabled.contains(context.appContext.packageName)) {
+        // Colon-separated flattened components; substring matching would treat
+        // "com.evil.pkg.verlintas.baic2" as a match.
+        val packageName = context.appContext.packageName
+        val granted = enabled.split(':').any { entry ->
+            val component = entry.trim()
+            component == packageName || component.startsWith("$packageName/")
+        }
+        if (!granted) {
             return ToolResult.Failure(
                 "Notification access is not granted. Ask the user to enable it in " +
                     "设置 → 通知 → 通知使用权 → BAIC2.",

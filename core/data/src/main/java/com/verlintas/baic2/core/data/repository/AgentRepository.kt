@@ -68,8 +68,16 @@ class AgentRepository @Inject constructor(
         val existing = db.agentDao().getById(agent.id) ?: error("agent ${agent.id} is missing")
         val encrypted = newPlaintextApiKey?.takeIf { it.isNotBlank() }?.let { cipher.encrypt(it) }
             ?: existing.encryptedApiKey
-        db.agentDao().update(mapper.agentToEntity(agent, encrypted, existing.createdAt))
-        if (agent.isDefault) {
+        // An ordinary edit must never demote an agent that is currently the
+        // default: keep the stored flag unless the caller explicitly promotes.
+        db.agentDao().update(
+            mapper.agentToEntity(
+                agent.copy(isDefault = existing.isDefault),
+                encrypted,
+                existing.createdAt,
+            ),
+        )
+        if (agent.isDefault && !existing.isDefault) {
             db.agentDao().clearDefault()
             db.agentDao().markDefault(agent.id)
         }
@@ -77,12 +85,20 @@ class AgentRepository @Inject constructor(
     }
 
     suspend fun setDefault(id: Long) = db.withTransaction {
+        if (db.agentDao().getById(id) == null) return@withTransaction
         db.agentDao().clearDefault()
         db.agentDao().markDefault(id)
     }
 
+    /** Deleting the default promotes the oldest remaining agent. */
     suspend fun delete(id: Long) = db.withTransaction {
+        val wasDefault = db.agentDao().getById(id)?.isDefault == true
         db.agentDao().delete(id)
+        if (wasDefault) {
+            db.agentDao().getAll().firstOrNull()?.let { next ->
+                db.agentDao().markDefault(next.id)
+            }
+        }
     }
 
     /** Resolves the runtime config for a conversation, decrypting the key. */

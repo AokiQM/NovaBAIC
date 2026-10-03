@@ -60,7 +60,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        pendingRunId.value = intent?.getLongExtra(EXTRA_OPEN_RUN_ID, -1L)?.takeIf { it >= 0L }
+        // Rotation restores the same intent: only consume the deep link on a
+        // fresh launch (or via onNewIntent), never twice.
+        pendingRunId.value = if (savedInstanceState == null) {
+            intent?.getLongExtra(EXTRA_OPEN_RUN_ID, -1L)?.takeIf { it >= 0L }
+        } else {
+            null
+        }
         setContent {
             val themeMode by settingsRepository.themeMode
                 .collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
@@ -89,17 +95,35 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        mainHandler.removeCallbacks(backgroundRunnable)
         AppVisibility.foreground = true
     }
 
     override fun onStop() {
-        AppVisibility.foreground = false
+        mainHandler.removeCallbacks(backgroundRunnable)
+        // Rotations, the speech recognizer dialog and the screen-capture
+        // consent screen all call onStop without the user leaving the app:
+        // flip to "background" only after a short grace period.
+        mainHandler.postDelayed(backgroundRunnable, BACKGROUND_GRACE_MS)
         super.onStop()
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {        super.onNewIntent(intent)
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(backgroundRunnable)
+        super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
         setIntent(intent)
         pendingRunId.value = intent.getLongExtra(EXTRA_OPEN_RUN_ID, -1L).takeIf { it >= 0L }
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val backgroundRunnable = Runnable { AppVisibility.foreground = false }
+
+    private companion object {
+        const val BACKGROUND_GRACE_MS = 4_000L
     }
 }
 

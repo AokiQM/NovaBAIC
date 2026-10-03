@@ -273,7 +273,9 @@ class OpenAiCompatibleProvider(
             } else {
                 request.config.temperature
             },
-            maxTokens = request.config.maxTokens,
+            // o-series and GPT-5/6 reject max_tokens; they use the newer name.
+            maxTokens = if (openAiReasoningFamily) null else request.config.maxTokens,
+            maxCompletionTokens = if (openAiReasoningFamily) request.config.maxTokens else null,
             messages = messages,
             tools = tools,
             streamOptions = WireStreamOptions(),
@@ -397,6 +399,7 @@ private data class WireRequest(
     @EncodeDefault val stream: Boolean = true,
     val temperature: Double? = null,
     @SerialName("max_tokens") val maxTokens: Int? = null,
+    @SerialName("max_completion_tokens") val maxCompletionTokens: Int? = null,
     val messages: List<WireMessage>,
     val tools: List<WireTool>? = null,
     @SerialName("stream_options") val streamOptions: WireStreamOptions? = null,

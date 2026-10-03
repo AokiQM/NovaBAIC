@@ -137,6 +137,10 @@ data class MessageHit(
     val role: ChatRole,
     val content: String,
     val createdAt: Long,
+    /** Which query cues actually matched, mirroring the notes-side explanation. */
+    val matchedCues: List<String> = emptyList(),
+    /** Episodic relevance within this result set; user turns weigh double. */
+    val score: Double = 0.0,
 )
 
 /** An older version of a note, kept when the note was rewritten. */

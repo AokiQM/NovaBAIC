@@ -35,6 +35,7 @@ import kotlinx.serialization.json.JsonPrimitive
 class CompositeSkillTool(
     private val skill: Skill,
     private val definition: SkillToolDef,
+    private val danger: DangerLevel,
     private val registry: () -> ToolRegistry,
 ) : DeviceTool {
 
@@ -43,11 +44,28 @@ class CompositeSkillTool(
         description = "${definition.description} (skill: ${skill.name})",
         parametersJson = """{"type":"object","properties":{}}""",
         readOnly = false,
-        danger = DangerLevel.MEDIUM,
+        // Steps may call high-danger tools; surfacing the aggregate keeps the
+        // confirmation gate in front of the whole recipe, not just the step.
+        danger = maxOf(danger, DangerLevel.MEDIUM),
         parallelSafe = false,
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolContext): ToolResult {
+        val depth = NESTING_DEPTH.get()
+        if (depth >= MAX_NESTING_DEPTH) {
+            return ToolResult.Failure(
+                "Skill nesting exceeded $MAX_NESTING_DEPTH levels (possible cycle); stopped.",
+            )
+        }
+        NESTING_DEPTH.set(depth + 1)
+        try {
+            return runSteps(context)
+        } finally {
+            NESTING_DEPTH.set(depth)
+        }
+    }
+
+    private suspend fun runSteps(context: ToolContext): ToolResult {
         val registryRef = registry()
         val lines = mutableListOf<String>()
         for ((index, step) in definition.steps.withIndex()) {
@@ -77,6 +95,11 @@ class CompositeSkillTool(
             }
         }
         return ToolResult.Success("Skill '${skill.name}' finished:\n" + lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val MAX_NESTING_DEPTH = 3
+        val NESTING_DEPTH = ThreadLocal.withInitial { 0 }
     }
 }
 
@@ -109,7 +132,16 @@ class LoadSkillTool(
         val toolRegistry = registry.get()
         toolRegistry.registerDynamic(
             skill.tools.map { definition ->
-                CompositeSkillTool(skill = skill, definition = definition) { toolRegistry }
+                // Unknown step tools default to HIGH so the gate stays closed.
+                val worst = definition.steps
+                    .map { step -> toolRegistry.tool(step.tool)?.spec?.danger ?: DangerLevel.HIGH }
+                    .maxByOrNull { it.ordinal }
+                    ?: DangerLevel.LOW
+                CompositeSkillTool(
+                    skill = skill,
+                    definition = definition,
+                    danger = worst,
+                ) { toolRegistry }
             },
         )
         return ToolResult.Success(

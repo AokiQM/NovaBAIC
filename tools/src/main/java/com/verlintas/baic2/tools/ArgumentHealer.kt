@@ -72,24 +72,26 @@ object ArgumentHealer {
         val schemaNames = properties.keys.toList()
         val healed = mutableMapOf<String, JsonElement>()
 
+        // Explicitly valid keys win: a renamed key must never displace a value
+        // the model already filed under the right name ({"cit":"A","city":"B"}).
         arguments.forEach { (key, value) ->
-            val target = when {
-                key in properties -> key
-                else -> {
-                    // Rename only when exactly one schema key is close enough;
-                    // an ambiguous match could silently change the meaning.
-                    val candidates = schemaNames.filter { candidate ->
-                        val gap = distance(key.lowercase(), candidate.lowercase())
-                        gap in 1..2 && candidate.lowercase() != key.lowercase()
-                    }
-                    candidates.singleOrNull()
-                }
+            if (key in properties) healed[key] = value
+        }
+        arguments.forEach { (key, value) ->
+            if (key in properties) return@forEach
+            // Rename only when exactly one schema key is close enough;
+            // an ambiguous match could silently change the meaning.
+            val candidates = schemaNames.filter { candidate ->
+                val gap = distance(key.lowercase(), candidate.lowercase())
+                gap in 1..2 && candidate.lowercase() != key.lowercase()
             }
-            if (target != null && target != key && target !in healed) {
-                healed[target] = value
-                notes += "$key→$target"
-            } else if (key !in healed) {
-                healed[key] = value
+            val target = candidates.singleOrNull()
+            when {
+                target != null && target !in healed -> {
+                    healed[target] = value
+                    notes += "$key→$target"
+                }
+                else -> if (key !in healed) healed[key] = value
             }
         }
 
