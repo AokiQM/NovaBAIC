@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.0] - 2026-10-04
+
+> 记忆可信度大版本：每条事实都有出处、会过期、冲突会被摆到台面上、可以随时点回到它被写下的时刻；定位改为完全离线的"把坐标说成人话"。工具 55 → 56，DB v18。
+
+### 新增 Added
+
+- **离线地名 gazetteer（无 GMS）**：内置 29,796 个省市县乡镇/村庄坐标（GeoNames，CC BY 4.0，署名在资产、README 中英与 SECURITY 中）——不再使用 Android Geocoder；`get_location` 重写为"人话定位"：坐标系、定位时效/精度、最近地名 + 距离方位 + 锚点城市，超过 5 分钟自动标注 stale
+- **坐标系转换**：WGS-84 ⇄ GCJ-02 ⇄ BD-09 纯本地实现（`GeoCoordinates`，含距离/方位与 5 个单测）；新增 `open_map` 只发 `geo:` intent，把画地图交给已安装的地图 App（56 个工具）
+- **位置隐私策略**（SECURITY.md）：仅按需读取、不后台追踪、不落库；轨迹功能不存在
+- **笔记过期 `expires`**（DB v18）：易腐事实（当前位置、临时状态）可带 12h/3d 或日期；过期后仍可检索但排名 ×0.35，检索与预取都标注 historical；`memory_write`、批量、策展人全链路支持
+- **笔记出处（evidence）**：每条笔记记录来源会话与触发消息，检索行显示 `from conv #N · msg #M`，可用 `memory_read` 回到原话核对；纠正（replaces）后出处随之更新
+- **时间旅行检索**：`memory_search(at="日期")` 从修订历史重建当时的笔记、按时刻截断消息、按当时评估过期与排名；刻意只读（不重固化、不强化链接），之后被改写的标 `later revised`、被归档的标 `archived since`
+- **矛盾检测**：同一句式、换了取值（"在杭州" → "在上海"）、或极性翻转（"不去" → "去"）会被判为疑似冲突——写入结果提示 `possible conflict with #N`，两条笔记同时被预取时都打 `! possible conflict` 标记，交回给模型询问而不是悄悄留两条
+- **记忆回归评测集**：写入协议抽成纯逻辑（`MemoryConsolidator` / `MemoryConflict`），新增 `MemoryRegressionTest` 跨会话场景：重复写入、改写保留历史、矛盾暴露、遗忘不可复学、hold 阻断、过期降权、as-of 重建——共 18 个新回归测试
+
+### 修复 Fixed
+
+- 合并/原地更新会回报被替换的原文（`was: "…"`），不再静默改写
+- 相似笔记提示从"只报最相似的一条"扩展为最多 3 条
+
+### 文档 Docs
+
+- HOW_IT_WORKS 记忆章新增出处、时间旅行、冲突检测；DB 版本 13 → 18；README / 官网 / 工具表 55 → 56；GeoNames 署名
+
 ## [0.1.19] - 2026-10-03
 
 > 本版是一次全量代码审查（四路并行，约 90 条发现）的修复批次：高危项全部落地，消息检索补齐与笔记同一套可解释性。无 DB 迁移。

@@ -1,0 +1,4 @@
+Place data: GeoNames (https://www.geonames.org/), licensed under CC BY 4.0.
+Extracted from the CN dump, filtered to provinces, cities, counties,
+towns, county/town seats and villages with population >= 1000.
+Coordinates are WGS-84.

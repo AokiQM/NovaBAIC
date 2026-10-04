@@ -42,8 +42,15 @@ object MemoryPrompt {
         if (user.isNotEmpty()) parts += "About the user$stamp:\n$user"
         if (ongoing.isNotEmpty()) parts += "Currently ongoing$stamp:\n$ongoing"
         if (primed.isNotEmpty()) {
+            // Notes that share a frame but disagree are flagged for both sides,
+            // so the model asks instead of silently trusting one of them.
+            val conflicts = conflictMarks(primed)
             parts += "Notes primed by the current message:\n" + primed.joinToString("\n") { note ->
-                "- (${noteMeta(note)}, ${MemoryText.dateOnly(note.whenAt ?: note.updatedAt)}) " +
+                val flag = conflicts[note.id]?.let { ids ->
+                    " ! possible conflict with " + ids.joinToString(", ") { "#$it" }
+                }.orEmpty()
+                "- (${noteMeta(note)}${expiryMeta(note, now)}, " +
+                    "${MemoryText.dateOnly(note.whenAt ?: note.updatedAt)})$flag " +
                     note.content.replace('\n', ' ').trim()
             }
         }
@@ -60,6 +67,29 @@ object MemoryPrompt {
         }
     }
 
+    /** Marks stale/expiring facts so the model never presents them as current. */
+    private fun expiryMeta(note: Note, now: Long): String = when {
+        note.expiresAt == null -> ""
+        note.isExpired(now) -> ", EXPIRED ${MemoryText.dateOnly(note.expiresAt)} - historical, verify before use"
+        else -> ", valid until ${MemoryText.dateOnly(note.expiresAt)}"
+    }
+
+    /** id -> conflicting note ids, only within the same kind. */
+    private fun conflictMarks(notes: List<Note>): Map<Long, List<Long>> {
+        if (notes.size < 2) return emptyMap()
+        val marks = LinkedHashMap<Long, MutableList<Long>>()
+        for (i in notes.indices) {
+            for (j in i + 1 until notes.size) {
+                val a = notes[i]
+                val b = notes[j]
+                if (a.kind != b.kind || !MemoryConflict.isConflict(a.content, b.content)) continue
+                marks.getOrPut(a.id) { mutableListOf() }.add(b.id)
+                marks.getOrPut(b.id) { mutableListOf() }.add(a.id)
+            }
+        }
+        return marks
+    }
+
     /** One line per note for the curator, ids included so it can revise them. */
     fun inventory(notes: List<Note>): String =
         notes.joinToString("\n") { note ->
@@ -68,6 +98,11 @@ object MemoryPrompt {
                 (if (note.source != NoteSource.USER) " src:${note.source.wire()}" else "") +
                 (if (note.entities.isNotEmpty()) {
                     " @${note.entities.joinToString("@")}"
+                } else {
+                    ""
+                }) +
+                (if (note.expiresAt != null) {
+                    " expires:${MemoryText.dateOnly(note.expiresAt)}"
                 } else {
                     ""
                 }) +

@@ -110,4 +110,19 @@ class MemoryTextTest {
         assertEquals("", MemoryText.encodeEntities(emptyList()))
         assertTrue(MemoryText.entityLikePattern("张伟").contains("\u0001张伟\u0001"))
     }
+
+    @Test
+    fun parseExpiryAcceptsDurationsAndDates() {
+        val now = 1_700_000_000_000L
+        assertEquals(now + 30 * 60_000L, MemoryText.parseExpiry("30m", now))
+        assertEquals(now + 12 * 3_600_000L, MemoryText.parseExpiry("in 12h", now))
+        assertEquals(now + 3 * 86_400_000L, MemoryText.parseExpiry("3 天", now))
+        assertEquals(now + 2 * 604_800_000L, MemoryText.parseExpiry("2周", now))
+        assertEquals(now + 45 * 60_000L, MemoryText.parseExpiry("45分钟后", now))
+        val absolute = MemoryText.parseWhen("2026-09-12")!!
+        assertEquals(absolute, MemoryText.parseExpiry("2026-09-12", now))
+        assertNull(MemoryText.parseExpiry("", now))
+        assertNull(MemoryText.parseExpiry("soon", now))
+        assertNull(MemoryText.parseExpiry("0d", now))
+    }
 }

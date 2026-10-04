@@ -41,7 +41,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SnapshotEntity::class,
         ScheduledTaskEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class Baic2Database : RoomDatabase() {
@@ -75,6 +75,13 @@ abstract class Baic2Database : RoomDatabase() {
     abstract fun scheduledTaskDao(): ScheduledTaskDao
 
     companion object {
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Perishable facts (locations, "currently…") carry a horizon.
+                db.execSQL("ALTER TABLE notes ADD COLUMN expiresAt INTEGER")
+            }
+        }
+
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Notes keep their own history; promises to not record become state.

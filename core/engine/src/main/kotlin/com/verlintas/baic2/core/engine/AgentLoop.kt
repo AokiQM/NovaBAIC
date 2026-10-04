@@ -63,6 +63,8 @@ data class ToolRunContext(
     val unattended: Boolean = false,
     /** Prompt-injection taint inherited and updated through the run. */
     val taint: TaintState = TaintState(),
+    /** The user message that started this run; memories cite it as evidence. */
+    val triggerMessageId: Long? = null,
 )
 
 /** Executes a single tool call. */
@@ -107,6 +109,7 @@ class AgentLoop(
         unattended: Boolean = false,
         initialTaint: Boolean = false,
         budgetOverride: RunBudget? = null,
+        triggerMessageId: Long? = null,
     ): Flow<AgentEvent> = flow {
         val budget = budgetOverride ?: RunBudget.forMode(mode)
         val runContext = ToolRunContext(
@@ -114,6 +117,7 @@ class AgentLoop(
             mode = mode,
             config = config,
             unattended = unattended,
+            triggerMessageId = triggerMessageId,
         )
         val startedAt = clock()
         var messages = history

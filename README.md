@@ -30,7 +30,7 @@ BetterAIChat2 是 [BetterAIChat](https://github.com/Verlintas/BetterAIChat) 的�
 
 它是**本地优先**的 AI 智能体 —— API Key 经 Android Keystore 加密留在设备上，没有云端、没有遥测、不需要账号；AI 通过**函数调用**真实操作你的手机：看屏、点击、输入、读写文件、设置提醒、跑自动化。
 
-- **真操作设备**：55 个内置工具，覆盖无障碍操作、截屏 OCR、文件、网络、个人助理与 Shizuku shell
+- **真操作设备**：56 个内置工具，覆盖无障碍操作、截屏 OCR、文件、网络、个人助理与 Shizuku shell
 - **不锁定模型**：DeepSeek / OpenAI / Claude / Gemini / Kimi / Qwen / GLM / MiniMax / Ollama / 任意兼容网关，随时切换
 - **四种模式**：从纯聊天到逐项确认，再到带预算约束的自主运行
 - **无人值守**：定时任务、前台服务、子代理、MCP 远程工具、Skills 技能
@@ -107,7 +107,7 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 | `Act` | 执行工具，逐项确认 |
 | `Max` | 自主运行：持久化 Run、预算约束（60 轮 / 160 次工具调用 / 60 分钟）、可后台 |
 
-### AI × 设备（55 个内置工具）
+### AI × 设备（56 个内置工具）
 
 **看屏与操作（无障碍 + 视觉）**
 
@@ -117,7 +117,7 @@ Agent = 服务商 + Key + 模型 + 温度 / 上限 / 深度思考 + 系统提示
 
 **系统与设备**
 
-`set_volume` · `set_brightness` · `set_flashlight` · `media_control` · `vibrate` · `send_notification` · `read_notifications` · `get_clipboard` / `set_clipboard` · `share_text` · `open_dialer` · `get_location` · `device_info` · `network_status` · `get_app_usage` · `list_installed_apps` · `get_time` · `compute`
+`set_volume` · `set_brightness` · `set_flashlight` · `media_control` · `vibrate` · `send_notification` · `read_notifications` · `get_clipboard` / `set_clipboard` · `share_text` · `open_dialer` · `get_location` · `open_map` · `device_info` · `network_status` · `get_app_usage` · `list_installed_apps` · `get_time` · `compute`
 
 **内容与网络**
 
@@ -221,7 +221,7 @@ core:runtime       运行层预留（当前调度实现位于 device:impl / tool
 core:designsystem  设计系统 token 与组件
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    截图 / OCR / 无障碍 / 语音 / 提醒 / 运行通知
-tools              55 个内置工具 + 自动化 + 技能 + 子代理
+tools              56 个内置工具 + 自动化 + 技能 + 子代理
 mcp                远程 MCP 客户端             eval          场景评测 harness
 ```
 
@@ -293,3 +293,5 @@ Key 由 Android Keystore 加密（AES-GCM）后存在本机数据库；只有你
 ## License
 
 [GPL-3.0-or-later](LICENSE) © 2026 Verlintas. BetterAIChat2 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License.
+
+内置离线地名数据来自 [GeoNames](https://www.geonames.org/)，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

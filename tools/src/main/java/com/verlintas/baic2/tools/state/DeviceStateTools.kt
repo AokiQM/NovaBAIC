@@ -29,12 +29,13 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import com.verlintas.baic2.core.model.DangerLevel
+import com.verlintas.baic2.core.model.GeoCoordinates
+import com.verlintas.baic2.core.model.GeoPoint
 import com.verlintas.baic2.core.model.ToolResult
 import com.verlintas.baic2.core.model.ToolSpec
 import com.verlintas.baic2.tools.DeviceTool
 import com.verlintas.baic2.tools.ToolContext
-import java.text.SimpleDateFormat
-import java.util.Date
+import com.verlintas.baic2.tools.geo.Gazetteer
 import java.util.Locale
 import kotlinx.serialization.json.JsonObject
 
@@ -78,11 +79,18 @@ class GetForegroundAppTool : DeviceTool {
     }
 }
 
-class GetLocationTool : DeviceTool {
+class GetLocationTool(
+    private val gazetteer: Gazetteer,
+) : DeviceTool {
     override val spec = ToolSpec(
         name = "get_location",
-        description = "Last known GPS/network location with accuracy (needs location permission).",
-        parametersJson = """{"type":"object","properties":{}}""",
+        description = "Explain where the phone is, fully offline: raw WGS-84 coordinates, GCJ-02/BD-09 " +
+            "values for map apps, fix age/accuracy, and the nearest gazetteer places with distance " +
+            "and compass direction. No Geocoder, no GMS, nothing persisted. Call ONLY when the user " +
+            "mentions a place, arriving somewhere, being lost, asking where they are or otherwise " +
+            "genuinely needs location - do not call it on ordinary turns. Location facts are " +
+            "perishable: when writing one to memory, pass when and a short expires (e.g. 12h).",
+        parametersJson = """{"type":"object","properties":{"limit":{"type":"integer","description":"nearest places to list, 1-6, default 4"}}}""",
         readOnly = true,
         danger = DangerLevel.LOW,
         parallelSafe = true,
@@ -104,18 +112,87 @@ class GetLocationTool : DeviceTool {
                 runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
             }
             .maxByOrNull { it.time }
-            ?: return ToolResult.Failure("No recent location fix available. Open a maps app to get one.")
-        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(location.time))
+            ?: return ToolResult.Failure(
+                "No recent location fix available. Open a map app to get one, then try again.",
+            )
+        val limit = ((arguments["limit"] as? kotlinx.serialization.json.JsonPrimitive)
+            ?.content?.toIntOrNull() ?: 4).coerceIn(1, 6)
+        val origin = GeoPoint(location.latitude, location.longitude)
+        val gcj = GeoCoordinates.wgs84ToGcj02(origin)
+        val bd = GeoCoordinates.gcj02ToBd09(gcj)
+        val nearest = gazetteer.nearest(location.latitude, location.longitude, limit = limit)
+        val anchor = gazetteer.nearest(
+            location.latitude,
+            location.longitude,
+            limit = 1,
+            kinds = com.verlintas.baic2.core.model.GazetteerPlace.KIND_PROVINCE..
+                com.verlintas.baic2.core.model.GazetteerPlace.KIND_COUNTY,
+        ).firstOrNull()
+        val ageMs = (System.currentTimeMillis() - location.time).coerceAtLeast(0)
         return ToolResult.Success(
-            "%.5f, %.5f (±%.0fm, %s, %s)".format(
-                Locale.ROOT,
-                location.latitude,
-                location.longitude,
-                location.accuracy,
-                location.provider,
-                time,
-            ),
+            buildString {
+                append(
+                    "Location: %.5f, %.5f (WGS-84) · ±%.0fm · %s · %s\n".format(
+                        Locale.ROOT,
+                        location.latitude,
+                        location.longitude,
+                        location.accuracy,
+                        location.provider,
+                        formatAge(ageMs),
+                    ),
+                )
+                append(
+                    "Map coordinates: GCJ-02 %.5f, %.5f · BD-09 %.5f, %.5f\n".format(
+                        Locale.ROOT, gcj.latitude, gcj.longitude, bd.latitude, bd.longitude,
+                    ),
+                )
+                if (nearest.isEmpty()) {
+                    append("No offline gazetteer place nearby (outside China coverage?).\n")
+                } else {
+                    append("Nearest places (offline gazetteer, ${Gazetteer.ATTRIBUTION}):\n")
+                    nearest.forEach { place ->
+                        append("- ${place.name} (${place.kindLabel}) · ")
+                            .append(formatDistance(place.distanceMeters)).append(' ')
+                            .append(bearingLabel(place.bearingDegrees)).append('\n')
+                    }
+                }
+                anchor?.let { place ->
+                    append("Anchor: ${place.name} (${place.kindLabel}) is ")
+                        .append(formatDistance(place.distanceMeters)).append(' ')
+                        .append(bearingLabel(place.bearingDegrees)).append(" of here.\n")
+                }
+                if (ageMs > STALE_FIX_MS) {
+                    append("Note: this fix is ").append(formatAge(ageMs))
+                        .append(" old - ask the user or have them open a map app for a fresh one.\n")
+                }
+                append("Show it on a map with open_map (GCJ-02 handled there).")
+            },
         )
+    }
+
+    private fun formatDistance(meters: Double): String =
+        if (meters < 1_000) "${meters.toInt()} m"
+        else "%.1f km".format(Locale.ROOT, meters / 1_000)
+
+    private fun formatAge(ageMs: Long): String = when {
+        ageMs < 60_000 -> "just now"
+        ageMs < 3_600_000 -> "${ageMs / 60_000} min ago"
+        else -> "${ageMs / 3_600_000} h ago"
+    }
+
+    private fun bearingLabel(degrees: Double): String = when {
+        degrees < 22.5 || degrees >= 337.5 -> "north"
+        degrees < 67.5 -> "northeast"
+        degrees < 112.5 -> "east"
+        degrees < 157.5 -> "southeast"
+        degrees < 202.5 -> "south"
+        degrees < 247.5 -> "southwest"
+        degrees < 292.5 -> "west"
+        else -> "northwest"
+    }
+
+    private companion object {
+        const val STALE_FIX_MS = 5 * 60_000L
     }
 }
 

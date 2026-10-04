@@ -68,7 +68,17 @@ reviewer can check them against `AgentLoop.kt`, `ConfirmationQueue.kt`,
 - **Budgets.** Per-mode round / tool-call / wall-clock budgets; the persisted
   ledger counts only calls that actually executed, matching the engine.
 - **SSRF guard.** `WebFetcher` blocks loopback, link-local, `.local` and
-  private ranges, and re-checks the final URL after redirects.
+  private ranges; redirects are followed manually, and every hop is re-checked
+  before a connection is opened.
+- **Location privacy.** Location is on-demand only: `get_location` reads the
+  last known fix and never starts background tracking, and the tool writes
+  nothing to the database. Reverse geocoding is fully offline against a
+  bundled GeoNames gazetteer (CC BY 4.0) — no Android Geocoder, no GMS, and no
+  coordinates leave the device for it. Route recording does not exist; if a
+  location fact is remembered, it is a note with an explicit expiry, ranks
+  lower once expired and is labelled historical. `open_map` only hands
+  WGS-84 (converted to GCJ-02/BD-09 as needed) to an installed map app via a
+  `geo:` intent — BAIC2 renders no map itself.
 - **Tool contracts.** Every tool validates its own arguments and returns
   actionable failures; `tools/check-tool-schemas.py` fails CI on malformed
   JSON schemas, and `tools/check-license-headers.sh` keeps provenance.

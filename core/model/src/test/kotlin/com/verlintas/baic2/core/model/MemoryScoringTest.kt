@@ -35,6 +35,7 @@ class MemoryScoringTest {
         ageDays: Long = 0,
         accessCount: Int = 0,
         strength: Double = 1.0,
+        expiresAt: Long? = null,
     ) = Note(
         id = id,
         content = content,
@@ -43,7 +44,22 @@ class MemoryScoringTest {
         updatedAt = now - ageDays * 86_400_000L,
         accessCount = accessCount,
         strength = strength,
+        expiresAt = expiresAt,
     )
+
+    @Test
+    fun expiredNotesLoseRankingWeightButStayRetrievable() {
+        val fresh = note(1, "用户现在在乌兰浩特", expiresAt = now + 3_600_000L)
+        val expired = note(2, "用户现在在乌兰浩特", expiresAt = now - 3_600_000L)
+        val ranked = MemoryScoring.rank(
+            listOf(expired, fresh),
+            MemoryText.terms("乌兰浩特"),
+            now,
+        )
+        assertEquals(1L, ranked.first().note.id)
+        assertEquals(2L, ranked.last().note.id)
+        assertTrue(ranked.last().score > 0.0)
+    }
 
     @Test
     fun matchingNotesOutrankUnrelatedOnes() {

@@ -100,6 +100,12 @@ data class Note(
     val conversationId: Long? = null,
     val messageId: Long? = null,
     val whenAt: Long? = null,
+    /**
+     * Perishable facts carry a validity horizon: "I am in X right now" is
+     * wrong tomorrow. Expired notes stay retrievable but rank lower and are
+     * labelled historical.
+     */
+    val expiresAt: Long? = null,
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val lastAccessedAt: Long = 0L,
@@ -112,7 +118,9 @@ data class Note(
     val suppressed: Boolean = false,
     val supersededBy: Long? = null,
     val archived: Boolean = false,
-)
+) {
+    fun isExpired(now: Long): Boolean = expiresAt != null && expiresAt in 1 until now
+}
 
 /**
  * The always-on core memory, kept in the context window at a fixed small

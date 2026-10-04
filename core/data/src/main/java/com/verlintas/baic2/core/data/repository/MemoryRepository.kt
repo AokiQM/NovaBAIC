@@ -28,6 +28,7 @@ import com.verlintas.baic2.core.data.db.NoteLinkEntity
 import com.verlintas.baic2.core.data.db.NoteRevisionEntity
 import com.verlintas.baic2.core.data.mapper.ChatMapper
 import com.verlintas.baic2.core.model.CoreMemory
+import com.verlintas.baic2.core.model.MemoryConsolidator
 import com.verlintas.baic2.core.model.MemoryHold
 import com.verlintas.baic2.core.model.MemoryScoring
 import com.verlintas.baic2.core.model.MemoryText
@@ -64,14 +65,19 @@ class MemoryRepository @Inject constructor(
         /**
          * Stored as new. [similarIds] carries near-duplicates already on file
          * so the caller can tell the model to supersede them if needed.
+         * [conflicts] are similar notes that appear to disagree with it.
          */
-        data class Saved(val id: Long, val similarIds: List<Long> = emptyList()) : AddOutcome
+        data class Saved(
+            val id: Long,
+            val similarIds: List<Long> = emptyList(),
+            val conflicts: List<MemoryConsolidator.Conflict> = emptyList(),
+        ) : AddOutcome
 
         /** Exact-normalised duplicate: nothing was written. */
         data class Duplicate(val id: Long) : AddOutcome
 
         /** Near-duplicate reconsolidated into the existing trace. */
-        data class Merged(val id: Long) : AddOutcome
+        data class Merged(val id: Long, val previousContent: String) : AddOutcome
 
         /** The fact was explicitly forgotten before; re-learning is blocked. */
         data class Suppressed(val id: Long) : AddOutcome
@@ -118,46 +124,41 @@ class MemoryRepository @Inject constructor(
         whenAt: Long? = null,
         source: NoteSource = NoteSource.USER,
         entities: List<String> = emptyList(),
+        expiresAt: Long? = null,
     ): AddOutcome {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return AddOutcome.Duplicate(0L)
-        // 0. Holds come first: a spoken promise ("don't record this") is state.
-        val held = db.memoryHoldDao().getRecent(SUPPRESSED_SCAN)
-            .firstOrNull { MemoryText.similarity(trimmed, it.content) >= SUPPRESSION_SIMILARITY }
-        if (held != null) return AddOutcome.Held(held.id)
-        // 1. Active suppression: forgetting is inhibition, not deletion.
-        val suppressed = db.noteDao().getSuppressed(SUPPRESSED_SCAN)
-            .firstOrNull { MemoryText.similarity(trimmed, it.content) >= SUPPRESSION_SIMILARITY }
-        if (suppressed != null) return AddOutcome.Suppressed(suppressed.id)
-
-        // 2. Pattern completion against the active notes.
         val active = db.noteDao().getActive(PAGE_SIZE).map(mapper::noteToModel)
-        var best: Note? = null
-        var bestSimilarity = 0.0
-        active.forEach { existing ->
-            val similarity = MemoryText.similarity(trimmed, existing.content)
-            if (similarity > bestSimilarity) {
-                best = existing
-                bestSimilarity = similarity
-            }
-        }
+        val suppressedNotes = db.noteDao().getSuppressed(SUPPRESSED_SCAN).map(mapper::noteToModel)
+        val holds = db.memoryHoldDao().getRecent(SUPPRESSED_SCAN)
+            .map { MemoryHold(id = it.id, content = it.content, reason = it.reason) }
         val now = System.currentTimeMillis()
-        when {
-            best != null && bestSimilarity >= 1.0 -> return AddOutcome.Duplicate(best.id)
+        return when (val decision = MemoryConsolidator.decide(trimmed, active, suppressedNotes, holds)) {
+            is MemoryConsolidator.Decision.Held -> AddOutcome.Held(decision.holdId)
 
-            best != null && bestSimilarity >= MERGE_SIMILARITY -> {
-                recordRevision(best)
-                db.noteDao().update(
-                    id = best.id,
-                    content = trimmed,
-                    importance = maxOf(best.importance, importance.coerceIn(1, 5)),
-                    now = now,
-                )
-                db.noteDao().touch(best.id, now)
-                return AddOutcome.Merged(best.id)
+            is MemoryConsolidator.Decision.Suppressed -> AddOutcome.Suppressed(decision.noteId)
+
+            is MemoryConsolidator.Decision.Duplicate -> AddOutcome.Duplicate(decision.noteId)
+
+            is MemoryConsolidator.Decision.Merged -> {
+                val target = active.firstOrNull { it.id == decision.noteId }
+                if (target == null) {
+                    AddOutcome.Duplicate(decision.noteId)
+                } else {
+                    recordRevision(target)
+                    db.noteDao().update(
+                        id = target.id,
+                        content = trimmed,
+                        importance = maxOf(target.importance, importance.coerceIn(1, 5)),
+                        now = now,
+                        expiresAt = expiresAt,
+                    )
+                    db.noteDao().touch(target.id, now)
+                    AddOutcome.Merged(target.id, decision.previousContent)
+                }
             }
 
-            else -> {
+            is MemoryConsolidator.Decision.Stored -> {
                 val id = db.noteDao().insert(
                     NoteEntity(
                         kind = kind.name,
@@ -167,11 +168,12 @@ class MemoryRepository @Inject constructor(
                         conversationId = conversationId,
                         messageId = messageId,
                         whenAt = whenAt,
+                        expiresAt = expiresAt,
                         createdAt = now,
                         updatedAt = now,
                         lastAccessedAt = 0L,
                         accessCount = 0,
-                        strength = if (bestSimilarity < HINT_SIMILARITY) {
+                        strength = if (decision.bestSimilarity < MemoryConsolidator.HINT_SIMILARITY) {
                             // Genuinely new: novelty boosts initial encoding.
                             NOVELTY_STRENGTH
                         } else {
@@ -184,12 +186,7 @@ class MemoryRepository @Inject constructor(
                         archived = false,
                     ),
                 )
-                val similarIds = if (best != null && bestSimilarity >= HINT_SIMILARITY) {
-                    listOf(best.id)
-                } else {
-                    emptyList()
-                }
-                return AddOutcome.Saved(id, similarIds)
+                AddOutcome.Saved(id, decision.similarIds, decision.conflicts)
             }
         }
     }
@@ -219,6 +216,9 @@ class MemoryRepository @Inject constructor(
         }
     }
 
+    /** A successful in-place replacement, with the text it displaced. */
+    data class Replacement(val note: Note, val previousContent: String)
+
     /**
      * Deterministic in-place replacement (the `replaces=<id>` path): the id
      * never changes, so references cannot dangle, and the old version is
@@ -230,7 +230,9 @@ class MemoryRepository @Inject constructor(
         importance: Int? = null,
         entities: List<String>? = null,
         kind: NoteKind? = null,
-    ): Note? {
+        expiresAt: Long? = null,
+        messageId: Long? = null,
+    ): Replacement? {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return null
         val existing = db.noteDao().getById(id) ?: return null
@@ -244,9 +246,12 @@ class MemoryRepository @Inject constructor(
             importance = (importance ?: note.importance).coerceIn(1, 5),
             entities = entities?.let(MemoryText::encodeEntities).orEmpty().ifEmpty { existing.entities },
             now = now,
+            expiresAt = expiresAt,
+            messageId = messageId,
         )
         db.noteDao().touch(id, now)
-        return db.noteDao().getById(id)?.let(mapper::noteToModel)
+        val updated = db.noteDao().getById(id)?.let(mapper::noteToModel) ?: return null
+        return Replacement(updated, note.content)
     }
 
     /** Old versions of a note, newest first. */
@@ -494,6 +499,35 @@ class MemoryRepository @Inject constructor(
         return result
     }
 
+    /**
+     * Time travel: notes that existed at [at], content reconstructed from
+     * revision history. Deliberately read-only - revisiting the past must not
+     * reconsolidate it (no touch, no link reinforcement, no spread).
+     */
+    suspend fun recallAsOf(
+        terms: List<String>,
+        at: Long,
+        limit: Int = 8,
+        offset: Int = 0,
+    ): List<ScoredNote> {
+        val notes = db.noteDao().getAsOf(at, PAGE_SIZE)
+            .map(mapper::noteToModel)
+            .mapNotNull { note -> noteAsOf(note, at) }
+        if (notes.isEmpty()) return emptyList()
+        return MemoryScoring.rank(notes, terms, at)
+            .filter { terms.isEmpty() || it.hits > 0 }
+            .drop(offset)
+            .take(limit)
+    }
+
+    /** The note as it stood at [at], or null if it did not exist then. */
+    suspend fun noteAsOf(note: Note, at: Long): Note? {
+        if (note.suppressed || note.createdAt > at) return null
+        if (note.archived && note.updatedAt <= at) return null
+        val revision = db.noteRevisionDao().revisionAsOf(note.id, at) ?: return note
+        return note.copy(content = revision.content, importance = revision.importance)
+    }
+
     /** Fire together, wire together: co-recalled notes gain link weight. */
     private suspend fun reinforceLinks(ids: List<Long>) {
         if (ids.size < 2) return
@@ -601,9 +635,6 @@ class MemoryRepository @Inject constructor(
         const val SPREAD_HOP2_SEEDS = 2
         const val SPREAD_HOP2_LIMIT = 2
         const val MAX_LINK_WEIGHT = 5f
-        const val MERGE_SIMILARITY = 0.8
-        const val HINT_SIMILARITY = 0.55
-        const val SUPPRESSION_SIMILARITY = 0.7
         const val NOVELTY_STRENGTH = 1.3
         const val PRUNE_MAX_IMPORTANCE = 2
         const val PRUNE_MIN_AGE_DAYS = 45.0

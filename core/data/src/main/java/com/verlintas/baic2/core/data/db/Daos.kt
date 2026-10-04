@@ -454,6 +454,17 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE archived = 0 ORDER BY pinned DESC, updatedAt DESC LIMIT :limit")
     suspend fun getActive(limit: Int): List<NoteEntity>
 
+    /**
+     * Notes that existed at [at]: created before it, and either still active or
+     * archived only after it. Suppressed traces stay forgotten.
+     */
+    @Query(
+        "SELECT * FROM notes WHERE createdAt <= :at AND suppressed = 0 " +
+            "AND (archived = 0 OR updatedAt > :at) " +
+            "ORDER BY pinned DESC, updatedAt DESC LIMIT :limit",
+    )
+    suspend fun getAsOf(at: Long, limit: Int): List<NoteEntity>
+
     @Query("SELECT * FROM notes WHERE suppressed = 1 ORDER BY id DESC LIMIT :limit")
     suspend fun getSuppressed(limit: Int): List<NoteEntity>
 
@@ -472,18 +483,30 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun getById(id: Long): NoteEntity?
 
-    @Query("UPDATE notes SET content = :content, importance = :importance, updatedAt = :now WHERE id = :id")
-    suspend fun update(id: Long, content: String, importance: Int, now: Long)
+    @Query(
+        "UPDATE notes SET content = :content, importance = :importance, " +
+            "expiresAt = COALESCE(:expiresAt, expiresAt), updatedAt = :now WHERE id = :id",
+    )
+    suspend fun update(id: Long, content: String, importance: Int, now: Long, expiresAt: Long? = null)
 
     @Query(
         "UPDATE notes SET content = :content, importance = :importance, entities = :entities, " +
-            "updatedAt = :now WHERE id = :id",
+            "expiresAt = COALESCE(:expiresAt, expiresAt), updatedAt = :now WHERE id = :id",
     )
-    suspend fun updateWithEntities(id: Long, content: String, importance: Int, entities: String, now: Long)
+    suspend fun updateWithEntities(
+        id: Long,
+        content: String,
+        importance: Int,
+        entities: String,
+        now: Long,
+        expiresAt: Long? = null,
+    )
 
     @Query(
         "UPDATE notes SET kind = :kind, content = :content, importance = :importance, " +
-            "entities = :entities, archived = 0, suppressed = 0, supersededBy = NULL, " +
+            "entities = :entities, expiresAt = COALESCE(:expiresAt, expiresAt), " +
+            "messageId = COALESCE(:messageId, messageId), " +
+            "archived = 0, suppressed = 0, supersededBy = NULL, " +
             "updatedAt = :now WHERE id = :id",
     )
     suspend fun replaceInPlace(
@@ -493,6 +516,8 @@ interface NoteDao {
         importance: Int,
         entities: String,
         now: Long,
+        expiresAt: Long? = null,
+        messageId: Long? = null,
     )
 
     @Query("UPDATE notes SET pinned = :pinned, updatedAt = :now WHERE id = :id")
@@ -526,6 +551,13 @@ interface NoteRevisionDao {
 
     @Query("SELECT * FROM note_revisions WHERE noteId = :noteId ORDER BY id DESC LIMIT :limit")
     suspend fun revisionsFor(noteId: Long, limit: Int = 10): List<NoteRevisionEntity>
+
+    /** The before-image saved by the first rewrite after [at]; null if none. */
+    @Query(
+        "SELECT * FROM note_revisions WHERE noteId = :noteId AND replacedAt > :at " +
+            "ORDER BY replacedAt ASC LIMIT 1",
+    )
+    suspend fun revisionAsOf(noteId: Long, at: Long): NoteRevisionEntity?
 
     @Query(
         "DELETE FROM note_revisions WHERE noteId = :noteId AND id NOT IN " +

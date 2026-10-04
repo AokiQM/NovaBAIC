@@ -65,6 +65,7 @@ class MemorySearchTool(
               "conversation":{"type":"string","description":"limit to one conversation by title or id"},
               "from":{"type":"string","description":"lower bound, ISO date like 2026-09-01"},
               "to":{"type":"string","description":"upper bound, ISO date"},
+              "at":{"type":"string","description":"time travel: reconstruct notes and messages as of this date or datetime (e.g. 2026-09-12 or 2026-09-12 14:30). Read-only: nothing is reconsolidated and revision history is used"},
               "limit":{"type":"integer","description":"1-20, default 10"},
               "offset":{"type":"integer","description":"paging"}
             }}
@@ -80,6 +81,7 @@ class MemorySearchTool(
         val scope = arguments.string("scope")?.trim()?.lowercase() ?: "all"
         val from = MemoryText.parseWhen(arguments.string("from"))
         val to = endOfDay(arguments.string("to"))
+        val at = MemoryText.parseWhen(arguments.string("at"))
         val conversation = arguments.string("conversation")?.trim()?.takeIf { it.isNotEmpty() }
         val entity = arguments.string("entity")?.trim()?.takeIf { it.isNotEmpty() }
         val roleFilter = when (arguments.string("role")?.trim()?.lowercase()) {
@@ -92,13 +94,22 @@ class MemorySearchTool(
         val terms = MemoryText.terms(query)
 
         val entityNotes: List<ScoredNote> = if (entity != null && scope != "messages") {
-            memoryRepository.recallByEntity(listOf(entity), limit = NOTES_PER_PAGE)
+            if (at != null) {
+                // Time travel: keep entities, reconstruct content, no feedback.
+                memoryRepository.recallByEntity(listOf(entity), limit = NOTES_PER_PAGE, feedback = false)
+                    .mapNotNull { scored -> memoryRepository.noteAsOf(scored.note, at) }
+                    .let { reconstructed -> MemoryScoring.rank(reconstructed, terms, at) }
+                    .filter { terms.isEmpty() || it.hits > 0 }
+            } else {
+                memoryRepository.recallByEntity(listOf(entity), limit = NOTES_PER_PAGE)
+            }
         } else {
             emptyList()
         }
         val cuedNotes: List<ScoredNote> = when {
             scope == "messages" -> emptyList()
             terms.isEmpty() && entity != null -> emptyList()
+            at != null -> memoryRepository.recallAsOf(terms, at, NOTES_PER_PAGE, offset)
             else -> memoryRepository.recall(terms = terms, limit = NOTES_PER_PAGE, offset = offset)
         }
         val notes = (entityNotes + cuedNotes).distinctBy { it.note.id }.take(NOTES_PER_PAGE)
@@ -110,7 +121,7 @@ class MemorySearchTool(
                 terms = terms,
                 conversationQuery = conversation,
                 from = from,
-                to = to,
+                to = if (at == null) to else minOf(to ?: at, at),
                 roleFilter = roleFilter,
                 limit = limit,
                 offset = offset,
@@ -122,16 +133,19 @@ class MemorySearchTool(
                 buildString {
                     append("No memories match")
                     if (query.isNotEmpty()) append(" \"").append(query).append('"')
+                    if (at != null) append(" as of ").append(MemoryText.formatDateTime(at))
                     append(". Try fewer or different keywords, a wider date range, or no conversation filter.")
-                    closestBlock(query)?.let { append('\n').append(it) }
+                    if (at != null) append(" The fact may not have been recorded yet at that time.")
+                    if (at == null) closestBlock(query)?.let { append('\n').append(it) }
                 },
             )
         }
-        val now = System.currentTimeMillis()
+        val now = at ?: System.currentTimeMillis()
         return ToolResult.Success(
             buildString {
                 append("Memory recall")
                 if (query.isNotEmpty()) append(" for \"").append(query).append('"')
+                if (at != null) append(" as of ").append(MemoryText.formatDateTime(at))
                 append(" (notes ").append(notes.size).append(", messages ").append(hits.size).append("):\n")
                 if (notes.isNotEmpty()) {
                     val lead = if (notes.size >= 2) notes[0].score - notes[1].score else 0.0
@@ -139,6 +153,9 @@ class MemorySearchTool(
                         .append("%.2f".format(java.util.Locale.ROOT, lead))
                         .append("; scores are relative within this result set; ")
                         .append("use the #id with memory_write replaces= to correct one):\n")
+                    if (at != null) {
+                        append("(reconstructed from revision history; this retrieval does not reconsolidate anything)\n")
+                    }
                     notes.forEachIndexed { index, scored ->
                         append("- ")
                         if (scored.spread) {
@@ -149,13 +166,22 @@ class MemorySearchTool(
                                     .append(", link w").append(scored.linkWeight.toInt()).append(") ")
                             }
                         }
-                        append(noteLine(scored, terms.size, now, index + 1, notes.size)).append('\n')
+                        append(
+                            noteLine(
+                                scored = scored,
+                                cueCount = terms.size,
+                                now = now,
+                                rank = index + 1,
+                                total = notes.size,
+                                asOf = at,
+                            ),
+                        ).append('\n')
                     }
                 } else {
                     if (hits.isNotEmpty() && scope != "messages") {
                         append("\nNo notes matched; if this is worth keeping, consider memory_write.\n")
                     }
-                    closestBlock(query)?.let { append('\n').append(it).append('\n') }
+                    if (at == null) closestBlock(query)?.let { append('\n').append(it).append('\n') }
                 }
                 if (hits.isNotEmpty()) {
                     append("\nMessages (ranked; user turns weigh double; scores relative within this set; ")
@@ -209,9 +235,11 @@ class MemorySearchTool(
 
     /**
      * Every recalled note states why it surfaced: rank in this result set,
-     * natural-language path, cue coverage, strength, retrievability and last
-     * recall - so the agent can weigh a strongly-held old memory against a
-     * fresh keyword hit.
+     * natural-language path, cue coverage, strength, retrievability, last
+     * recall and where it came from - so the agent can weigh a strongly-held
+     * old memory against a fresh keyword hit, and can go back to the source.
+     * With [asOf] set the note is a historical reconstruction: changes made
+     * after that moment are marked.
      */
     private fun noteLine(
         scored: ScoredNote,
@@ -219,6 +247,7 @@ class MemorySearchTool(
         now: Long,
         rank: Int,
         total: Int,
+        asOf: Long? = null,
     ): String {
         val note = scored.note
         val recall = (MemoryScoring.retrievability(note, now) * 100).toInt()
@@ -246,9 +275,29 @@ class MemorySearchTool(
         } else {
             ""
         }
+        val expiry = when (val expiresAt = note.expiresAt) {
+            null -> ""
+            else -> if (note.isExpired(now)) {
+                " · expired ${MemoryText.relativeTime(now, expiresAt)} (historical)"
+            } else {
+                " · valid until ${MemoryText.formatDateTime(expiresAt)}"
+            }
+        }
+        // Evidence: where the note came from, so it can be verified via
+        // memory_read instead of being trusted blindly.
+        val evidence = buildString {
+            note.conversationId?.let { append(" · from conv #").append(it) }
+            note.messageId?.let { append(" · msg #").append(it) }
+        }
+        val changedSince = when {
+            asOf == null -> ""
+            note.archived -> " · archived since (no longer active now)"
+            note.updatedAt > asOf -> " · later revised (this was the version then)"
+            else -> ""
+        }
         return "#${note.id} [${note.kind.wire()} i${note.importance}$source$entities" +
-            " · rank $rank/$total · score $score$weak · $cues" +
-            " · strength $strength · recall $recall% · last recalled $last] " +
+            " · rank $rank/$total · score $score$weak · $cues$expiry$changedSince" +
+            " · strength $strength · recall $recall% · last recalled $last$evidence] " +
             note.content.replace('\n', ' ')
     }
 
@@ -331,6 +380,7 @@ class MemoryWriteTool(
               "kind":{"type":"string","enum":["profile","preference","event","plan","agreement","fact"],"description":"default fact"},
               "importance":{"type":"integer","description":"1-5, default 3"},
               "when":{"type":"string","description":"the date this refers to, if any, like 2026-09-12"},
+              "expires":{"type":"string","description":"for perishable facts only (current location, temporary states): a duration like 12h/3d or a date; expired notes rank lower and are labelled historical"},
               "source":{"type":"string","enum":["user","assistant","external"],"description":"who the fact comes from; default user (what the user said themselves)"},
               "entities":{"type":"array","items":{"type":"string"},"description":"people/projects/places this is about, exact names, at most 6"},
               "replaces":{"type":"integer","description":"update this note in place; the id stays stable and the previous version is kept in history"},
@@ -339,6 +389,7 @@ class MemoryWriteTool(
                   "kind":{"type":"string","enum":["profile","preference","event","plan","agreement","fact"]},
                   "importance":{"type":"integer"},
                   "when":{"type":"string"},
+                  "expires":{"type":"string"},
                   "source":{"type":"string","enum":["user","assistant","external"]},
                   "entities":{"type":"array","items":{"type":"string"}}
                 },"required":["content"]},"description":"batch write: several notes in one call; content/replaces are ignored when present"}
@@ -367,6 +418,8 @@ class MemoryWriteTool(
         val importance = (importanceRaw ?: 3).coerceIn(1, 5)
         val whenRaw = arguments.string("when")?.trim()?.takeIf { it.isNotEmpty() }
         val whenAt = whenRaw?.let(MemoryText::parseWhen)
+        val expiresRaw = arguments.string("expires")?.trim()?.takeIf { it.isNotEmpty() }
+        val expiresAt = expiresRaw?.let(MemoryText::parseExpiry)
         val replaces = arguments.long("replaces")?.takeIf { it > 0 }
         val sourceRaw = arguments.string("source")?.trim()?.takeIf { it.isNotEmpty() }
         val source = if (sourceRaw == null) NoteSource.USER else NoteSource.fromWire(sourceRaw)
@@ -384,10 +437,14 @@ class MemoryWriteTool(
                 importance = importanceRaw,
                 entities = entities,
                 kind = kindRaw?.let(NoteKind::fromWire),
+                expiresAt = expiresAt,
+                messageId = context.run.triggerMessageId,
             )
             return if (updated != null) {
                 ToolResult.Success(
-                    "Updated note #${updated.id} in place (id stable, previous version kept in history).",
+                    "Updated note #${updated.note.id} in place " +
+                        "(was: \"${updated.previousContent.take(120)}\"; " +
+                        "id stable, previous version kept in history).",
                 )
             } else {
                 ToolResult.Failure(
@@ -401,9 +458,11 @@ class MemoryWriteTool(
             content = content,
             importance = importance,
             conversationId = context.run.conversationId,
+            messageId = context.run.triggerMessageId,
             whenAt = whenAt,
             source = source,
             entities = entities,
+            expiresAt = expiresAt,
         )) {
             is MemoryRepository.AddOutcome.Duplicate ->
                 ToolResult.Success(
@@ -426,7 +485,8 @@ class MemoryWriteTool(
             is MemoryRepository.AddOutcome.Merged ->
                 ToolResult.Success(
                     "Reconsolidated into note #${outcome.id} " +
-                        "(near-duplicate updated, strength reinforced, previous version kept in history).",
+                        "(was: \"${outcome.previousContent.take(120)}\"; " +
+                        "near-duplicate updated, strength reinforced, previous version kept in history).",
                 )
 
             is MemoryRepository.AddOutcome.Saved ->
@@ -440,9 +500,22 @@ class MemoryWriteTool(
                         if (whenRaw != null && whenAt == null) {
                             append(" (could not parse when=\"").append(whenRaw).append("\"; ignored)")
                         }
+                        if (expiresAt != null) {
+                            append(", expires ").append(MemoryText.formatDateTime(expiresAt))
+                        }
+                        if (expiresRaw != null && expiresAt == null) {
+                            append(" (could not parse expires=\"").append(expiresRaw).append("\"; ignored)")
+                        }
                         if (outcome.similarIds.isNotEmpty()) {
                             append(". Similar note #").append(outcome.similarIds.joinToString("#"))
                                 .append(" already exists - resend with replaces= if this updates it")
+                        }
+                        outcome.conflicts.take(2).forEach { conflict ->
+                            append("\nPossible conflict with note #").append(conflict.noteId)
+                                .append(" (\"").append(conflict.existingContent.take(80)).append("\": ")
+                                .append(conflict.reason).append("). If this corrects it, resend with replaces=")
+                                .append(conflict.noteId)
+                                .append("; if it is genuinely separate, keep both and say why.")
                         }
                         append('.')
                     },
@@ -469,19 +542,27 @@ class MemoryWriteTool(
                 .filter { it.isNotEmpty() }
                 .take(MAX_ENTITIES)
             val itemWhen = MemoryText.parseWhen(objectItem.string("when"))
+            val itemExpires = MemoryText.parseExpiry(objectItem.string("expires"))
             val outcome = memoryRepository.addNote(
                 kind = itemKind,
                 content = itemContent,
                 importance = itemImportance,
                 conversationId = context.run.conversationId,
+                messageId = context.run.triggerMessageId,
                 whenAt = itemWhen,
                 source = itemSource,
                 entities = itemEntities,
+                expiresAt = itemExpires,
             )
             lines += when (outcome) {
-                is MemoryRepository.AddOutcome.Saved -> "#${outcome.id} saved (${itemKind.wire()})"
+                is MemoryRepository.AddOutcome.Saved -> {
+                    val conflictIds = outcome.conflicts.joinToString("#") { it.noteId.toString() }
+                    "#${outcome.id} saved (${itemKind.wire()})" +
+                        if (outcome.conflicts.isEmpty()) "" else " - possible conflict with #$conflictIds"
+                }
                 is MemoryRepository.AddOutcome.Duplicate -> "#${outcome.id} already known"
-                is MemoryRepository.AddOutcome.Merged -> "#${outcome.id} reconsolidated"
+                is MemoryRepository.AddOutcome.Merged ->
+                    "#${outcome.id} reconsolidated (was: \"${outcome.previousContent.take(60)}\")"
                 is MemoryRepository.AddOutcome.Suppressed -> "refused (forgotten before, #${outcome.id})"
                 is MemoryRepository.AddOutcome.Held -> "refused (user asked not to record, hold #${outcome.holdId})"
             }

@@ -168,6 +168,7 @@ class ChatMapper @Inject constructor(private val json: Json) {
         conversationId = entity.conversationId,
         messageId = entity.messageId,
         whenAt = entity.whenAt,
+        expiresAt = entity.expiresAt,
         createdAt = entity.createdAt,
         updatedAt = entity.updatedAt,
         lastAccessedAt = entity.lastAccessedAt,

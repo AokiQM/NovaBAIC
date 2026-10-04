@@ -214,7 +214,15 @@ object ToolsModule {
 
     @Provides
     @IntoSet
-    fun getLocationTool(): DeviceTool = com.verlintas.baic2.tools.state.GetLocationTool()
+    fun getLocationTool(
+        gazetteer: com.verlintas.baic2.tools.geo.Gazetteer,
+    ): DeviceTool = com.verlintas.baic2.tools.state.GetLocationTool(gazetteer)
+
+    @Provides
+    @IntoSet
+    fun openMapTool(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+    ): DeviceTool = com.verlintas.baic2.tools.geo.OpenMapTool(context)
 
     @Provides
     @IntoSet

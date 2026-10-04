@@ -823,6 +823,7 @@ class ChatViewModel @Inject constructor(
                 conversationId = conversationId,
                 planContext = planRepository.getPlan(conversationId)?.render(),
                 memoryContext = memoryContext,
+                triggerMessageId = history.lastOrNull { it.role == ChatRole.USER }?.id,
             ).collect { event ->
                 when (event) {
                     is AgentEvent.RoundStarted -> {
@@ -1197,9 +1198,11 @@ class ChatViewModel @Inject constructor(
                 content = item.content,
                 importance = item.importance,
                 conversationId = conversationId,
+                messageId = messages.lastOrNull()?.id,
                 whenAt = MemoryText.parseWhen(item.whenRaw),
                 source = item.source?.let(NoteSource::fromWire) ?: NoteSource.USER,
                 entities = item.entities,
+                expiresAt = MemoryText.parseExpiry(item.expiresRaw),
             )
             when (outcome) {
                 is MemoryRepository.AddOutcome.Saved -> added++

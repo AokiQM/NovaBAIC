@@ -51,6 +51,9 @@ object MemoryScoring {
     const val MAX_STRENGTH = 5.0
     private const val TOUCH_GAIN = 0.6
 
+    /** Expired facts stay recallable but lose most of their ranking weight. */
+    const val EXPIRED_FACTOR = 0.35
+
     /** How much of a trace survives right now, governed by strength. */
     fun retrievability(note: Note, now: Long): Double {
         val anchor = maxOf(note.lastAccessedAt, note.updatedAt, note.createdAt)
@@ -67,10 +70,14 @@ object MemoryScoring {
         val importance = 0.5 + note.importance.coerceIn(1, 5) * 0.15
         val pinned = if (note.pinned) 0.6 else 0.0
         val accessed = minOf(0.3, ln(1.0 + note.accessCount) / 10.0)
+        // A stale location fact must not outrank a fresh one, but it stays
+        // retrievable: it is history, not garbage.
+        val freshness = if (note.isExpired(now)) EXPIRED_FACTOR else 1.0
         val score = hitFactor *
             (importance + pinned + accessed) *
             (0.4 + 0.6 * retrievability(note, now)) *
-            sourceFactor(note.source)
+            sourceFactor(note.source) *
+            freshness
         return ScoredNote(note, score, matched.size, matched)
     }
 

@@ -86,6 +86,8 @@ data class NoteEntity(
     val conversationId: Long?,
     val messageId: Long?,
     val whenAt: Long?,
+    /** Perishable facts (location, "currently…") expire; null = durable. */
+    val expiresAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val lastAccessedAt: Long,

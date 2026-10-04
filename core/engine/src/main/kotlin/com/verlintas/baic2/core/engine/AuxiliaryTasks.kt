@@ -44,6 +44,8 @@ data class CuratorNote(
     val content: String,
     val importance: Int,
     val whenRaw: String?,
+    /** Perishable facts (current location, temporary state) get a horizon. */
+    val expiresRaw: String? = null,
     val source: String? = null,
     val entities: List<String> = emptyList(),
 )
@@ -129,7 +131,7 @@ class AuxiliaryTasks(
             "kept, corrected, rehearsed or forgotten.\n\n" +
             "Reply with ONE JSON object and nothing else:\n" +
             "{\"remember\":[{\"kind\":\"preference\",\"content\":\"...\",\"importance\":3," +
-            "\"when\":\"2026-09-12\",\"source\":\"user\",\"entities\":[\"张伟\"]}]," +
+            "\"when\":\"2026-09-12\",\"expires\":\"12h\",\"source\":\"user\",\"entities\":[\"张伟\"]}]," +
             "\"revise\":[{\"id\":12,\"content\":\"...\",\"importance\":4}]," +
             "\"forget\":[9],\"rehearse_keep\":[7]," +
             "\"core_user\":\"...\",\"core_context\":\"...\"}\n\n" +
@@ -141,6 +143,8 @@ class AuxiliaryTasks(
             "own inference, \"external\" for facts scraped from tools.\n" +
             "- entities: the people, projects or places the note is about (at most 6, exact names), " +
             "so recall can go \"one thing at a time\".\n" +
+            "- expires: for perishable facts only (where someone is right now, a temporary state), " +
+            "a duration like 12h/3d or a date; durable facts must omit it.\n" +
             "- revise: fix or sharpen an existing note by its #id when new information updates it; " +
             "prefer revise over remember whenever a note already covers the topic, even if the " +
             "wording differs; include only the fields that change.\n" +
@@ -203,6 +207,7 @@ class AuxiliaryTasks(
                         importance = (objectItem["importance"] as? JsonPrimitive)?.intOrNull
                             ?.coerceIn(1, 5) ?: 3,
                         whenRaw = objectItem.string("when")?.trim()?.takeIf { it.isNotEmpty() },
+                        expiresRaw = objectItem.string("expires")?.trim()?.takeIf { it.isNotEmpty() },
                         source = objectItem.string("source")?.trim()?.takeIf { it.isNotEmpty() },
                         entities = (objectItem["entities"] as? JsonArray).orEmpty()
                             .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }

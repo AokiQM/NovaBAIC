@@ -37,6 +37,11 @@ object MemoryText {
     private val DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private val DATE_ONLY: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+    private val EXPIRY_PATTERN = Regex(
+        "^(\\d{1,4})\\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|" +
+            "d|day|days|w|week|weeks|分|分钟|时|小时|天|日|周|星期)$",
+    )
+
     /** Letters and digits only, lowercased: the canonical form for dedupe. */
     fun normalize(text: String): String = buildString(text.length) {
         text.forEach { character ->
@@ -129,6 +134,32 @@ object MemoryText {
             .recoverCatching { Instant.parse(text).toEpochMilli() }
             .recoverCatching { OffsetDateTime.parse(text).toInstant().toEpochMilli() }
             .getOrNull()
+    }
+
+    /**
+     * Parses an expiry for perishable facts: a duration relative to [now]
+     * ("30m", "12h", "3d", "2w", "45分钟", "3天后") or an absolute date/time
+     * via [parseWhen]. Returns epoch millis, or null when unparseable.
+     */
+    fun parseExpiry(raw: String?, now: Long = System.currentTimeMillis()): Long? {
+        val text = raw?.trim().orEmpty()
+            .removePrefix("in ").removePrefix("until ").removePrefix("within ")
+            .trim()
+            .removeSuffix("之后").removeSuffix("后")
+            .trim()
+        if (text.isEmpty()) return null
+        EXPIRY_PATTERN.matchEntire(text.lowercase(Locale.ROOT))?.let { match ->
+            val amount = match.groupValues[1].toLongOrNull()?.takeIf { it > 0 } ?: return null
+            val unitMs = when (match.groupValues[2]) {
+                "m", "min", "mins", "minute", "minutes", "分", "分钟" -> 60_000L
+                "h", "hr", "hrs", "hour", "hours", "时", "小时" -> 3_600_000L
+                "d", "day", "days", "天", "日" -> 86_400_000L
+                "w", "week", "weeks", "周", "星期" -> 604_800_000L
+                else -> return null
+            }
+            return now + amount * unitMs
+        }
+        return parseWhen(text)?.takeIf { it > 0 }
     }
 
     /**

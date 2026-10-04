@@ -30,7 +30,7 @@ BetterAIChat2 is the successor rewrite (codename Nova) of [BetterAIChat](https:/
 
 It is a **local-first** AI agent — API keys are encrypted with the Android Keystore and stay on the device. There is no cloud, no telemetry, and no account. Through **function calling**, the AI actually operates your phone: read the screen, tap, type, browse files, set reminders, and run automations.
 
-- **It really touches the device**: 55 built-in tools covering accessibility automation, screen capture + OCR, files, web, personal-assistant tasks, and Shizuku shell
+- **It really touches the device**: 56 built-in tools covering accessibility automation, screen capture + OCR, files, web, personal-assistant tasks, and Shizuku shell
 - **No model lock-in**: DeepSeek / OpenAI / Claude / Gemini / Kimi / Qwen / GLM / MiniMax / Ollama / any compatible gateway — switch any time
 - **Four modes**: from plain chat, to read-only research, to per-call confirmation, to budgeted autonomous runs
 - **Unattended operation**: scheduled tasks, foreground services, subagents, remote MCP tools, and Skills
@@ -107,7 +107,7 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 | `Act` | Executes tools, confirming each call |
 | `Max` | Autonomous runs: persistent Run records, budgets (60 rounds / 160 tool calls / 60 minutes), runs in background |
 
-### AI × device (55 built-in tools)
+### AI × device (56 built-in tools)
 
 **Perception & UI automation (accessibility + vision)**
 
@@ -117,7 +117,7 @@ An Agent is provider + key + model + temperature / max tokens / deep thinking + 
 
 **System & device**
 
-`set_volume` · `set_brightness` · `set_flashlight` · `media_control` · `vibrate` · `send_notification` · `read_notifications` · `get_clipboard` / `set_clipboard` · `share_text` · `open_dialer` · `get_location` · `device_info` · `network_status` · `get_app_usage` · `list_installed_apps` · `get_time` · `compute`
+`set_volume` · `set_brightness` · `set_flashlight` · `media_control` · `vibrate` · `send_notification` · `read_notifications` · `get_clipboard` / `set_clipboard` · `share_text` · `open_dialer` · `get_location` · `open_map` · `device_info` · `network_status` · `get_app_usage` · `list_installed_apps` · `get_time` · `compute`
 
 **Content & web**
 
@@ -221,7 +221,7 @@ core:runtime       reserved runtime layer (scheduling currently lives in device:
 core:designsystem  design tokens and components
 feature:*          chat / conversations / tasks / settings / agents / library
 device:api|impl    capture / OCR / accessibility / speech / reminders / run notifications
-tools              55 built-in tools + automations + skills + subagents
+tools              56 built-in tools + automations + skills + subagents
 mcp                remote MCP client         eval          scenario evaluation harness
 ```
 
@@ -287,3 +287,5 @@ No. Stopping synthesizes "cancelled" tool results for interrupted calls and rewr
 ## License
 
 [GPL-3.0-or-later](../LICENSE) © 2026 Verlintas. BetterAIChat2 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License.
+
+The bundled offline gazetteer is derived from [GeoNames](https://www.geonames.org/) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
